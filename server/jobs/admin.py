@@ -5,10 +5,10 @@ from .models import Job, JobApplication, JobInvitation
 @admin.register(Job)
 class JobAdmin(admin.ModelAdmin):
     list_display = [
-        'title', 'client', 'job_type', 'status', 'location',
+        'title', 'client', 'status', 'location',
         'budget_min', 'budget_max', 'created_at'
     ]
-    list_filter = ['status', 'job_type', 'created_at']
+    list_filter = ['status', 'created_at']
     search_fields = ['title', 'description', 'location', 'client__email']
     filter_horizontal = ['required_skills']
     readonly_fields = ['id', 'created_at', 'updated_at', 'closed_at']

@@ -41,7 +41,7 @@ class ServiceProviderProfileView(generics.RetrieveUpdateAPIView):
         return ServiceProviderProfileSerializer
 
 
-class TagListView(generics.ListAPIView):
+class TagListCreateView(generics.ListCreateAPIView):
     queryset = Tag.objects.all()
     serializer_class = TagSerializer
     permission_classes = [permissions.AllowAny]

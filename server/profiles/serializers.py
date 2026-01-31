@@ -27,6 +27,14 @@ class ProfileSerializer(serializers.ModelSerializer):
         )
         read_only_fields = ('id', 'created_at', 'updated_at')
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if not data.get('first_name') and instance.user.first_name:
+            data['first_name'] = instance.user.first_name
+        if not data.get('last_name') and instance.user.last_name:
+            data['last_name'] = instance.user.last_name
+        return data
+
     def validate_avatar(self, value):
         if value:
             if value.size > 5 * 1024 * 1024:
@@ -34,6 +42,15 @@ class ProfileSerializer(serializers.ModelSerializer):
             if not value.content_type.startswith('image/'):
                 raise serializers.ValidationError("File must be an image.")
         return value
+
+    def update(self, instance, validated_data):
+        instance = super().update(instance, validated_data)
+        if 'first_name' in validated_data or 'last_name' in validated_data:
+            user = instance.user
+            user.first_name = instance.first_name or ''
+            user.last_name = instance.last_name or ''
+            user.save(update_fields=['first_name', 'last_name'])
+        return instance
 
 
 class ExperienceSerializer(serializers.ModelSerializer):

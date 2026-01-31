@@ -9,11 +9,6 @@ User = get_user_model()
 
 
 class Job(models.Model):
-    class JobType(models.TextChoices):
-        TEMPORARY = 'TEMPORARY', _('Temporary')
-        PERMANENT = 'PERMANENT', _('Permanent')
-        CONTRACT = 'CONTRACT', _('Contract')
-
     class JobStatus(models.TextChoices):
         DRAFT = 'DRAFT', _('Draft')
         OPEN = 'OPEN', _('Open')
@@ -33,11 +28,6 @@ class Job(models.Model):
     )
     title = models.CharField(max_length=200)
     description = models.TextField()
-    job_type = models.CharField(
-        max_length=20,
-        choices=JobType.choices,
-        default=JobType.TEMPORARY
-    )
     budget_min = models.DecimalField(
         max_digits=10,
         decimal_places=2,
@@ -59,7 +49,7 @@ class Job(models.Model):
     status = models.CharField(
         max_length=20,
         choices=JobStatus.choices,
-        default=JobStatus.DRAFT
+        default=JobStatus.OPEN
     )
     required_skills = models.ManyToManyField(
         Tag,

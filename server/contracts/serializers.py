@@ -270,11 +270,14 @@ class ContractSignatureCreateSerializer(serializers.Serializer):
 
         signature.save()
 
-        # Update contract status if both parties have signed
+        # Update contract status if both parties have signed → ACTIVE and kickstart job
         if contract.is_fully_signed():
-            contract.status = Contract.ContractStatus.PENDING_SIGNATURES
+            contract.status = Contract.ContractStatus.ACTIVE
             contract.signed_at = timezone.now()
             contract.save()
+            if contract.job_id:
+                contract.job.status = Job.JobStatus.IN_PROGRESS
+                contract.job.save(update_fields=['status'])
 
         return signature
 

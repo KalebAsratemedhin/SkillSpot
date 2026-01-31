@@ -4,3 +4,5 @@ djangorestframework-simplejwt
 python-decouple
 Pillow
 drf-spectacular
+stripe
+django-cors-headers

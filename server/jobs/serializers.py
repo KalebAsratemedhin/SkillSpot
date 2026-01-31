@@ -25,7 +25,7 @@ class JobSerializer(serializers.ModelSerializer):
         model = Job
         fields = (
             'id', 'client', 'client_email', 'client_name', 'title', 'description',
-            'job_type', 'budget_min', 'budget_max', 'currency', 'location',
+            'budget_min', 'budget_max', 'currency', 'location',
             'address', 'is_remote', 'status', 'required_skills', 'skill_ids',
             'deadline', 'applications_count', 'accepted_applications_count',
             'created_at', 'updated_at', 'closed_at'
@@ -55,10 +55,11 @@ class JobCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Job
         fields = (
-            'title', 'description', 'job_type', 'budget_min', 'budget_max',
+            'id', 'title', 'description', 'budget_min', 'budget_max',
             'currency', 'location', 'address', 'is_remote', 'status',
             'required_skills', 'skill_ids', 'deadline'
         )
+        read_only_fields = ('id',)
 
     def validate(self, attrs):
         budget_min = attrs.get('budget_min')
@@ -76,11 +77,12 @@ class JobApplicationSerializer(serializers.ModelSerializer):
     provider_email = serializers.EmailField(source='provider.email', read_only=True)
     provider_name = serializers.SerializerMethodField()
     job_title = serializers.CharField(source='job.title', read_only=True)
+    job_client = serializers.UUIDField(source='job.client.id', read_only=True)
 
     class Meta:
         model = JobApplication
         fields = (
-            'id', 'job', 'job_title', 'provider', 'provider_email',
+            'id', 'job', 'job_title', 'job_client', 'provider', 'provider_email',
             'provider_name', 'cover_letter', 'proposed_rate', 'status',
             'applied_at', 'reviewed_at'
         )

@@ -9,10 +9,18 @@ User = get_user_model()
 @receiver(post_save, sender=User)
 def create_user_profile(sender, instance, created, **kwargs):
     if created:
-        Profile.objects.create(user=instance)
+        profile = Profile.objects.create(
+            user=instance,
+            first_name=instance.first_name or '',
+            last_name=instance.last_name or '',
+        )
 
 
 @receiver(post_save, sender=User)
-def save_user_profile(sender, instance, **kwargs):
+def sync_user_to_profile(sender, instance, **kwargs):
     if hasattr(instance, 'profile'):
-        instance.profile.save()
+        profile = instance.profile
+        if instance.first_name != profile.first_name or instance.last_name != profile.last_name:
+            profile.first_name = instance.first_name or ''
+            profile.last_name = instance.last_name or ''
+            profile.save(update_fields=['first_name', 'last_name', 'updated_at'])

@@ -1,7 +1,10 @@
 from rest_framework import generics, permissions, status, filters
+from rest_framework.exceptions import PermissionDenied
+
 from rest_framework.response import Response
 from django.contrib.auth import get_user_model
 from django.db.models import Q
+from django.http import Http404
 from django.utils import timezone
 from .models import Job, JobApplication, JobInvitation
 from .serializers import (
@@ -25,37 +28,41 @@ class JobListCreateView(generics.ListCreateAPIView):
     ordering = ['-created_at']
 
     def get_queryset(self):
-        queryset = Job.objects.all()
-        
+        my_jobs = self.request.query_params.get('my_jobs', None)
+        is_my_jobs = (
+            my_jobs == 'true'
+            and self.request.user.user_type in ['CLIENT', 'BOTH']
+        )
+        if is_my_jobs:
+            queryset = Job.objects.all()
+        else:
+            queryset = Job.objects.exclude(
+                status__in=[Job.JobStatus.COMPLETED, Job.JobStatus.CANCELLED]
+            )
+
         status_filter = self.request.query_params.get('status', None)
         if status_filter:
             queryset = queryset.filter(status=status_filter)
-        
-        job_type = self.request.query_params.get('job_type', None)
-        if job_type:
-            queryset = queryset.filter(job_type=job_type)
-        
+
         location = self.request.query_params.get('location', None)
         if location:
             queryset = queryset.filter(location__icontains=location)
-        
+
         skill_id = self.request.query_params.get('skill', None)
         if skill_id:
             queryset = queryset.filter(required_skills__id=skill_id)
-        
+
         budget_min = self.request.query_params.get('budget_min', None)
         if budget_min:
             queryset = queryset.filter(budget_max__gte=budget_min)
-        
+
         budget_max = self.request.query_params.get('budget_max', None)
         if budget_max:
             queryset = queryset.filter(budget_min__lte=budget_max)
-        
-        if self.request.user.user_type in ['CLIENT', 'BOTH']:
-            my_jobs = self.request.query_params.get('my_jobs', None)
-            if my_jobs == 'true':
-                queryset = queryset.filter(client=self.request.user)
-        
+
+        if is_my_jobs:
+            queryset = queryset.filter(client=self.request.user)
+
         return queryset.distinct()
 
     def get_serializer_class(self):
@@ -94,6 +101,11 @@ class JobDetailView(generics.RetrieveUpdateDestroyAPIView):
             )
         return super().destroy(request, *args, **kwargs)
 
+    def perform_update(self, serializer):
+        job = self.get_object()
+        if job.client != self.request.user:
+            raise PermissionDenied('You can only update your own jobs.')
+        serializer.save()
 
 class JobCloseView(generics.GenericAPIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -122,6 +134,18 @@ class JobCloseView(generics.GenericAPIView):
             )
 
 
+class MyJobApplicationListView(generics.ListAPIView):
+    """List applications: as provider = ones I submitted; as client = ones to my jobs."""
+    serializer_class = JobApplicationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.user_type in ['CLIENT', 'BOTH']:
+            return JobApplication.objects.filter(job__client=user).order_by('-applied_at')
+        return JobApplication.objects.filter(provider=user).order_by('-applied_at')
+
+
 class JobApplicationListCreateView(generics.ListCreateAPIView):
     serializer_class = JobApplicationSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -145,6 +169,17 @@ class JobApplicationListCreateView(generics.ListCreateAPIView):
         if self.request.method == 'POST':
             return JobApplicationCreateSerializer
         return JobApplicationSerializer
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        if self.request.method == 'POST':
+            job_id = self.kwargs.get('job_id')
+            try:
+                context['job'] = Job.objects.get(id=job_id)
+            except Job.DoesNotExist:
+                raise Http404('Job not found.')
+            context['provider'] = self.request.user
+        return context
 
     def perform_create(self, serializer):
         job_id = self.kwargs.get('job_id')
@@ -219,6 +254,11 @@ class JobInvitationListCreateView(generics.ListCreateAPIView):
         if self.request.method == 'POST':
             return JobInvitationCreateSerializer
         return JobInvitationSerializer
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['client'] = self.request.user
+        return context
 
     def perform_create(self, serializer):
         serializer.save(client=self.request.user)

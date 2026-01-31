@@ -13,6 +13,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         validators=[validate_password],
         style={'input_type': 'password'}
     )
+    user_type = serializers.CharField(required=True)
 
     class Meta:
         model = User
@@ -27,6 +28,14 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         if User.objects.filter(email=value.lower()).exists():
             raise serializers.ValidationError("A user with this email already exists.")
         return value.lower()
+
+    def validate_user_type(self, value):
+        if not value:
+            return value
+        normalized = value.upper() if isinstance(value, str) else value
+        if normalized not in ('CLIENT', 'PROVIDER', 'BOTH'):
+            raise serializers.ValidationError("user_type must be 'client' or 'provider'.")
+        return normalized
 
     def create(self, validated_data):
         password = validated_data.pop('password')
@@ -50,7 +59,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         data['user'] = {
             'id': str(self.user.id),
             'email': self.user.email,
-            'user_type': self.user.user_type,
+            'user_type': (self.user.user_type or '').lower(),
             'first_name': self.user.first_name,
             'last_name': self.user.last_name,
         }
@@ -83,3 +92,9 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = ('id', 'email', 'user_type', 'first_name', 'last_name', 'is_active', 'date_joined')
         read_only_fields = ('id', 'email', 'is_active', 'date_joined')
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if data.get('user_type'):
+            data['user_type'] = data['user_type'].lower()
+        return data

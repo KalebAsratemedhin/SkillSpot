@@ -2,7 +2,7 @@ from django.urls import path
 from .views import (
     ProfileDetailView,
     ServiceProviderProfileView,
-    TagListView,
+    TagListCreateView,
     ExperienceListCreateView,
     ExperienceDetailView,
 )
@@ -17,7 +17,7 @@ urlpatterns = [
     path('provider/', ServiceProviderProfileView.as_view(), name='provider_profile'),
     
     # Tags (Skills, Certifications, Languages)
-    path('tags/', TagListView.as_view(), name='tag_list'),
+    path('tags/', TagListCreateView.as_view(), name='tag_list_create'),
     
     # Experiences
     path('experiences/', ExperienceListCreateView.as_view(), name='experience_list_create'),

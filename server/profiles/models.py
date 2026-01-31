@@ -145,6 +145,20 @@ class ServiceProviderProfile(models.Model):
         decimal_places=2,
         default=0.00
     )
+    # Stripe Connect fields
+    stripe_account_id = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text=_('Stripe Connect account ID (acct_xxx)')
+    )
+    stripe_account_enabled = models.BooleanField(
+        default=False,
+        help_text=_('Whether the Stripe account is enabled to receive payments')
+    )
+    stripe_onboarding_completed = models.BooleanField(
+        default=False,
+        help_text=_('Whether Stripe onboarding is completed')
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
