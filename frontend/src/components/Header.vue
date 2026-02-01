@@ -16,6 +16,7 @@
         <router-link to="/invitations" class="text-sm font-semibold hover:text-amber transition-colors">Invitations</router-link>
         <router-link to="/messages" class="text-sm font-semibold hover:text-amber transition-colors">Messages</router-link>
         <router-link to="/contracts" class="text-sm font-semibold hover:text-amber transition-colors">Contracts</router-link>
+        <router-link to="/payments" class="text-sm font-semibold hover:text-amber transition-colors">Payments</router-link>
       </nav>
       <div class="flex items-center gap-2 sm:gap-4 md:gap-6">
         <template v-if="authStore.isAuthenticated">

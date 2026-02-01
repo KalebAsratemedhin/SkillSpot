@@ -1,10 +1,11 @@
 from rest_framework import generics, permissions, status, filters
 from rest_framework.response import Response
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
 from django.contrib.auth import get_user_model
 from django.db.models import Q
 from django.utils import timezone
-from .models import Contract, ContractMilestone, ContractSignature
+from .models import Contract, ContractMilestone, ContractSignature, TimeEntry
 from .serializers import (
     ContractSerializer,
     ContractCreateSerializer,
@@ -12,6 +13,9 @@ from .serializers import (
     ContractMilestoneSerializer,
     ContractSignatureSerializer,
     ContractSignatureCreateSerializer,
+    TimeEntrySerializer,
+    TimeEntryCreateSerializer,
+    TimeEntryApproveSerializer,
 )
 
 User = get_user_model()
@@ -64,8 +68,21 @@ class ContractListCreateView(generics.ListCreateAPIView):
             return ContractCreateSerializer
         return ContractSerializer
 
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['client'] = self.request.user
+        return context
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        contract = serializer.instance
+        response_serializer = ContractSerializer(contract, context=self.get_serializer_context())
+        return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+
     def perform_create(self, serializer):
-        serializer.save(client=self.request.user)
+        serializer.save()
 
 
 class ContractDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -237,3 +254,124 @@ class ContractSignatureListView(generics.ListAPIView):
     def get_queryset(self):
         contract_id = self.kwargs.get('contract_id')
         return ContractSignature.objects.filter(contract_id=contract_id)
+
+
+class TimeEntryListCreateView(generics.ListCreateAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        contract_id = self.kwargs.get('contract_id')
+        return TimeEntry.objects.filter(contract_id=contract_id).select_related(
+            'contract', 'provider', 'approved_by'
+        )
+
+    def get_serializer_class(self):
+        if self.request.method == 'POST':
+            return TimeEntryCreateSerializer
+        return TimeEntrySerializer
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['contract_id'] = self.kwargs.get('contract_id')
+        return context
+
+    def list(self, request, *args, **kwargs):
+        contract = self._get_contract()
+        if contract is None:
+            return Response(
+                {'error': 'Contract not found.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        if request.user not in [contract.client, contract.provider]:
+            return Response(
+                {'error': 'You do not have permission to view time entries for this contract.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        return super().list(request, *args, **kwargs)
+
+    def create(self, request, *args, **kwargs):
+        contract = self._get_contract()
+        if contract is None:
+            return Response(
+                {'error': 'Contract not found.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        if request.user != contract.provider:
+            return Response(
+                {'error': 'Only the provider can add time entries.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        if contract.payment_schedule != Contract.PaymentSchedule.HOURLY:
+            return Response(
+                {'error': 'Time entries are only for hourly contracts.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        return super().create(request, *args, **kwargs)
+
+    def perform_create(self, serializer):
+        contract = self._get_contract()
+        serializer.save(contract=contract, provider=self.request.user)
+
+    def _get_contract(self):
+        try:
+            return Contract.objects.get(id=self.kwargs.get('contract_id'))
+        except Contract.DoesNotExist:
+            return None
+
+
+class TimeEntryDetailView(generics.RetrieveUpdateAPIView):
+    serializer_class = TimeEntrySerializer
+    permission_classes = [permissions.IsAuthenticated]
+    lookup_field = 'id'
+    lookup_url_kwarg = 'id'
+
+    def get_queryset(self):
+        user = self.request.user
+        return TimeEntry.objects.filter(
+            Q(contract__client=user) | Q(contract__provider=user)
+        ).select_related(
+            'contract', 'provider', 'approved_by'
+        )
+
+    def update(self, request, *args, **kwargs):
+        entry = self.get_object()
+        contract = entry.contract
+        if request.user not in [contract.client, contract.provider]:
+            return Response(
+                {'error': 'You do not have permission to update this time entry.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        new_status = request.data.get('status')
+        # Client can approve or reject
+        if request.user == contract.client:
+            if new_status in (TimeEntry.TimeEntryStatus.APPROVED, TimeEntry.TimeEntryStatus.REJECTED):
+                if entry.status != TimeEntry.TimeEntryStatus.PENDING_APPROVAL:
+                    return Response(
+                        {'error': 'Only pending entries can be approved or rejected.'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                entry.status = new_status
+                entry.approved_by = request.user
+                entry.approved_at = timezone.now()
+                entry.save(update_fields=['status', 'approved_by', 'approved_at', 'updated_at'])
+                return Response(TimeEntrySerializer(entry).data)
+        # Provider can only edit date/hours/description when PENDING_APPROVAL
+        if request.user == contract.provider:
+            if entry.status != TimeEntry.TimeEntryStatus.PENDING_APPROVAL:
+                return Response(
+                    {'error': 'Only pending entries can be edited by the provider.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        return super().update(request, *args, **kwargs)
+
+    def perform_update(self, serializer):
+        entry = self.get_object()
+        # Restrict provider to date, hours, description only
+        if self.request.user == entry.contract.provider:
+            allowed = {'date', 'hours', 'description'}
+            data = {k: v for k, v in serializer.validated_data.items() if k in allowed}
+            for k, v in data.items():
+                setattr(entry, k, v)
+            entry.save(update_fields=list(data.keys()) + ['updated_at'])
+        else:
+            serializer.save()

@@ -29,8 +29,30 @@
             placeholder="Payment terms, timeline, and other conditions..."
           />
         </FormField>
+        <FormField :error="errors.payment_schedule">
+          <Label class="text-sm font-semibold text-slate-700">Payment schedule</Label>
+          <select
+            v-model="form.payment_schedule"
+            class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-amber/20"
+          >
+            <option value="FIXED">Fixed price (pay once)</option>
+            <option value="HOURLY">Hourly (provider logs hours, you approve and pay)</option>
+          </select>
+        </FormField>
+        <FormField v-if="form.payment_schedule === 'HOURLY'" :error="errors.hourly_rate">
+          <Label class="text-sm font-semibold text-slate-700">Hourly rate</Label>
+          <Input
+            v-model="form.hourly_rate"
+            type="number"
+            step="0.01"
+            min="0"
+            placeholder="0.00"
+            :error="errors.hourly_rate"
+            class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-amber/20"
+          />
+        </FormField>
         <FormField :error="errors.total_amount">
-          <Label class="text-sm font-semibold text-slate-700">Total Amount</Label>
+          <Label class="text-sm font-semibold text-slate-700">{{ form.payment_schedule === 'HOURLY' ? 'Total cap (optional max)' : 'Total Amount' }}</Label>
           <Input
             v-model="form.total_amount"
             type="number"
@@ -99,6 +121,8 @@ const form = reactive({
   title: '',
   description: '',
   terms: '',
+  payment_schedule: 'FIXED' as 'FIXED' | 'HOURLY',
+  hourly_rate: '',
   total_amount: '',
   start_date: '',
   end_date: '',
@@ -108,6 +132,8 @@ const errors = reactive({
   title: '',
   description: '',
   terms: '',
+  payment_schedule: '',
+  hourly_rate: '',
   total_amount: '',
   start_date: '',
   end_date: '',
@@ -117,6 +143,8 @@ function clearErrors() {
   errors.title = ''
   errors.description = ''
   errors.terms = ''
+  errors.payment_schedule = ''
+  errors.hourly_rate = ''
   errors.total_amount = ''
   errors.start_date = ''
   errors.end_date = ''
@@ -125,12 +153,13 @@ function clearErrors() {
 onMounted(async () => {
   if (jobId.value && authStore.isClient) {
     await jobsStore.fetchJob(jobId.value)
-    const job = jobsStore.currentJob
+    const job = jobsStore.currentJob as { title?: string; budget_max?: number; budget_min?: number; payment_schedule?: 'FIXED' | 'HOURLY' } | null
     if (job) {
-      if (!form.title) form.title = job.title
+      if (!form.title) form.title = job.title ?? ''
       if (!form.total_amount && (job.budget_max ?? job.budget_min) != null) {
         form.total_amount = String(job.budget_max ?? job.budget_min)
       }
+      if (job.payment_schedule) form.payment_schedule = job.payment_schedule
     }
   }
   if (!providerId.value && authStore.isClient) {
@@ -142,10 +171,14 @@ async function handleSubmit() {
   if (!authStore.isClient || !providerId.value) return
   clearErrors()
   const amount = form.total_amount ? parseFloat(String(form.total_amount).trim()) : NaN
+  const hourlyRate = form.hourly_rate ? parseFloat(String(form.hourly_rate).trim()) : NaN
   if (!form.title?.trim()) errors.title = 'Title is required.'
   if (!form.description?.trim()) errors.description = 'Description is required.'
   if (!form.terms?.trim()) errors.terms = 'Terms are required.'
   if (!form.start_date?.trim()) errors.start_date = 'Start date is required.'
+  if (form.payment_schedule === 'HOURLY' && (Number.isNaN(hourlyRate) || hourlyRate <= 0)) {
+    errors.hourly_rate = 'Enter a valid hourly rate.'
+  }
   if (Number.isNaN(amount) || amount < 0) errors.total_amount = 'Enter a valid amount.'
   if (Object.values(errors).some(Boolean)) return
 
@@ -157,9 +190,11 @@ async function handleSubmit() {
       description: form.description.trim(),
       terms: form.terms.trim(),
       total_amount: amount,
-      currency: 'USD',
+      currency: 'ETB',
+      payment_schedule: form.payment_schedule,
       start_date: form.start_date.trim(),
     }
+    if (form.payment_schedule === 'HOURLY') payload.hourly_rate = hourlyRate
     if (jobId.value) payload.job = jobId.value
     if (applicationId.value) payload.job_application = applicationId.value
     if (form.end_date?.trim()) payload.end_date = form.end_date.trim()
@@ -177,7 +212,7 @@ async function handleSubmit() {
     if (data && typeof data === 'object') {
       const msg = data.error ?? (Array.isArray(data.non_field_errors) ? data.non_field_errors[0] : null) ?? 'Failed to create contract.'
       toast.error(msg)
-      ;['title', 'description', 'terms', 'total_amount', 'start_date', 'end_date'].forEach((key) => {
+      ;['title', 'description', 'terms', 'payment_schedule', 'hourly_rate', 'total_amount', 'start_date', 'end_date'].forEach((key) => {
         const val = data[key]
         if (key in errors) (errors as Record<string, string>)[key] = Array.isArray(val) ? val[0] : (val ?? '')
       })

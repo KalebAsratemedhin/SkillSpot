@@ -1,7 +1,8 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
+from django.db.models import Sum
 from django.utils import timezone
-from .models import Contract, ContractMilestone, ContractSignature
+from .models import Contract, ContractMilestone, ContractSignature, TimeEntry
 from jobs.models import Job, JobApplication
 
 User = get_user_model()
@@ -56,6 +57,38 @@ class ContractSignatureSerializer(serializers.ModelSerializer):
         return obj.signer.email
 
 
+class TimeEntrySerializer(serializers.ModelSerializer):
+    amount = serializers.SerializerMethodField()
+
+    class Meta:
+        model = TimeEntry
+        fields = (
+            'id', 'contract', 'provider', 'date', 'hours', 'description',
+            'status', 'approved_by', 'approved_at', 'amount',
+            'created_at', 'updated_at'
+        )
+        read_only_fields = ('id', 'contract', 'provider', 'approved_by', 'approved_at', 'created_at', 'updated_at')
+
+    def get_amount(self, obj):
+        amt = obj.amount  # model property: hours * contract.hourly_rate
+        return amt if amt is not None else None
+
+
+class TimeEntryCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TimeEntry
+        fields = ('date', 'hours', 'description')
+
+    def validate_hours(self, value):
+        if value <= 0:
+            raise serializers.ValidationError('Hours must be greater than zero.')
+        return value
+
+
+class TimeEntryApproveSerializer(serializers.Serializer):
+    status = serializers.ChoiceField(choices=['APPROVED', 'REJECTED'])
+
+
 class ContractSerializer(serializers.ModelSerializer):
     client_email = serializers.EmailField(source='client.email', read_only=True)
     client_name = serializers.SerializerMethodField()
@@ -63,6 +96,7 @@ class ContractSerializer(serializers.ModelSerializer):
     provider_name = serializers.SerializerMethodField()
     job_title = serializers.CharField(source='job.title', read_only=True, allow_null=True)
     milestones = ContractMilestoneSerializer(many=True, read_only=True)
+    time_entries = TimeEntrySerializer(many=True, read_only=True)
     signatures = ContractSignatureSerializer(many=True, read_only=True)
     is_fully_signed = serializers.SerializerMethodField()
     completion_percentage = serializers.SerializerMethodField()
@@ -73,7 +107,8 @@ class ContractSerializer(serializers.ModelSerializer):
             'id', 'job', 'job_title', 'job_application', 'client', 'client_email',
             'client_name', 'provider', 'provider_email', 'provider_name',
             'title', 'description', 'terms', 'total_amount', 'currency',
-            'start_date', 'end_date', 'status', 'milestones', 'signatures',
+            'payment_schedule', 'hourly_rate',
+            'start_date', 'end_date', 'status', 'milestones', 'time_entries', 'signatures',
             'is_fully_signed', 'completion_percentage',
             'created_at', 'updated_at', 'signed_at', 'completed_at'
         )
@@ -96,31 +131,53 @@ class ContractSerializer(serializers.ModelSerializer):
         return obj.is_fully_signed()
 
     def get_completion_percentage(self, obj):
-        total_milestones = obj.milestones.count()
-        if total_milestones == 0:
+        from decimal import Decimal
+        if obj.payment_schedule == Contract.PaymentSchedule.FIXED:
+            # Fixed: 100% when full amount has been paid (one completed payment)
+            paid = obj.payments.filter(status='COMPLETED').aggregate(
+                total=Sum('amount')
+            )['total'] or Decimal('0')
+            if paid >= obj.total_amount:
+                return 100
             return 0
-        completed_milestones = obj.milestones.filter(
-            status=ContractMilestone.MilestoneStatus.COMPLETED
-        ).count()
-        return int((completed_milestones / total_milestones) * 100)
+        # Hourly: percentage = (sum of paid time entry amounts) / total_amount * 100
+        paid_sum = obj.time_entries.filter(
+            status=TimeEntry.TimeEntryStatus.PAID
+        ).aggregate(
+            total=Sum('hours')
+        )['total']
+        if paid_sum is None or obj.hourly_rate is None or obj.total_amount == 0:
+            return 0
+        amount_paid = paid_sum * obj.hourly_rate
+        pct = int((amount_paid / obj.total_amount) * 100)
+        return min(100, pct)
 
 
 class ContractCreateSerializer(serializers.ModelSerializer):
-    milestones = ContractMilestoneSerializer(many=True, required=False)
     provider_id = serializers.UUIDField(write_only=True)
+    payment_schedule = serializers.ChoiceField(
+        choices=Contract.PaymentSchedule.choices,
+        default=Contract.PaymentSchedule.FIXED,
+    )
+    hourly_rate = serializers.DecimalField(
+        max_digits=10, decimal_places=2, required=False, allow_null=True,
+        min_value=0,
+    )
 
     class Meta:
         model = Contract
         fields = (
             'job', 'job_application', 'provider_id', 'title', 'description',
-            'terms', 'total_amount', 'currency', 'start_date', 'end_date',
-            'milestones'
+            'terms', 'total_amount', 'currency', 'payment_schedule', 'hourly_rate',
+            'start_date', 'end_date',
         )
 
     def validate(self, attrs):
         client = self.context['client']
         provider_id = attrs.get('provider_id')
-        
+        payment_schedule = attrs.get('payment_schedule', Contract.PaymentSchedule.FIXED)
+        hourly_rate = attrs.get('hourly_rate')
+
         try:
             provider = User.objects.get(id=provider_id)
         except User.DoesNotExist:
@@ -156,19 +213,30 @@ class ContractCreateSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({
                     'provider_id': 'Provider must match the job application provider.'
                 })
+            # One contract per application
+            if Contract.objects.filter(job_application=job_application).exists():
+                raise serializers.ValidationError({
+                    'job_application': 'A contract already exists for this application.'
+                })
+        elif job:
+            # From invitation: one contract per job+provider (no application)
+            if Contract.objects.filter(job=job, provider=provider, job_application__isnull=True).exists():
+                raise serializers.ValidationError({
+                    'job': 'A contract already exists for this job and provider (from invitation).'
+                })
 
-        # Validate milestones
-        milestones_data = attrs.get('milestones', [])
-        total_milestone_amount = sum(m.get('amount', 0) for m in milestones_data)
-        if total_milestone_amount > attrs.get('total_amount', 0):
-            raise serializers.ValidationError({
-                'milestones': 'Total milestone amounts cannot exceed contract total amount.'
-            })
+        # Payment schedule: HOURLY requires hourly_rate
+        if payment_schedule == Contract.PaymentSchedule.HOURLY:
+            if hourly_rate is None or hourly_rate <= 0:
+                raise serializers.ValidationError({
+                    'hourly_rate': 'Hourly rate is required and must be positive for hourly contracts.'
+                })
+        else:
+            attrs['hourly_rate'] = None  # FIXED contracts don't use hourly_rate
 
         return attrs
 
     def create(self, validated_data):
-        milestones_data = validated_data.pop('milestones', [])
         provider_id = validated_data.pop('provider_id')
         provider = User.objects.get(id=provider_id)
         client = self.context['client']
@@ -179,15 +247,7 @@ class ContractCreateSerializer(serializers.ModelSerializer):
             **validated_data
         )
 
-        # Create milestones
-        for order, milestone_data in enumerate(milestones_data, start=1):
-            ContractMilestone.objects.create(
-                contract=contract,
-                order=order,
-                **milestone_data
-            )
-
-        # Create signature records for both parties
+        # Create signature records for both parties (no milestones)
         ContractSignature.objects.create(
             contract=contract,
             signer=client
@@ -270,11 +330,12 @@ class ContractSignatureCreateSerializer(serializers.Serializer):
 
         signature.save()
 
-        # Update contract status if both parties have signed → ACTIVE and kickstart job
+        # Re-fetch contract to avoid stale related data, then update status if both parties have signed
+        contract.refresh_from_db()
         if contract.is_fully_signed():
             contract.status = Contract.ContractStatus.ACTIVE
             contract.signed_at = timezone.now()
-            contract.save()
+            contract.save(update_fields=['status', 'signed_at', 'updated_at'])
             if contract.job_id:
                 contract.job.status = Job.JobStatus.IN_PROGRESS
                 contract.job.save(update_fields=['status'])

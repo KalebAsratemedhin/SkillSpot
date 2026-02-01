@@ -3,7 +3,7 @@ from django.db import models
 from django.contrib.auth import get_user_model
 from django.core.validators import MinValueValidator
 from django.utils.translation import gettext_lazy as _
-from contracts.models import Contract, ContractMilestone
+from contracts.models import Contract, ContractMilestone, TimeEntry
 
 User = get_user_model()
 
@@ -39,7 +39,15 @@ class Payment(models.Model):
         related_name='payments',
         null=True,
         blank=True,
-        help_text=_('Optional: Link to a specific milestone')
+        help_text=_('Optional: Link to a specific milestone (legacy)')
+    )
+    time_entry = models.ForeignKey(
+        TimeEntry,
+        on_delete=models.SET_NULL,
+        related_name='payments',
+        null=True,
+        blank=True,
+        help_text=_('Optional: Link to a time entry (hourly contracts)')
     )
     payer = models.ForeignKey(
         User,

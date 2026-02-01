@@ -51,7 +51,7 @@ onMounted(async () => {
   loading.value = true
   try {
     const response = await contractsService.list()
-    contracts.value = response.data
+    contracts.value = response.data.results || []
   } catch (err) {
     console.error('Failed to fetch contracts:', err)
   } finally {

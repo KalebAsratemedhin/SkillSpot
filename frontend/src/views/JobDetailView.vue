@@ -129,7 +129,103 @@
               </CardContent>
             </Card>
 
-            <Card v-if="authStore.isProvider && !isJobOwner" class="bg-white rounded-2xl p-10 shadow-sm border border-gray-100">
+            <Card v-if="isJobOwner" class="bg-white rounded-2xl p-10 shadow-sm border border-gray-100">
+              <CardHeader>
+                <CardTitle class="text-lg font-bold text-midnight flex items-center gap-2">
+                  <span class="material-symbols-outlined text-amber text-xl">mail</span>
+                  Invite providers
+                </CardTitle>
+                <p class="text-gray-500 text-sm mt-1">Send an invitation to a provider by email. They can view the job and accept or decline.</p>
+              </CardHeader>
+              <CardContent class="space-y-6">
+                <form @submit.prevent="handleInviteProvider" class="space-y-4">
+                  <FormField :error="inviteError">
+                    <Label>Provider email</Label>
+                    <Input
+                      v-model="inviteForm.provider_email"
+                      type="email"
+                      placeholder="provider@example.com"
+                      class="w-full"
+                      :disabled="inviteLoading"
+                    />
+                  </FormField>
+                  <FormField>
+                    <Label>Message (optional)</Label>
+                    <textarea
+                      v-model="inviteForm.message"
+                      class="w-full rounded-xl border border-slate-200 bg-white text-midnight focus:ring-2 focus:ring-amber/20 focus:border-amber p-4 min-h-[80px]"
+                      placeholder="Add a personal message to the invitation..."
+                      :disabled="inviteLoading"
+                    ></textarea>
+                  </FormField>
+                  <Button
+                    type="submit"
+                    :loading="inviteLoading"
+                    variant="default"
+                    size="default"
+                    class="bg-amber text-midnight hover:bg-amber-dark"
+                  >
+                    <span v-if="!inviteLoading" class="material-symbols-outlined mr-2 text-lg">send</span>
+                    Send invitation
+                  </Button>
+                </form>
+                <div v-if="invitationsForThisJob.length" class="pt-4 border-t border-gray-100">
+                  <h4 class="text-sm font-bold text-midnight mb-3">Invitations sent for this job</h4>
+                  <ul class="space-y-2">
+                    <li
+                      v-for="inv in invitationsForThisJob"
+                      :key="inv.id"
+                      class="flex flex-wrap items-center justify-between gap-2 text-sm py-2 px-3 rounded-lg bg-gray-50"
+                    >
+                      <span class="text-gray-700">{{ getInvitationProviderDisplay(inv) }}</span>
+                      <div class="flex items-center gap-2">
+                        <span
+                          class="text-xs font-medium px-2 py-0.5 rounded-full"
+                          :class="inv.status === 'PENDING' ? 'bg-amber/10 text-amber' : inv.status === 'ACCEPTED' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'"
+                        >
+                          {{ inv.status }}
+                        </span>
+                        <Button
+                          v-if="inv.status === 'ACCEPTED' && inv.provider"
+                          size="sm"
+                          :disabled="contractLoading === inv.id"
+                          @click="createContractFromInvitation(inv)"
+                        >
+                          <span v-if="contractLoading === inv.id" class="material-symbols-outlined animate-spin text-sm">refresh</span>
+                          <span v-else class="material-symbols-outlined text-sm">description</span>
+                          Create Contract
+                        </Button>
+                      </div>
+                    </li>
+                  </ul>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card v-if="authStore.isProvider && !isJobOwner && providerHasInvitationForThisJob" class="bg-white rounded-2xl p-10 shadow-sm border border-gray-100 border-amber/30 bg-amber/5">
+              <CardHeader>
+                <CardTitle class="text-lg font-bold text-midnight flex items-center gap-2">
+                  <span class="material-symbols-outlined text-amber text-xl">mail</span>
+                  You've been invited
+                </CardTitle>
+                <p class="text-gray-600 text-sm mt-1">The client has invited you to this job. Accept or decline from your invitations, then you can message them here.</p>
+              </CardHeader>
+              <CardContent class="flex flex-col gap-3">
+                <router-link to="/invitations">
+                  <Button variant="default" size="default" class="bg-amber text-midnight hover:bg-amber-dark">
+                    <span class="material-symbols-outlined mr-2 text-lg">inbox</span>
+                    View invitations
+                  </Button>
+                </router-link>
+                <router-link to="/messages">
+                  <Button variant="outline" size="default" class="border-slate-200">
+                    <span class="material-symbols-outlined mr-2 text-lg">chat</span>
+                    Open messages
+                  </Button>
+                </router-link>
+              </CardContent>
+            </Card>
+            <Card v-else-if="authStore.isProvider && !isJobOwner" class="bg-white rounded-2xl p-10 shadow-sm border border-gray-100">
               <CardHeader>
                 <CardTitle class="text-lg font-bold text-midnight mb-8">Apply for this Job</CardTitle>
               </CardHeader>
@@ -215,7 +311,7 @@
                 </div>
                 <div class="space-y-4">
                   <Button
-                    v-if="authStore.isProvider && !isJobOwner"
+                    v-if="authStore.isProvider && !isJobOwner && !providerHasInvitationForThisJob"
                     variant="default"
                     size="lg"
                     @click="handleApply"
@@ -351,6 +447,29 @@ const applicationsForThisJob = computed(() => {
   return apps.filter((a: JobApplication) => a.job === jobId)
 })
 
+const invitationsForThisJob = computed(() => {
+  const jobId = jobsStore.currentJob?.id
+  if (!jobId) return []
+  const list = Array.isArray(jobsStore.invitations) ? jobsStore.invitations : []
+  return list.filter((inv: { job: string | { id?: string }; id?: string }) => {
+    const invJobId = typeof inv.job === 'object' && inv.job != null ? inv.job.id : inv.job
+    return invJobId === jobId
+  })
+})
+
+/** True when current user (provider) has received an invitation for this job — they should not apply. */
+const providerHasInvitationForThisJob = computed(() => invitationsForThisJob.value.length > 0)
+
+const inviteForm = ref({ provider_email: '', message: '' })
+const inviteLoading = ref(false)
+const inviteError = ref('')
+
+function getInvitationProviderDisplay(inv: { provider_name?: string; provider_email?: string; provider?: string }) {
+  if (inv.provider_name) return inv.provider_name
+  if (inv.provider_email) return inv.provider_email
+  return inv.provider || 'Provider'
+}
+
 function formatDate(dateString: string) {
   const date = new Date(dateString)
   const now = new Date()
@@ -449,6 +568,42 @@ function createContractFromApplication(app: JobApplication) {
   contractLoading.value = null
 }
 
+function createContractFromInvitation(inv: { id?: string; provider?: string }) {
+  if (!jobsStore.currentJob?.id || !inv.provider) return
+  contractLoading.value = inv.id ?? inv.provider
+  router.push({
+    path: '/contracts/create',
+    query: { job: jobsStore.currentJob.id, provider: inv.provider },
+  })
+  contractLoading.value = null
+}
+
+async function handleInviteProvider() {
+  if (!jobsStore.currentJob) return
+  const email = (inviteForm.value.provider_email || '').trim()
+  if (!email) {
+    inviteError.value = 'Provider email is required.'
+    return
+  }
+  inviteError.value = ''
+  inviteLoading.value = true
+  try {
+    await jobsStore.createInvitation({
+      job: jobsStore.currentJob.id,
+      provider_email: email,
+      message: (inviteForm.value.message || '').trim() || undefined,
+    })
+    inviteForm.value = { provider_email: '', message: '' }
+    toast.success('Invitation sent successfully.')
+    await jobsStore.fetchInvitations()
+  } catch (err: any) {
+    inviteError.value = jobsStore.error || err.response?.data?.provider_email?.[0] || err.response?.data?.detail || 'Failed to send invitation.'
+    toast.error(inviteError.value)
+  } finally {
+    inviteLoading.value = false
+  }
+}
+
 async function loadJob() {
   const jobId = route.params.id as string
   if (!jobId) return
@@ -456,6 +611,9 @@ async function loadJob() {
   await jobsStore.fetchJob(jobId)
   if (isJobOwner.value) {
     await jobsStore.fetchApplications(jobId)
+    await jobsStore.fetchInvitations()
+  } else if (authStore.isProvider) {
+    await jobsStore.fetchInvitations()
   }
 }
 

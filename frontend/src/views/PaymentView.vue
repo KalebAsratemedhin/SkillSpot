@@ -6,14 +6,15 @@
         <div v-if="loading" class="flex justify-center py-12">
           <span class="material-symbols-outlined animate-spin text-4xl text-amber">refresh</span>
         </div>
-        <div v-else-if="contract && milestone" class="space-y-10">
+        <div v-else-if="!contract" class="text-center py-16 text-slate-500">Contract not found.</div>
+        <div v-else-if="paymentMode === 'fixed' || paymentMode === 'time-entry' || (paymentMode === 'milestone' && milestone)" class="space-y-10">
           <div class="flex flex-col gap-4">
             <div class="flex items-center gap-3">
               <span class="bg-amber/10 text-amber text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest border border-amber/20">Payment</span>
               <p class="text-slate-500 text-sm font-mono tracking-tighter">#SS-{{ contract.id.slice(0, 8).toUpperCase() }}</p>
             </div>
-            <h1 class="text-white text-5xl font-extrabold tracking-tight leading-none">Milestone Payment</h1>
-            <p class="text-slate-400">{{ milestone.title }}</p>
+            <h1 class="text-white text-5xl font-extrabold tracking-tight leading-none">{{ paymentTitle }}</h1>
+            <p class="text-slate-400">{{ paymentSubtitle }}</p>
           </div>
           <div class="grid grid-cols-1 lg:grid-cols-3 gap-10">
             <div class="lg:col-span-2">
@@ -22,7 +23,7 @@
                   <div class="flex justify-between items-start mb-4">
                     <div>
                       <p class="text-amber text-xs font-black uppercase tracking-widest mb-1">Payment Amount</p>
-                      <h3 class="text-white text-2xl font-black">${{ milestone.amount.toLocaleString() }}</h3>
+                      <h3 class="text-white text-2xl font-black">${{ payAmount.toLocaleString() }}</h3>
                     </div>
                     <div class="p-2 bg-amber/10 rounded-xl text-amber">
                       <span class="material-symbols-outlined text-2xl">account_balance_wallet</span>
@@ -30,37 +31,20 @@
                   </div>
                 </div>
                 <CardContent class="p-8 flex flex-col gap-8">
-                  <div class="space-y-4">
-                    <div class="flex justify-between text-sm">
-                      <span class="text-slate-400">Labor & Service Fee</span>
-                      <span class="text-white font-bold">${{ (milestone.amount * 0.85).toFixed(2) }}</span>
+                  <div class="pt-4 border-t border-white/5 flex justify-between items-end">
+                    <div>
+                      <p class="text-slate-500 text-[10px] font-black uppercase tracking-widest">Amount to Pay</p>
+                      <p class="text-white text-3xl font-black tracking-tight">${{ payAmount.toLocaleString() }}</p>
                     </div>
-                    <div class="flex justify-between text-sm">
-                      <span class="text-slate-400">Material Costs</span>
-                      <span class="text-white font-bold">${{ (milestone.amount * 0.10).toFixed(2) }}</span>
-                    </div>
-                    <div class="flex justify-between text-sm">
-                      <div class="flex items-center gap-1.5">
-                        <span class="text-slate-400">Platform Service Fee</span>
-                        <span class="material-symbols-outlined text-sm text-slate-500 cursor-help">info</span>
-                      </div>
-                      <span class="text-slate-400 font-bold">${{ (milestone.amount * 0.05).toFixed(2) }}</span>
-                    </div>
-                    <div class="pt-4 mt-4 border-t border-white/5 flex justify-between items-end">
-                      <div>
-                        <p class="text-slate-500 text-[10px] font-black uppercase tracking-widest">Amount to Pay</p>
-                        <p class="text-white text-3xl font-black tracking-tight">${{ milestone.amount.toLocaleString() }}</p>
-                      </div>
-                      <div class="text-right">
-                        <p class="text-emerald-500 text-[10px] font-black uppercase tracking-widest mb-1">Includes Tax</p>
-                        <p class="text-slate-500 text-xs">USD</p>
-                      </div>
+                    <div class="text-right">
+                      <p class="text-emerald-500 text-[10px] font-black uppercase tracking-widest mb-1">Includes Tax</p>
+                      <p class="text-slate-500 text-xs">{{ contract.currency || 'ETB' }}</p>
                     </div>
                   </div>
                   <div class="bg-white/5 p-4 rounded-xl border border-white/5 flex gap-3">
                     <span class="material-symbols-outlined text-amber">shield_with_heart</span>
                     <p class="text-slate-400 text-[11px] leading-relaxed">
-                      SkillSpot Escrow Protection active. Funds are held securely and only released when you approve the work for this milestone.
+                      SkillSpot Escrow Protection active. Funds are held securely and released when you approve the work.
                     </p>
                   </div>
                   <div class="flex flex-col gap-4">
@@ -96,13 +80,17 @@
                     <span class="text-slate-400">Contract</span>
                     <span class="text-white font-bold">#{{ contract.id.slice(0, 8) }}</span>
                   </div>
-                  <div class="flex justify-between text-sm">
+                  <div v-if="paymentMode === 'milestone' && milestone" class="flex justify-between text-sm">
                     <span class="text-slate-400">Milestone</span>
                     <span class="text-white font-bold">{{ milestone.title }}</span>
                   </div>
+                  <div v-if="paymentMode === 'time-entry' && timeEntry" class="flex justify-between text-sm">
+                    <span class="text-slate-400">Time entry</span>
+                    <span class="text-white font-bold">{{ formatDate(timeEntry.date) }} – {{ timeEntry.hours }}h</span>
+                  </div>
                   <div class="flex justify-between text-sm">
-                    <span class="text-slate-400">Status</span>
-                    <span class="text-amber font-bold">{{ milestone.status }}</span>
+                    <span class="text-slate-400">Amount</span>
+                    <span class="text-amber font-bold">${{ payAmount.toLocaleString() }}</span>
                   </div>
                 </div>
               </Card>
@@ -115,10 +103,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { contractsService, type Contract, type ContractMilestone } from '@/services/contracts'
+import { contractsService, type Contract, type ContractMilestone, type TimeEntry } from '@/services/contracts'
 import { paymentsService } from '@/services/payments'
+import { toast } from 'vue-sonner'
 import Header from '@/components/Header.vue'
 import Card from '@/components/ui/Card.vue'
 import CardContent from '@/components/ui/CardContent.vue'
@@ -128,37 +117,98 @@ const route = useRoute()
 const router = useRouter()
 const contract = ref<Contract | null>(null)
 const milestone = ref<ContractMilestone | null>(null)
+const timeEntry = ref<TimeEntry | null>(null)
 const loading = ref(false)
 const processing = ref(false)
 
+const contractId = computed(() => route.params.contractId as string)
+const milestoneId = computed(() => route.params.milestoneId as string | undefined)
+const timeEntryId = computed(() => route.params.timeEntryId as string | undefined)
+
+const paymentMode = computed(() => {
+  if (timeEntryId.value) return 'time-entry'
+  if (milestoneId.value) return 'milestone'
+  return 'fixed'
+})
+
+const payAmount = computed(() => {
+  if (paymentMode.value === 'time-entry' && timeEntry.value?.amount != null) return Number(timeEntry.value.amount)
+  if (paymentMode.value === 'milestone' && milestone.value) return Number(milestone.value.amount)
+  if (contract.value) return Number(contract.value.total_amount)
+  return 0
+})
+
+const paymentTitle = computed(() => {
+  if (paymentMode.value === 'fixed') return 'Full amount payment'
+  if (paymentMode.value === 'time-entry') return 'Time entry payment'
+  return 'Milestone Payment'
+})
+
+const paymentSubtitle = computed(() => {
+  if (paymentMode.value === 'fixed') return 'Pay the full contract amount once work is complete.'
+  if (paymentMode.value === 'time-entry' && timeEntry.value) return `${timeEntry.value.date} – ${timeEntry.value.hours}h`
+  if (milestone.value) return milestone.value.title
+  return ''
+})
+
+function formatDate(dateString: string) {
+  if (!dateString) return 'N/A'
+  return new Date(dateString).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
 async function handlePayment() {
-  if (!contract.value || !milestone.value) return
+  if (!contract.value) return
+  if (paymentMode.value === 'milestone' && !milestone.value) return
+  if (paymentMode.value === 'time-entry' && !timeEntry.value) return
   processing.value = true
   try {
-    const response = await paymentsService.createPaymentIntent({
-      amount: milestone.value.amount,
-      contract_id: contract.value.id,
-      milestone_id: milestone.value.id,
+    const payload: Parameters<typeof paymentsService.create>[0] = {
+      contract: contract.value.id,
+      amount: payAmount.value,
+      currency: contract.value.currency || 'ETB',
+      payment_method: 'STRIPE',
+    }
+    if (paymentMode.value === 'milestone' && milestone.value) {
+      payload.milestone_id = milestone.value.id
+      payload.description = `Payment for milestone: ${milestone.value.title}`
+    } else if (paymentMode.value === 'time-entry' && timeEntry.value) {
+      payload.time_entry_id = timeEntry.value.id
+      payload.description = `Payment for time entry: ${timeEntry.value.date}`
+    } else {
+      payload.description = 'Full contract payment'
+    }
+    const paymentRes = await paymentsService.create(payload)
+    const payment = paymentRes.data
+    await paymentsService.createPaymentIntent({
+      payment_id: payment.id,
+      return_url: `${window.location.origin}/contracts/${contract.value.id}`,
     })
+    toast.success('Payment initiated. You will be redirected to complete payment with Stripe when supported.')
     router.push(`/contracts/${contract.value.id}`)
-  } catch (err) {
-    console.error('Failed to create payment intent:', err)
+  } catch (err: any) {
+    const msg = err.response?.data?.error ?? err.response?.data?.detail ?? 'Failed to start payment.'
+    console.error('Failed to create payment:', err)
+    toast.error(msg)
   } finally {
     processing.value = false
   }
 }
 
 onMounted(async () => {
+  const cId = contractId.value
+  if (!cId) return
   loading.value = true
-  const contractId = route.params.contractId as string
-  const milestoneId = route.params.milestoneId as string
   try {
-    const [contractResponse, milestonesResponse] = await Promise.all([
-      contractsService.get(contractId),
-      contractsService.getMilestones(contractId),
-    ])
-    contract.value = contractResponse.data
-    milestone.value = milestonesResponse.data.find(m => m.id === milestoneId) || null
+    contract.value = (await contractsService.get(cId)).data
+    if (milestoneId.value) {
+      const res = await contractsService.getMilestones(cId)
+      const list = res.data.results ?? []
+      milestone.value = list.find((m: { id: string }) => m.id === milestoneId.value) ?? null
+    } else if (timeEntryId.value) {
+      const res = await contractsService.getTimeEntries(cId)
+      const list = res.data.results ?? []
+      timeEntry.value = list.find((t: { id: string }) => t.id === timeEntryId.value) ?? null
+    }
   } catch (err) {
     console.error('Failed to fetch payment data:', err)
   } finally {

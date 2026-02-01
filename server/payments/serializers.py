@@ -2,7 +2,7 @@ from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 from .models import Payment, PaymentTransaction
-from contracts.models import Contract, ContractMilestone
+from contracts.models import Contract, ContractMilestone, TimeEntry
 
 User = get_user_model()
 
@@ -24,12 +24,14 @@ class PaymentSerializer(serializers.ModelSerializer):
     recipient_name = serializers.SerializerMethodField()
     contract_title = serializers.CharField(source='contract.title', read_only=True)
     milestone_title = serializers.CharField(source='milestone.title', read_only=True, allow_null=True)
+    time_entry_id = serializers.UUIDField(source='time_entry.id', read_only=True, allow_null=True)
     transactions = PaymentTransactionSerializer(many=True, read_only=True)
 
     class Meta:
         model = Payment
         fields = (
             'id', 'contract', 'contract_title', 'milestone', 'milestone_title',
+            'time_entry', 'time_entry_id',
             'payer', 'payer_email', 'payer_name', 'recipient', 'recipient_email',
             'recipient_name', 'amount', 'currency', 'status', 'payment_method',
             'stripe_payment_intent_id', 'stripe_charge_id', 'stripe_refund_id',
@@ -55,17 +57,19 @@ class PaymentSerializer(serializers.ModelSerializer):
 
 class PaymentCreateSerializer(serializers.ModelSerializer):
     milestone_id = serializers.UUIDField(required=False, allow_null=True)
+    time_entry_id = serializers.UUIDField(required=False, allow_null=True)
 
     class Meta:
         model = Payment
         fields = (
-            'contract', 'milestone_id', 'amount', 'currency',
+            'contract', 'milestone_id', 'time_entry_id', 'amount', 'currency',
             'description', 'payment_method'
         )
 
     def validate(self, attrs):
         contract = attrs.get('contract')
         milestone_id = attrs.get('milestone_id')
+        time_entry_id = attrs.get('time_entry_id')
         amount = attrs.get('amount')
         payer = self.context['payer']
 
@@ -81,54 +85,111 @@ class PaymentCreateSerializer(serializers.ModelSerializer):
                 'contract': 'Payments can only be made for active contracts.'
             })
 
-        # Validate milestone if provided
+        # Fixed price: amount must equal total_amount, no time_entry; one full payment only
+        if contract.payment_schedule == Contract.PaymentSchedule.FIXED:
+            if time_entry_id:
+                raise serializers.ValidationError({
+                    'time_entry_id': 'Time entry is only for hourly contracts.'
+                })
+            if amount != contract.total_amount:
+                raise serializers.ValidationError({
+                    'amount': f'Fixed price payment must equal contract total: {contract.total_amount}'
+                })
+            if contract.payments.filter(status=Payment.PaymentStatus.COMPLETED).exists():
+                raise serializers.ValidationError({
+                    'contract': 'This fixed-price contract has already been paid in full.'
+                })
+            attrs['time_entry'] = None
+            attrs['milestone'] = None
+            return attrs
+
+        # Hourly: time_entry_id required, amount from time_entry
+        if contract.payment_schedule == Contract.PaymentSchedule.HOURLY:
+            if not time_entry_id:
+                raise serializers.ValidationError({
+                    'time_entry_id': 'Time entry is required for hourly contract payments.'
+                })
+            try:
+                time_entry = TimeEntry.objects.get(
+                    id=time_entry_id,
+                    contract=contract
+                )
+            except TimeEntry.DoesNotExist:
+                raise serializers.ValidationError({
+                    'time_entry_id': 'Time entry not found or does not belong to this contract.'
+                })
+            if time_entry.status != TimeEntry.TimeEntryStatus.APPROVED:
+                raise serializers.ValidationError({
+                    'time_entry_id': 'Only approved time entries can be paid.'
+                })
+            if time_entry.payments.filter(status=Payment.PaymentStatus.COMPLETED).exists():
+                raise serializers.ValidationError({
+                    'time_entry_id': 'This time entry has already been paid.'
+                })
+            expected_amount = time_entry.amount
+            if expected_amount is None:
+                raise serializers.ValidationError({
+                    'time_entry_id': 'Time entry amount could not be calculated (missing hourly rate).'
+                })
+            if amount != expected_amount:
+                raise serializers.ValidationError({
+                    'amount': f'Amount must match time entry total: {expected_amount}'
+                })
+            attrs['time_entry'] = time_entry
+            attrs['milestone'] = None
+            return attrs
+
+        # Legacy: milestone_id (contracts without payment_schedule or old milestone-based)
         if milestone_id:
             try:
                 milestone = ContractMilestone.objects.get(
                     id=milestone_id,
                     contract=contract
                 )
-                # Verify amount matches milestone amount
                 if amount != milestone.amount:
                     raise serializers.ValidationError({
                         'amount': f'Amount must match milestone amount: {milestone.amount}'
                     })
-                # Verify milestone hasn't been paid already
                 if milestone.payments.filter(status=Payment.PaymentStatus.COMPLETED).exists():
                     raise serializers.ValidationError({
                         'milestone_id': 'This milestone has already been paid.'
                     })
+                attrs['milestone'] = milestone
+                attrs['time_entry'] = None
             except ContractMilestone.DoesNotExist:
                 raise serializers.ValidationError({
                     'milestone_id': 'Milestone not found or does not belong to this contract.'
                 })
+        else:
+            raise serializers.ValidationError({
+                'contract': 'Fixed and hourly contracts require amount or time_entry_id respectively.'
+            })
 
-        # Verify amount is positive
         if amount <= 0:
             raise serializers.ValidationError({
                 'amount': 'Payment amount must be greater than zero.'
             })
-
         return attrs
 
     def create(self, validated_data):
         milestone_id = validated_data.pop('milestone_id', None)
+        time_entry = validated_data.pop('time_entry', None)
+        milestone = validated_data.pop('milestone', None)
         contract = validated_data['contract']
         payer = self.context['payer']
 
-        milestone = None
         if milestone_id:
             milestone = ContractMilestone.objects.get(id=milestone_id)
 
         payment = Payment.objects.create(
             contract=contract,
             milestone=milestone,
+            time_entry=time_entry,
             payer=payer,
             recipient=contract.provider,
             **validated_data
         )
 
-        # Create initial transaction record
         PaymentTransaction.objects.create(
             payment=payment,
             transaction_type=PaymentTransaction.TransactionType.CREATED,

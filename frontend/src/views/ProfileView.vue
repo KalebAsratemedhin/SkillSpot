@@ -476,6 +476,66 @@
               </Card>
               <Card class="bg-midnight-light border-white/10">
                 <CardContent class="p-8">
+                  <h3 class="text-sm font-black uppercase tracking-widest text-slate-400 mb-6 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-amber text-lg">account_balance_wallet</span>
+                    Payments &amp; Payouts
+                  </h3>
+                  <div v-if="authStore.isProvider || authStore.user?.user_type === 'BOTH'" class="space-y-4">
+                    <div v-if="stripeConnectLoading" class="flex items-center gap-2 text-slate-400">
+                      <span class="material-symbols-outlined animate-spin">refresh</span>
+                      <span class="text-sm">Loading...</span>
+                    </div>
+                    <template v-else-if="stripeConnectStatus?.has_account">
+                      <div class="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/10">
+                        <span class="material-symbols-outlined text-emerald-500 text-2xl">check_circle</span>
+                        <div>
+                          <p class="font-bold text-white">Stripe connected</p>
+                          <p class="text-xs text-slate-400">
+                            {{ stripeConnectStatus.enabled ? 'Ready to receive payments' : 'Complete onboarding to receive payments' }}
+                          </p>
+                        </div>
+                      </div>
+                      <div class="flex flex-col gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          class="w-full border-white/20 text-slate-300 hover:text-white"
+                          :disabled="stripeDashboardLoading"
+                          @click="openStripeDashboard"
+                        >
+                          <span class="material-symbols-outlined mr-2 text-lg">open_in_new</span>
+                          Open Stripe Express dashboard
+                        </Button>
+                      </div>
+                    </template>
+                    <template v-else>
+                      <p class="text-slate-400 text-sm">Connect your Stripe account to receive payments from clients securely.</p>
+                      <Button
+                        variant="default"
+                        size="default"
+                        class="w-full bg-[#635bff] hover:bg-[#7a73ff] text-white"
+                        :disabled="stripeConnectLoading || stripeOnboardLoading"
+                        @click="connectStripe"
+                      >
+                        <span v-if="stripeOnboardLoading" class="material-symbols-outlined animate-spin mr-2">refresh</span>
+                        <span v-else class="material-symbols-outlined mr-2">link</span>
+                        Connect Stripe account
+                      </Button>
+                    </template>
+                  </div>
+                  <div v-else class="space-y-2">
+                    <p class="text-slate-400 text-sm">Payment is collected securely at checkout when you pay for contract milestones.</p>
+                    <router-link to="/payments">
+                      <Button variant="outline" size="sm" class="w-full border-white/20 text-slate-300 hover:text-white">
+                        <span class="material-symbols-outlined mr-2 text-lg">receipt_long</span>
+                        View payment history
+                      </Button>
+                    </router-link>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card class="bg-midnight-light border-white/10">
+                <CardContent class="p-8">
                   <h3 class="text-sm font-black uppercase tracking-widest text-slate-400 mb-6">Verified Credentials</h3>
                   <div class="space-y-6">
                     <div v-if="profilesStore.providerProfile?.certifications && profilesStore.providerProfile.certifications.length > 0" class="flex gap-4">
@@ -535,6 +595,7 @@ import {
 } from '@/components/ui/dialog'
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select'
 import { toast } from 'vue-sonner'
+import { paymentsService, type StripeConnectStatus } from '@/services/payments'
 
 const authStore = useAuthStore()
 const profilesStore = useProfilesStore()
@@ -565,6 +626,11 @@ const expErrors = ref<Record<string, string>>({})
 const selectedSkillId = ref('')
 const newSkillName = ref('')
 const addingNewSkill = ref(false)
+
+const stripeConnectStatus = ref<StripeConnectStatus | null>(null)
+const stripeConnectLoading = ref(false)
+const stripeOnboardLoading = ref(false)
+const stripeDashboardLoading = ref(false)
 
 const fullName = computed(() => {
   if (profilesStore.profile?.first_name || profilesStore.profile?.last_name) {
@@ -779,8 +845,54 @@ async function addNewSkill() {
   }
 }
 
+async function fetchStripeStatus() {
+  if (!authStore.isProvider && authStore.user?.user_type !== 'BOTH') return
+  stripeConnectLoading.value = true
+  try {
+    const res = await paymentsService.getStripeConnectStatus()
+    stripeConnectStatus.value = res.data
+  } catch {
+    stripeConnectStatus.value = null
+  } finally {
+    stripeConnectLoading.value = false
+  }
+}
+
+async function connectStripe() {
+  stripeOnboardLoading.value = true
+  try {
+    const res = await paymentsService.onboardStripeConnect()
+    const url = res.data.onboarding_url
+    if (url) window.location.href = url
+    else toast.error('Could not get Stripe onboarding link')
+  } catch (err: any) {
+    const msg = err.response?.data?.error ?? 'Failed to start Stripe connection'
+    toast.error(msg)
+  } finally {
+    stripeOnboardLoading.value = false
+  }
+}
+
+async function openStripeDashboard() {
+  stripeDashboardLoading.value = true
+  try {
+    const res = await paymentsService.loginStripeConnect()
+    const url = res.data.login_url
+    if (url) window.location.href = url
+    else toast.error('Could not get Stripe dashboard link')
+  } catch (err: any) {
+    const msg = err.response?.data?.error ?? 'Failed to open Stripe dashboard'
+    toast.error(msg)
+  } finally {
+    stripeDashboardLoading.value = false
+  }
+}
+
 onMounted(async () => {
   await profilesStore.fetchProfile()
+  if (authStore.isProvider || authStore.user?.user_type === 'BOTH') {
+    await fetchStripeStatus()
+  }
   if (authStore.isProvider) {
     await profilesStore.fetchProviderProfile()
     await profilesStore.fetchTags({ category: 'SKILL' })

@@ -42,6 +42,16 @@ class Job(models.Model):
         blank=True,
         validators=[MinValueValidator(0)]
     )
+    class PaymentSchedule(models.TextChoices):
+        FIXED = 'FIXED', _('Fixed Price')
+        HOURLY = 'HOURLY', _('Hourly')
+
+    payment_schedule = models.CharField(
+        max_length=20,
+        choices=PaymentSchedule.choices,
+        default=PaymentSchedule.FIXED,
+        help_text=_('FIXED = one total price; HOURLY = rate per hour, provider logs hours')
+    )
     currency = models.CharField(max_length=3, default='ETB')
     location = models.CharField(max_length=200)
     address = models.TextField(blank=True)

@@ -93,6 +93,30 @@ const router = createRouter({
       component: () => import('@/views/ContractDetailView.vue'),
       meta: { requiresAuth: true },
     },
+    {
+      path: '/payments',
+      name: 'payments',
+      component: () => import('@/views/PaymentsView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/payments/contract/:contractId',
+      name: 'payment-contract-fixed',
+      component: () => import('@/views/PaymentView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/payments/contract/:contractId/time-entry/:timeEntryId',
+      name: 'payment-contract-time-entry',
+      component: () => import('@/views/PaymentView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/payments/contract/:contractId/milestone/:milestoneId',
+      name: 'payment-contract-milestone',
+      component: () => import('@/views/PaymentView.vue'),
+      meta: { requiresAuth: true },
+    },
   ],
 })
 

@@ -9,7 +9,7 @@ from django.utils.decorators import method_decorator
 from django.http import JsonResponse
 from django.utils import timezone
 from .models import Payment, PaymentTransaction
-from contracts.models import ContractMilestone
+from contracts.models import ContractMilestone, TimeEntry
 from .serializers import (
     PaymentSerializer,
     PaymentCreateSerializer,
@@ -57,6 +57,11 @@ class PaymentListCreateView(generics.ListCreateAPIView):
         milestone_id = self.request.query_params.get('milestone', None)
         if milestone_id:
             queryset = queryset.filter(milestone_id=milestone_id)
+
+        # Filter by time_entry
+        time_entry_id = self.request.query_params.get('time_entry', None)
+        if time_entry_id:
+            queryset = queryset.filter(time_entry_id=time_entry_id)
 
         return queryset.distinct()
 
@@ -256,11 +261,15 @@ class ConfirmStripePaymentView(generics.GenericAPIView):
                     }
                 )
 
-                # Update milestone status if linked
+                # Update milestone status if linked (legacy)
                 if payment.milestone:
                     payment.milestone.status = ContractMilestone.MilestoneStatus.COMPLETED
                     payment.milestone.completed_at = timezone.now()
                     payment.milestone.save()
+                # Update time entry status if linked (hourly)
+                if payment.time_entry:
+                    payment.time_entry.status = TimeEntry.TimeEntryStatus.PAID
+                    payment.time_entry.save(update_fields=['status', 'updated_at'])
 
                 return Response(
                     PaymentSerializer(payment).data,
@@ -343,11 +352,15 @@ def stripe_webhook(request):
                     details={'charge_id': data.get('latest_charge')}
                 )
 
-                # Update milestone if linked
+                # Update milestone if linked (legacy)
                 if payment.milestone:
                     payment.milestone.status = ContractMilestone.MilestoneStatus.COMPLETED
                     payment.milestone.completed_at = timezone.now()
                     payment.milestone.save()
+                # Update time entry if linked (hourly)
+                if payment.time_entry:
+                    payment.time_entry.status = TimeEntry.TimeEntryStatus.PAID
+                    payment.time_entry.save(update_fields=['status', 'updated_at'])
 
         elif event_type == 'payment_intent.payment_failed':
             payment_intent_id = data.get('id')
@@ -452,8 +465,16 @@ class StripeConnectOnboardView(generics.GenericAPIView):
             }, status=status.HTTP_200_OK)
 
         except Exception as e:
+            err_msg = str(e)
+            # Only show friendly message for the specific "Connect not signed up" error
+            if 'signed up for Connect' in err_msg:
+                err_msg = (
+                    'Stripe Connect is not enabled for this platform. '
+                    'The platform owner must enable Connect in the Stripe Dashboard (https://dashboard.stripe.com/connect) '
+                    'before providers can link their payout accounts.'
+                )
             return Response(
-                {'error': str(e)},
+                {'error': err_msg},
                 status=status.HTTP_400_BAD_REQUEST
             )
 

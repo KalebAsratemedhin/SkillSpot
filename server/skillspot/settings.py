@@ -209,6 +209,9 @@ STRIPE_SECRET_KEY = config('STRIPE_SECRET_KEY', default=None)
 STRIPE_PUBLISHABLE_KEY = config('STRIPE_PUBLISHABLE_KEY', default=None)
 STRIPE_WEBHOOK_SECRET = config('STRIPE_WEBHOOK_SECRET', default=None)
 STRIPE_PLATFORM_FEE_PERCENT = config('STRIPE_PLATFORM_FEE_PERCENT', default=5.0, cast=float)
+# Country for new Connect Express accounts (e.g. ET, US). For ET we only request transfers (no card_payments).
+# Set to US (or another supported country) in .env to test Connect if ET fails.
+STRIPE_CONNECT_DEFAULT_COUNTRY = config('STRIPE_CONNECT_DEFAULT_COUNTRY', default='ET')
 
 # Frontend URL for Stripe Connect redirects
 FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:3000')

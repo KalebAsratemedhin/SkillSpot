@@ -106,6 +106,11 @@ class JobApplicationCreateSerializer(serializers.ModelSerializer):
         if JobApplication.objects.filter(job=job, provider=provider).exists():
             raise serializers.ValidationError('You have already applied to this job.')
         
+        if JobInvitation.objects.filter(job=job, provider=provider).exists():
+            raise serializers.ValidationError(
+                'You have been invited to this job. Please check your invitations and accept or decline there instead of applying.'
+            )
+        
         if job.status != Job.JobStatus.OPEN:
             raise serializers.ValidationError('This job is not open for applications.')
         
@@ -140,18 +145,42 @@ class JobInvitationSerializer(serializers.ModelSerializer):
 
 
 class JobInvitationCreateSerializer(serializers.ModelSerializer):
+    provider = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.filter(user_type__in=['PROVIDER', 'BOTH']),
+        required=False,
+        allow_null=True
+    )
+    provider_email = serializers.EmailField(write_only=True, required=False, allow_blank=True)
+
     class Meta:
         model = JobInvitation
-        fields = ('job', 'provider', 'message')
+        fields = ('job', 'provider', 'provider_email', 'message')
 
     def validate(self, attrs):
         client = self.context['client']
         provider = attrs.get('provider')
+        provider_email = (attrs.pop('provider_email', None) or '').strip()
         job = attrs.get('job')
 
-        if provider and provider.user_type not in ['PROVIDER', 'BOTH']:
+        if provider_email and not provider:
+            try:
+                user = User.objects.get(email__iexact=provider_email)
+                provider = user
+                attrs['provider'] = provider
+            except User.DoesNotExist:
+                raise serializers.ValidationError({
+                    'provider_email': 'No user found with this email.'
+                })
+
+        if not provider:
             raise serializers.ValidationError({
-                'provider': 'User must be a service provider.'
+                'provider': 'Provider or provider_email is required.'
+            })
+
+        if provider.user_type not in ['PROVIDER', 'BOTH']:
+            raise serializers.ValidationError({
+                'provider': 'User must be a service provider.',
+                'provider_email': 'This user is not registered as a provider.'
             })
 
         if job and job.client != client:
@@ -165,6 +194,8 @@ class JobInvitationCreateSerializer(serializers.ModelSerializer):
             job=job if job else None,
             status=JobInvitation.InvitationStatus.PENDING
         ).exists():
-            raise serializers.ValidationError('An invitation has already been sent.')
+            raise serializers.ValidationError({
+                'provider_email': 'An invitation has already been sent to this provider for this job.'
+            })
 
         return attrs

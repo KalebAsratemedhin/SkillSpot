@@ -64,7 +64,25 @@ class Contract(models.Model):
         max_digits=10,
         decimal_places=2,
         validators=[MinValueValidator(0)],
-        help_text=_('Total contract amount')
+        help_text=_('Total contract amount (fixed price) or cap (hourly)')
+    )
+    class PaymentSchedule(models.TextChoices):
+        FIXED = 'FIXED', _('Fixed Price')
+        HOURLY = 'HOURLY', _('Hourly')
+
+    payment_schedule = models.CharField(
+        max_length=20,
+        choices=PaymentSchedule.choices,
+        default=PaymentSchedule.FIXED,
+        help_text=_('FIXED = pay once; HOURLY = provider logs hours, client approves and pays')
+    )
+    hourly_rate = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0)],
+        help_text=_('Rate per hour (for HOURLY contracts only)')
     )
     currency = models.CharField(
         max_length=3,
@@ -186,6 +204,80 @@ class ContractMilestone(models.Model):
 
     def __str__(self):
         return f"{self.contract.title} - {self.title}"
+
+
+class TimeEntry(models.Model):
+    """Provider logs hours worked; client approves and pays (hourly contracts)."""
+    class TimeEntryStatus(models.TextChoices):
+        PENDING_APPROVAL = 'PENDING_APPROVAL', _('Pending Approval')
+        APPROVED = 'APPROVED', _('Approved')
+        REJECTED = 'REJECTED', _('Rejected')
+        PAID = 'PAID', _('Paid')
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False
+    )
+    contract = models.ForeignKey(
+        Contract,
+        on_delete=models.CASCADE,
+        related_name='time_entries',
+        help_text=_('The contract this time entry belongs to')
+    )
+    provider = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='time_entries',
+        help_text=_('The provider who logged the hours')
+    )
+    date = models.DateField(help_text=_('Date of work'))
+    hours = models.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        validators=[MinValueValidator(0)],
+        help_text=_('Hours worked')
+    )
+    description = models.TextField(
+        blank=True,
+        help_text=_('Optional description of work done')
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=TimeEntryStatus.choices,
+        default=TimeEntryStatus.PENDING_APPROVAL,
+        help_text=_('PENDING_APPROVAL → client approves → APPROVED → client pays → PAID')
+    )
+    approved_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        related_name='approved_time_entries',
+        null=True,
+        blank=True,
+        help_text=_('Client who approved (if approved)')
+    )
+    approved_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-date', '-created_at']
+        indexes = [
+            models.Index(fields=['contract', 'status']),
+            models.Index(fields=['contract', 'date']),
+            models.Index(fields=['provider', '-date']),
+        ]
+        verbose_name_plural = 'Time entries'
+
+    def __str__(self):
+        return f"{self.contract.title} - {self.date} ({self.hours}h)"
+
+    @property
+    def amount(self):
+        """Calculated amount: hours * contract.hourly_rate."""
+        if self.contract.hourly_rate is not None:
+            return self.hours * self.contract.hourly_rate
+        return None
 
 
 class ContractSignature(models.Model):

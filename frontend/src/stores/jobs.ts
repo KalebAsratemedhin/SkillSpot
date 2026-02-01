@@ -172,9 +172,25 @@ export const useJobsStore = defineStore('jobs', () => {
       loading.value = true
       error.value = null
       const response = await jobsService.listInvitations()
-      invitations.value = Array.isArray(response.data) ? response.data : []
+      const data = response.data as { results?: JobInvitation[] } | JobInvitation[]
+      invitations.value = Array.isArray(data) ? data : (data?.results ?? [])
     } catch (err: any) {
       error.value = err.response?.data?.detail || 'Failed to fetch invitations'
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function createInvitation(data: { job: string; provider?: string; provider_email?: string; message?: string }) {
+    try {
+      loading.value = true
+      error.value = null
+      const response = await jobsService.createInvitation(data)
+      invitations.value = [response.data, ...invitations.value]
+      return response.data
+    } catch (err: any) {
+      error.value = err.response?.data?.provider_email?.[0] ?? err.response?.data?.provider?.[0] ?? err.response?.data?.detail ?? 'Failed to send invitation'
       throw err
     } finally {
       loading.value = false
@@ -219,6 +235,7 @@ export const useJobsStore = defineStore('jobs', () => {
     updateApplication,
     createApplication,
     fetchInvitations,
+    createInvitation,
     updateInvitation,
   }
 })

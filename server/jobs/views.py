@@ -261,7 +261,23 @@ class JobInvitationListCreateView(generics.ListCreateAPIView):
         return context
 
     def perform_create(self, serializer):
-        serializer.save(client=self.request.user)
+        invitation = serializer.save(client=self.request.user)
+        # Auto-create a conversation between client and provider for this job
+        from messaging.models import Conversation
+        client = self.request.user
+        provider = invitation.provider
+        job = invitation.job
+        if job and client and provider:
+            if client.id > provider.id:
+                p1, p2 = provider, client
+            else:
+                p1, p2 = client, provider
+            Conversation.objects.get_or_create(
+                participant1=p1,
+                participant2=p2,
+                job=job,
+                defaults={}
+            )
 
 
 class JobInvitationDetailView(generics.RetrieveUpdateDestroyAPIView):

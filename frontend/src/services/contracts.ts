@@ -1,6 +1,15 @@
 import api from './api'
 import { AxiosResponse } from 'axios'
 
+export interface PaginatedResponse<T> {
+  count: number
+  next: string | null
+  previous: string | null
+  results: T[]
+}
+
+export type PaymentSchedule = 'FIXED' | 'HOURLY'
+
 export interface Contract {
   id: string
   job?: string
@@ -9,6 +18,9 @@ export interface Contract {
   provider: string
   terms: string
   total_amount: number
+  currency?: string
+  payment_schedule?: PaymentSchedule
+  hourly_rate?: number | null
   status: string
   signed_by_client?: boolean
   signed_by_provider?: boolean
@@ -17,6 +29,23 @@ export interface Contract {
   end_date?: string
   created_at: string
   milestones?: ContractMilestone[]
+  time_entries?: TimeEntry[]
+  completion_percentage?: number
+}
+
+export interface TimeEntry {
+  id: string
+  contract: string
+  provider: string
+  date: string
+  hours: number
+  description?: string
+  status: 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED' | 'PAID'
+  approved_by?: string | null
+  approved_at?: string | null
+  amount?: number | null
+  created_at: string
+  updated_at: string
 }
 
 export interface ContractMilestone {
@@ -41,7 +70,7 @@ export interface ContractSignature {
   signed_at?: string
 }
 
-/** Payload for creating a contract (backend: provider_id, job?, job_application?, title, description, terms, total_amount, currency, start_date, end_date?, milestones?) */
+/** Payload for creating a contract (backend: provider_id, job?, job_application?, title, description, terms, total_amount, currency, payment_schedule, hourly_rate?, start_date, end_date?) */
 export interface CreateContractPayload {
   provider_id: string
   job?: string
@@ -51,13 +80,14 @@ export interface CreateContractPayload {
   terms: string
   total_amount: number
   currency?: string
+  payment_schedule?: PaymentSchedule
+  hourly_rate?: number | null
   start_date: string
   end_date?: string
-  milestones?: Partial<ContractMilestone>[]
 }
 
 export const contractsService = {
-  list(): Promise<AxiosResponse<Contract[]>> {
+  list(): Promise<AxiosResponse<PaginatedResponse<Contract>>> {
     return api.get('/contracts/')
   },
   get(id: string): Promise<AxiosResponse<Contract>> {
@@ -72,7 +102,10 @@ export const contractsService = {
   sign(id: string, data: { signature_data: string; signature_type?: string }): Promise<AxiosResponse<ContractSignature>> {
     return api.post(`/contracts/${id}/sign/`, { signature_type: data.signature_type ?? 'DIGITAL', ...data })
   },
-  getMilestones(contractId: string): Promise<AxiosResponse<ContractMilestone[]>> {
+  delete(id: string): Promise<AxiosResponse<void>> {
+    return api.delete(`/contracts/${id}/`)
+  },
+  getMilestones(contractId: string): Promise<AxiosResponse<PaginatedResponse<ContractMilestone>>> {
     return api.get(`/contracts/${contractId}/milestones/`)
   },
   createMilestone(contractId: string, data: Partial<ContractMilestone>): Promise<AxiosResponse<ContractMilestone>> {
@@ -80,5 +113,14 @@ export const contractsService = {
   },
   updateMilestone(id: string, data: Partial<ContractMilestone>): Promise<AxiosResponse<ContractMilestone>> {
     return api.patch(`/contracts/milestones/${id}/`, data)
+  },
+  getTimeEntries(contractId: string): Promise<AxiosResponse<PaginatedResponse<TimeEntry>>> {
+    return api.get(`/contracts/${contractId}/time-entries/`)
+  },
+  createTimeEntry(contractId: string, data: { date: string; hours: number; description?: string }): Promise<AxiosResponse<TimeEntry>> {
+    return api.post(`/contracts/${contractId}/time-entries/`, data)
+  },
+  updateTimeEntry(id: string, data: Partial<TimeEntry>): Promise<AxiosResponse<TimeEntry>> {
+    return api.patch(`/contracts/time-entries/${id}/`, data)
   },
 }

@@ -168,16 +168,19 @@ async function handleSendMessage() {
   messageForm.value.content = ''
 }
 
+function getConversationIdFromRoute(): string | undefined {
+  const p = route.params.id
+  const id = Array.isArray(p) ? p[0] : p
+  return typeof id === 'string' ? id : undefined
+}
+
 onMounted(async () => {
-  console.log('MessagesView mounted, fetching conversations...')
   try {
     await messagingStore.fetchConversations()
-    console.log('Conversations fetched:', messagingStore.conversations.length, messagingStore.conversations)
-    console.log('messages:', messagingStore.messages)
   } catch (error) {
     console.error('Error fetching conversations:', error)
   }
-  const id = route.params.id as string
+  const id = getConversationIdFromRoute()
   if (id) {
     selectedConversation.value = id
     await messagingStore.fetchConversation(id)
@@ -186,7 +189,7 @@ onMounted(async () => {
 })
 
 watch(
-  () => route.params.id,
+  () => getConversationIdFromRoute(),
   async (id) => {
     if (id && id !== selectedConversation.value) {
       selectedConversation.value = id

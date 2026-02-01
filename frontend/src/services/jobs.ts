@@ -40,6 +40,8 @@ export interface JobInvitation {
   id: string
   job: string | { id?: string; title?: string }
   provider: string
+  provider_name?: string
+  provider_email?: string
   message: string
   status: string
   created_at?: string
