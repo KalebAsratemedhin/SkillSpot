@@ -154,6 +154,7 @@ class RatingCreateSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
+        validated_data.pop('rater', None)  # use context rater only; view may pass rater in save()
         rater = self.context['rater']
         job_id = validated_data.pop('job_id', None)
         contract_id = validated_data.pop('contract_id', None)

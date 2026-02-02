@@ -4,67 +4,76 @@
       <h1 class="text-3xl font-bold text-midnight mb-8">Create Contract</h1>
       <p v-if="!authStore.isClient" class="text-slate-500 mb-6">Only clients can create contracts from accepted applications.</p>
       <form v-else @submit.prevent="handleSubmit" class="space-y-6">
-        <FormField :error="errors.title">
-          <Label class="text-sm font-semibold text-slate-700">Contract Title</Label>
-          <Input
-            v-model="form.title"
-            placeholder="e.g. Home Rewiring – Master Electrician"
-            :error="errors.title"
-            class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-amber/20"
-          />
-        </FormField>
-        <FormField :error="errors.description">
-          <Label class="text-sm font-semibold text-slate-700">Description</Label>
-          <textarea
-            v-model="form.description"
-            class="w-full rounded-xl border border-slate-200 bg-white text-slate-900 focus:ring-2 focus:ring-amber/20 p-4 min-h-[120px] placeholder:text-slate-400"
-            placeholder="Scope of work and deliverables..."
-          />
-        </FormField>
-        <FormField :error="errors.terms">
-          <Label class="text-sm font-semibold text-slate-700">Terms & Conditions</Label>
-          <textarea
-            v-model="form.terms"
-            class="w-full rounded-xl border border-slate-200 bg-white text-slate-900 focus:ring-2 focus:ring-amber/20 p-4 min-h-[120px] placeholder:text-slate-400"
-            placeholder="Payment terms, timeline, and other conditions..."
-          />
-        </FormField>
+        <div v-if="job" class="rounded-xl border border-slate-200 bg-slate-50 p-4 mb-6">
+          <p class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">From job</p>
+          <p class="text-midnight font-bold">{{ job.title }}</p>
+          <p v-if="job.description" class="text-slate-600 text-sm mt-1 line-clamp-2">{{ job.description }}</p>
+        </div>
+        <template v-if="!job">
+          <FormField :error="errors.title">
+            <Label class="text-sm font-semibold text-slate-700">Contract Title</Label>
+            <Input
+              v-model="form.title"
+              placeholder="e.g. Home Rewiring – Master Electrician"
+              :error="errors.title"
+              class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-amber/20"
+            />
+          </FormField>
+          <FormField :error="errors.description">
+            <Label class="text-sm font-semibold text-slate-700">Description</Label>
+            <textarea
+              v-model="form.description"
+              class="w-full rounded-xl border border-slate-200 bg-white text-slate-900 focus:ring-2 focus:ring-amber/20 p-4 min-h-[100px] placeholder:text-slate-400"
+              placeholder="Scope of work..."
+            />
+          </FormField>
+          <FormField :error="errors.terms">
+            <Label class="text-sm font-semibold text-slate-700">Terms</Label>
+            <textarea
+              v-model="form.terms"
+              class="w-full rounded-xl border border-slate-200 bg-white text-slate-900 focus:ring-2 focus:ring-amber/20 p-4 min-h-[80px] placeholder:text-slate-400"
+              placeholder="Payment terms, timeline..."
+            />
+          </FormField>
+        </template>
         <FormField :error="errors.payment_schedule">
           <Label class="text-sm font-semibold text-slate-700">Payment schedule</Label>
-          <select
-            v-model="form.payment_schedule"
-            class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-amber/20"
-          >
-            <option value="FIXED">Fixed price (pay once)</option>
-            <option value="HOURLY">Hourly (provider logs hours, you approve and pay)</option>
-          </select>
+          <Select v-model="form.payment_schedule">
+            <SelectTrigger class="h-11 w-full rounded-xl border border-slate-200 bg-white text-slate-900 placeholder:text-slate-500 focus:ring-2 focus:ring-amber/20 [&>span]:line-clamp-1">
+              <SelectValue placeholder="Select schedule" />
+            </SelectTrigger>
+            <SelectContent class="rounded-xl border border-slate-200 bg-white text-slate-900">
+              <SelectItem value="FIXED" class="rounded-lg focus:bg-slate-100 focus:text-slate-900 data-[highlighted]:bg-slate-100 data-[highlighted]:text-slate-900">Fixed price (pay once)</SelectItem>
+              <SelectItem value="HOURLY" class="rounded-lg focus:bg-slate-100 focus:text-slate-900 data-[highlighted]:bg-slate-100 data-[highlighted]:text-slate-900">Hourly (provider logs hours, you approve and pay)</SelectItem>
+            </SelectContent>
+          </Select>
         </FormField>
         <FormField v-if="form.payment_schedule === 'HOURLY'" :error="errors.hourly_rate">
-          <Label class="text-sm font-semibold text-slate-700">Hourly rate</Label>
+          <Label class="text-sm font-semibold text-slate-700">Hourly rate (Br)</Label>
           <Input
             v-model="form.hourly_rate"
             type="number"
             step="0.01"
             min="0"
-            placeholder="0.00"
+            placeholder="0"
             :error="errors.hourly_rate"
             class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-amber/20"
           />
         </FormField>
         <FormField :error="errors.total_amount">
-          <Label class="text-sm font-semibold text-slate-700">{{ form.payment_schedule === 'HOURLY' ? 'Total cap (optional max)' : 'Total Amount' }}</Label>
+          <Label class="text-sm font-semibold text-slate-700">{{ form.payment_schedule === 'HOURLY' ? 'Total cap (Br)' : 'Total amount (Br)' }}</Label>
           <Input
             v-model="form.total_amount"
             type="number"
             step="0.01"
             min="0"
-            placeholder="0.00"
+            placeholder="0"
             :error="errors.total_amount"
             class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-amber/20"
           />
         </FormField>
         <FormField :error="errors.start_date">
-          <Label class="text-sm font-semibold text-slate-700">Start Date</Label>
+          <Label class="text-sm font-semibold text-slate-700">Start date</Label>
           <Input
             v-model="form.start_date"
             type="date"
@@ -73,7 +82,7 @@
           />
         </FormField>
         <FormField :error="errors.end_date">
-          <Label class="text-sm font-semibold text-slate-700">End Date (optional)</Label>
+          <Label class="text-sm font-semibold text-slate-700">End date (optional)</Label>
           <Input
             v-model="form.end_date"
             type="date"
@@ -105,6 +114,13 @@ import Button from '@/components/ui/Button.vue'
 import Input from '@/components/ui/Input.vue'
 import Label from '@/components/ui/Label.vue'
 import FormField from '@/components/ui/FormField.vue'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { toast } from 'vue-sonner'
 
 const route = useRoute()
@@ -116,6 +132,11 @@ const loading = ref(false)
 const jobId = computed(() => route.query.job as string | undefined)
 const applicationId = computed(() => route.query.application as string | undefined)
 const providerId = computed(() => route.query.provider as string | undefined)
+
+const job = computed(() => {
+  if (!jobId.value || !jobsStore.currentJob) return null
+  return jobsStore.currentJob as { title?: string; description?: string; budget_type?: string; budget_min?: number; budget_max?: number }
+})
 
 const form = reactive({
   title: '',
@@ -153,13 +174,18 @@ function clearErrors() {
 onMounted(async () => {
   if (jobId.value && authStore.isClient) {
     await jobsStore.fetchJob(jobId.value)
-    const job = jobsStore.currentJob as { title?: string; budget_max?: number; budget_min?: number; payment_schedule?: 'FIXED' | 'HOURLY' } | null
-    if (job) {
-      if (!form.title) form.title = job.title ?? ''
-      if (!form.total_amount && (job.budget_max ?? job.budget_min) != null) {
-        form.total_amount = String(job.budget_max ?? job.budget_min)
+    const j = jobsStore.currentJob as { title?: string; description?: string; budget_type?: string; budget_max?: number; budget_min?: number } | null
+    if (j) {
+      form.title = j.title ?? ''
+      form.description = (j.description ?? '').trim() || 'As per job description.'
+      form.terms = 'Payment and terms as agreed. As per job agreement.'
+      if ((j.budget_max ?? j.budget_min) != null) {
+        form.total_amount = String(j.budget_max ?? j.budget_min)
+        if (j.budget_type === 'hourly') {
+          form.payment_schedule = 'HOURLY'
+          form.hourly_rate = String(j.budget_min ?? j.budget_max ?? '')
+        }
       }
-      if (job.payment_schedule) form.payment_schedule = job.payment_schedule
     }
   }
   if (!providerId.value && authStore.isClient) {
@@ -173,8 +199,8 @@ async function handleSubmit() {
   const amount = form.total_amount ? parseFloat(String(form.total_amount).trim()) : NaN
   const hourlyRate = form.hourly_rate ? parseFloat(String(form.hourly_rate).trim()) : NaN
   if (!form.title?.trim()) errors.title = 'Title is required.'
-  if (!form.description?.trim()) errors.description = 'Description is required.'
-  if (!form.terms?.trim()) errors.terms = 'Terms are required.'
+  if (!form.description?.trim()) form.description = 'As per job description.'
+  if (!form.terms?.trim()) form.terms = 'As per job agreement.'
   if (!form.start_date?.trim()) errors.start_date = 'Start date is required.'
   if (form.payment_schedule === 'HOURLY' && (Number.isNaN(hourlyRate) || hourlyRate <= 0)) {
     errors.hourly_rate = 'Enter a valid hourly rate.'

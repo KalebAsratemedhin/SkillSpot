@@ -10,6 +10,7 @@ export interface Job {
   budget_min?: number
   budget_max?: number
   budget_type?: 'hourly' | 'fixed' | 'range'
+  payment_schedule?: 'HOURLY' | 'FIXED'
   status: string
   client: string
   client_name?: string
@@ -18,6 +19,10 @@ export interface Job {
   updated_at: string
   tags?: string[]
   required_skills?: { id: string; name: string; category?: string }[]
+  applications_count?: number
+  accepted_applications_count?: number
+  latitude?: number | null
+  longitude?: number | null
 }
 
 export interface JobApplication {
@@ -54,6 +59,10 @@ export interface JobListParams {
   status?: string
   search?: string
   page?: number
+  skill?: string
+  budget_min?: number
+  budget_max?: number
+  ordering?: string
   /** When true (and user is client), returns only the current user's jobs including completed/cancelled */
   my_jobs?: boolean
 }

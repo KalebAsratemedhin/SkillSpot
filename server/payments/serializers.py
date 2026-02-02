@@ -62,16 +62,21 @@ class PaymentCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Payment
         fields = (
-            'contract', 'milestone_id', 'time_entry_id', 'amount', 'currency',
+            'id', 'contract', 'milestone_id', 'time_entry_id', 'amount', 'currency',
             'description', 'payment_method'
         )
+        read_only_fields = ('id',)
 
     def validate(self, attrs):
         contract = attrs.get('contract')
         milestone_id = attrs.get('milestone_id')
         time_entry_id = attrs.get('time_entry_id')
         amount = attrs.get('amount')
-        payer = self.context['payer']
+        
+        # Get payer from context (set by view's get_serializer_context)
+        payer = self.context.get('payer')
+        if not payer:
+            raise serializers.ValidationError('Authentication required to create payment.')
 
         # Verify payer is the contract client
         if contract.client != payer:
@@ -173,12 +178,13 @@ class PaymentCreateSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         milestone_id = validated_data.pop('milestone_id', None)
+        time_entry_id = validated_data.pop('time_entry_id', None)
         time_entry = validated_data.pop('time_entry', None)
         milestone = validated_data.pop('milestone', None)
-        contract = validated_data['contract']
-        payer = self.context['payer']
+        contract = validated_data.pop('contract')
+        payer = self.context.get('payer')
 
-        if milestone_id:
+        if milestone_id and not milestone:
             milestone = ContractMilestone.objects.get(id=milestone_id)
 
         payment = Payment.objects.create(
@@ -205,6 +211,30 @@ class StripePaymentIntentSerializer(serializers.Serializer):
     """
     payment_id = serializers.UUIDField(required=True)
     return_url = serializers.URLField(required=False, allow_blank=True)
+
+    def validate_payment_id(self, value):
+        try:
+            payment = Payment.objects.get(id=value)
+            if payment.status != Payment.PaymentStatus.PENDING:
+                raise serializers.ValidationError(
+                    'Payment is not in pending status.'
+                )
+            if payment.payment_method != Payment.PaymentMethod.STRIPE:
+                raise serializers.ValidationError(
+                    'Payment method is not Stripe.'
+                )
+            return value
+        except Payment.DoesNotExist:
+            raise serializers.ValidationError('Payment not found.')
+
+
+class StripeCheckoutSessionSerializer(serializers.Serializer):
+    """
+    Serializer for creating a Stripe Checkout Session (pay on Stripe's hosted page, on behalf of connected provider).
+    """
+    payment_id = serializers.UUIDField(required=True)
+    success_url = serializers.URLField(required=False, allow_blank=True)
+    cancel_url = serializers.URLField(required=False, allow_blank=True)
 
     def validate_payment_id(self, value):
         try:

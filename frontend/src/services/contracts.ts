@@ -13,6 +13,7 @@ export type PaymentSchedule = 'FIXED' | 'HOURLY'
 export interface Contract {
   id: string
   job?: string
+  job_title?: string
   job_application?: string
   client: string
   provider: string
@@ -87,8 +88,8 @@ export interface CreateContractPayload {
 }
 
 export const contractsService = {
-  list(): Promise<AxiosResponse<PaginatedResponse<Contract>>> {
-    return api.get('/contracts/')
+  list(params?: { my_contracts?: string; status?: string }): Promise<AxiosResponse<PaginatedResponse<Contract>>> {
+    return api.get('/contracts/', { params })
   },
   get(id: string): Promise<AxiosResponse<Contract>> {
     return api.get(`/contracts/${id}/`)

@@ -1,5 +1,5 @@
 <template>
-  <header class="sticky top-0 z-50 w-full border-b border-white/10 bg-midnight/95 backdrop-blur-md px-4 md:px-6 lg:px-20 py-3 md:py-4 text-white">
+  <header class="sticky top-0 z-[1000] w-full border-b border-white/10 bg-midnight/95 backdrop-blur-md px-4 md:px-6 lg:px-20 py-3 md:py-4 text-white">
     <div class="mx-auto flex max-w-[1400px] items-center justify-between">
       <div class="flex items-center gap-2 md:gap-3">
         <div class="text-amber">
@@ -28,11 +28,40 @@
           <button class="hidden sm:flex items-center justify-center rounded-lg h-10 w-10 md:h-11 md:w-11 bg-midnight-light text-slate-300 hover:text-white transition-colors">
             <span class="material-symbols-outlined text-[20px] md:text-[22px]">notifications</span>
           </button>
-          <router-link to="/profile">
-            <div class="size-8 md:size-10 rounded-full border-2 border-midnight-light overflow-hidden bg-amber flex items-center justify-center font-semibold text-midnight text-sm md:text-base">
-              {{ userInitials }}
+          <div class="relative" ref="profileDropdownRef">
+            <button
+              type="button"
+              class="size-8 md:size-10 rounded-full border-2 border-midnight-light overflow-hidden flex items-center justify-center font-semibold text-midnight text-sm md:text-base hover:ring-2 hover:ring-amber/50 focus:outline-none focus:ring-2 focus:ring-amber/50 bg-cover bg-center"
+              :class="profilePictureUrl ? '' : 'bg-amber'"
+              :style="profilePictureUrl ? { backgroundImage: `url(${profilePictureUrl})` } : undefined"
+              @click="profileDropdownOpen = !profileDropdownOpen"
+              aria-haspopup="true"
+              :aria-expanded="profileDropdownOpen"
+            >
+              <span v-if="!profilePictureUrl">{{ userInitials }}</span>
+            </button>
+            <div
+              v-if="profileDropdownOpen"
+              class="absolute right-0 mt-2 w-48 rounded-xl border border-white/10 bg-midnight-light shadow-xl py-1 z-[1001]"
+            >
+              <router-link
+                to="/profile"
+                class="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-300 hover:bg-white/5 hover:text-white transition-colors"
+                @click="profileDropdownOpen = false"
+              >
+                <span class="material-symbols-outlined text-lg">person</span>
+                Profile
+              </router-link>
+              <button
+                type="button"
+                class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-slate-300 hover:bg-white/5 hover:text-red-400 transition-colors"
+                @click="handleLogout"
+              >
+                <span class="material-symbols-outlined text-lg">logout</span>
+                Logout
+              </button>
             </div>
-          </router-link>
+          </div>
         </template>
         <template v-else>
           <router-link to="/login" class="text-sm font-semibold hover:text-amber transition-colors hidden sm:block">Login</router-link>
@@ -48,16 +77,53 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useProfilesStore } from '@/stores/profiles'
 import Button from './ui/Button.vue'
 
 const authStore = useAuthStore()
+const profilesStore = useProfilesStore()
+const router = useRouter()
+const profileDropdownOpen = ref(false)
+const profileDropdownRef = ref<HTMLElement | null>(null)
+
+const profilePictureUrl = computed(() => {
+  const raw = profilesStore.profile?.avatar || (authStore.user as { avatar?: string })?.avatar || null
+  if (!raw) return null
+  if (raw.startsWith('http')) return raw
+  const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1'
+  const origin = apiBase.replace(/\/api\/v1\/?$/, '')
+  return origin + (raw.startsWith('/') ? raw : '/' + raw)
+})
 
 const userInitials = computed(() => {
   if (!authStore.user) return 'U'
   const first = authStore.user.first_name?.[0] || ''
   const last = authStore.user.last_name?.[0] || ''
   return (first + last).toUpperCase() || 'U'
+})
+
+function handleLogout() {
+  profileDropdownOpen.value = false
+  authStore.logout()
+  router.push('/login')
+}
+
+function onClickOutside(event: MouseEvent) {
+  if (profileDropdownRef.value && !profileDropdownRef.value.contains(event.target as Node)) {
+    profileDropdownOpen.value = false
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('click', onClickOutside)
+  if (authStore.isAuthenticated) {
+    profilesStore.fetchProfile().catch(() => {})
+  }
+})
+onUnmounted(() => {
+  document.removeEventListener('click', onClickOutside)
 })
 </script>

@@ -71,8 +71,8 @@
                   class="absolute right-0 top-full mt-1 z-20 min-w-[180px] rounded-xl border border-slate-200 bg-white py-1 shadow-lg"
                 >
                   <router-link
-                    v-if="app.job"
-                    :to="`/jobs/${app.job}`"
+                    v-if="getAppJobId(app)"
+                    :to="`/jobs/${getAppJobId(app)}`"
                     class="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50"
                     @click="openDropdownId = null"
                   >
@@ -90,8 +90,8 @@
                     Message
                   </button>
                   <router-link
-                    v-if="authStore.isClient && app.status === 'ACCEPTED' && app.job && app.provider"
-                    :to="{ path: '/contracts/create', query: { job: app.job, application: app.id, provider: app.provider } }"
+                    v-if="authStore.isClient && app.status === 'PENDING' && getAppJobId(app) && getAppProviderId(app)"
+                    :to="{ path: '/contracts/create', query: { job: getAppJobId(app), application: app.id, provider: getAppProviderId(app) } }"
                     class="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50"
                     @click="openDropdownId = null"
                   >
@@ -172,6 +172,22 @@ async function startConversation(app: JobApplication) {
   }
 }
 
+function getAppJobId(app: JobApplication): string | null {
+  if (!app) return null
+  const j = app.job
+  if (typeof j === 'string') return j || null
+  if (j && typeof j === 'object' && 'id' in j) return (j as { id: string }).id
+  return null
+}
+
+function getAppProviderId(app: JobApplication): string | null {
+  if (!app) return null
+  const p = app.provider
+  if (typeof p === 'string') return p || null
+  if (p && typeof p === 'object' && 'id' in p) return (p as { id: string }).id
+  return null
+}
+
 function formatDate(dateString: string) {
   const date = new Date(dateString)
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
@@ -179,7 +195,7 @@ function formatDate(dateString: string) {
 
 function formatRate(rate: number | string) {
   const n = typeof rate === 'string' ? parseFloat(rate) : rate
-  return Number.isNaN(n) ? '—' : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
+  return Number.isNaN(n) ? '—' : 'Br ' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
 }
 
 onMounted(async () => {

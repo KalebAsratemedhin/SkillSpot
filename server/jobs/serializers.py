@@ -26,7 +26,8 @@ class JobSerializer(serializers.ModelSerializer):
         fields = (
             'id', 'client', 'client_email', 'client_name', 'title', 'description',
             'budget_min', 'budget_max', 'currency', 'location',
-            'address', 'is_remote', 'status', 'required_skills', 'skill_ids',
+            'address', 'latitude', 'longitude', 'is_remote', 'status',
+            'payment_schedule', 'required_skills', 'skill_ids',
             'deadline', 'applications_count', 'accepted_applications_count',
             'created_at', 'updated_at', 'closed_at'
         )
@@ -57,7 +58,8 @@ class JobCreateSerializer(serializers.ModelSerializer):
         fields = (
             'id', 'title', 'description', 'budget_min', 'budget_max',
             'currency', 'location', 'address', 'is_remote', 'status',
-            'required_skills', 'skill_ids', 'deadline'
+            'payment_schedule', 'required_skills', 'skill_ids', 'deadline',
+            'latitude', 'longitude',
         )
         read_only_fields = ('id',)
 

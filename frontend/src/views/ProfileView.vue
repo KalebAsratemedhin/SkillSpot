@@ -9,7 +9,7 @@
           </div>
           <div v-else class="flex flex-col md:flex-row items-center gap-10">
             <div class="relative group">
-              <div class="h-40 w-40 md:h-52 md:w-52 rounded-2xl ring-4 ring-amber/20 overflow-hidden shadow-2xl shadow-amber/5">
+              <div class="h-40 w-40 md:h-52 md:w-52 rounded-2xl ring-4 ring-amber/20 overflow-hidden shadow-2xl shadow-amber/5 relative">
                 <div
                   class="h-full w-full bg-cover bg-center transition-transform duration-500 group-hover:scale-110"
                   :style="{
@@ -22,6 +22,24 @@
                     {{ initials }}
                   </div>
                 </div>
+                <input
+                  ref="avatarInputRef"
+                  type="file"
+                  accept="image/*"
+                  class="hidden"
+                  @change="onAvatarFileChange"
+                />
+                <button
+                  v-if="authStore.isAuthenticated && profilesStore.profile"
+                  type="button"
+                  class="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl cursor-pointer"
+                  @click="triggerAvatarUpload"
+                >
+                  <span class="flex flex-col items-center gap-1 text-white text-sm font-semibold">
+                    <span class="material-symbols-outlined text-3xl">photo_camera</span>
+                    Change photo
+                  </span>
+                </button>
               </div>
               <div
                 v-if="profilesStore.profile?.is_verified"
@@ -142,184 +160,133 @@
           <div class="flex-1">
             <div class="mb-6 md:mb-10 border-b border-white/5">
               <nav class="flex gap-6 md:gap-10 overflow-x-auto">
-                <button
-                  :class="[
-                    'relative pb-3 md:pb-4 text-sm md:text-base font-bold transition-colors whitespace-nowrap',
-                    activeTab === 'portfolio' ? 'text-amber' : 'text-slate-400 hover:text-white',
-                  ]"
-                  @click="activeTab = 'portfolio'"
-                >
-                  Portfolio
-                  <span
-                    v-if="activeTab === 'portfolio'"
-                    class="absolute bottom-0 left-0 h-1 w-full bg-amber rounded-t-full"
-                  ></span>
-                </button>
-                <button
-                  :class="[
-                    'pb-3 md:pb-4 text-sm md:text-base font-semibold transition-colors whitespace-nowrap',
-                    activeTab === 'about' ? 'text-amber' : 'text-slate-400 hover:text-white',
-                  ]"
-                  @click="activeTab = 'about'"
-                >
-                  About Expert
-                </button>
-                <button
-                  :class="[
-                    'pb-3 md:pb-4 text-sm md:text-base font-semibold transition-colors whitespace-nowrap',
-                    activeTab === 'services' ? 'text-amber' : 'text-slate-400 hover:text-white',
-                  ]"
-                  @click="activeTab = 'services'"
-                >
-                  Services
-                </button>
-                <button
-                  :class="[
-                    'pb-3 md:pb-4 text-sm md:text-base font-semibold transition-colors whitespace-nowrap',
-                    activeTab === 'reviews' ? 'text-amber' : 'text-slate-400 hover:text-white',
-                  ]"
-                  @click="activeTab = 'reviews'"
-                >
-                  Reviews
-                </button>
+                <template v-if="authStore.isProvider">
+                  <button
+                    v-for="tab in ['portfolio', 'services', 'jobs']"
+                    :key="tab"
+                    :class="[
+                      'relative pb-3 md:pb-4 text-sm md:text-base font-semibold transition-colors whitespace-nowrap capitalize',
+                      activeTab === tab ? 'text-amber' : 'text-slate-400 hover:text-white',
+                    ]"
+                    @click="onTabClick(tab)"
+                  >
+                    {{ tab }}
+                    <span
+                      v-if="activeTab === tab"
+                      class="absolute bottom-0 left-0 h-1 w-full bg-amber rounded-t-full"
+                    ></span>
+                  </button>
+                </template>
+                <template v-else>
+                  <button
+                    :class="[
+                      'relative pb-3 md:pb-4 text-sm md:text-base font-semibold transition-colors whitespace-nowrap',
+                      activeTab === 'jobs' ? 'text-amber' : 'text-slate-400 hover:text-white',
+                    ]"
+                    @click="onTabClick('jobs')"
+                  >
+                    Jobs
+                    <span
+                      v-if="activeTab === 'jobs'"
+                      class="absolute bottom-0 left-0 h-1 w-full bg-amber rounded-t-full"
+                    ></span>
+                  </button>
+                </template>
               </nav>
             </div>
-            <section v-if="activeTab === 'portfolio'">
-              <div v-if="authStore.isProvider" class="mb-8">
-                <Dialog v-model:open="showAddExperience" @update:open="(v: boolean) => !v && resetExpForm()">
-                  <DialogTrigger as-child>
-                    <Button variant="outline" size="default" class="border-amber/30 text-amber">
-                      <span class="material-symbols-outlined text-lg mr-1">add</span>
-                      Add experience
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent class="sm:max-w-[480px]">
-                    <DialogHeader>
-                      <DialogTitle>Add experience</DialogTitle>
-                      <DialogDescription>Add a role or project to your portfolio. Dates help clients see your journey.</DialogDescription>
-                    </DialogHeader>
-                    <form id="add-experience-form" @submit.prevent="submitExperience" class="space-y-4">
-                      <FormField :error="expErrors.title">
-                        <Label class="text-slate-300">Title</Label>
-                        <Input v-model="expForm.title" class="bg-white/5 border-white/10 text-white" placeholder="e.g. Senior Plumber" required />
-                      </FormField>
-                      <FormField :error="expErrors.company_name">
-                        <Label class="text-slate-300">Company</Label>
-                        <Input v-model="expForm.company_name" class="bg-white/5 border-white/10 text-white" placeholder="e.g. ABC Services" />
-                      </FormField>
-                      <FormField :error="expErrors.description">
-                        <Label class="text-slate-300">Description</Label>
-                        <textarea v-model="expForm.description" class="w-full rounded-xl border border-white/10 bg-white/5 text-white p-4 min-h-[80px] placeholder:text-slate-500" placeholder="What did you do there?" />
-                      </FormField>
-                      <div class="grid grid-cols-2 gap-4">
-                        <FormField :error="expErrors.start_date">
-                          <Label class="text-slate-300">Start date</Label>
-                          <Input v-model="expForm.start_date" type="date" class="bg-white/5 border-white/10 text-white [color-scheme:dark]" required />
-                        </FormField>
-                        <FormField :error="expErrors.end_date">
-                          <Label class="text-slate-300">End date</Label>
-                          <Input v-model="expForm.end_date" type="date" class="bg-white/5 border-white/10 text-white [color-scheme:dark]" :disabled="expForm.is_current" />
-                        </FormField>
-                      </div>
-                      <label class="flex items-center gap-2 cursor-pointer">
-                        <input v-model="expForm.is_current" type="checkbox" class="rounded border-white/20 bg-white/5 text-amber focus:ring-amber" />
-                        <span class="text-slate-300 text-sm">Currently working here</span>
-                      </label>
-                    </form>
-                    <DialogFooter>
-                      <DialogClose as-child>
-                        <Button type="button" variant="outline" class="border-white/20 text-white">Cancel</Button>
-                      </DialogClose>
-                      <Button type="submit" form="add-experience-form" :loading="profilesStore.loading" variant="default" class="bg-amber text-midnight">
-                        Add experience
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-              </div>
-              <!-- Timeline-style portfolio -->
-              <div class="relative">
-                <div v-if="portfolioItems.length > 0" class="space-y-0">
-                  <div
-                    v-for="(experience, index) in portfolioItems"
-                    :key="experience.id || index"
-                    class="relative flex gap-6 md:gap-10 group"
-                  >
-                    <div class="flex flex-col items-center flex-shrink-0">
-                      <div class="w-4 h-4 rounded-full bg-amber ring-4 ring-midnight-light group-hover:ring-amber/30 transition-all z-10" />
-                      <div v-if="index < portfolioItems.length - 1" class="w-px flex-1 min-h-[60px] bg-gradient-to-b from-amber/60 to-white/10 mt-1" />
-                    </div>
-                    <article class="flex-1 pb-10 md:pb-12">
-                      <div class="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-midnight-light to-midnight/80 p-6 md:p-8 transition-all duration-300 group-hover:border-amber/30 group-hover:shadow-xl group-hover:shadow-amber/5">
-                        <div class="absolute top-0 right-0 w-32 h-32 bg-amber/5 rounded-bl-full" />
-                        <div class="relative">
-                          <span class="inline-block text-6xl md:text-7xl font-black text-amber/30 leading-none mb-2 select-none" style="font-family: Georgia, serif;">{{ experience.title.charAt(0) }}</span>
-                          <h3 class="text-xl md:text-2xl font-bold text-white mb-1 -mt-2">{{ experience.title }}</h3>
-                          <p v-if="experience.company_name" class="text-amber text-sm font-semibold mb-3">{{ experience.company_name }}</p>
-                          <p v-if="experience.description" class="text-slate-400 text-sm leading-relaxed mb-4">{{ experience.description }}</p>
-                          <div class="flex flex-wrap items-center justify-between gap-3 mt-2">
-                            <span class="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-500">
-                              <span class="material-symbols-outlined text-amber text-sm">calendar_today</span>
-                              {{ formatDate(experience.start_date) }} — {{ experience.is_current ? 'Present' : (experience.end_date ? formatDate(experience.end_date) : '—') }}
-                            </span>
-                            <Button
-                              v-if="authStore.isProvider && experience.id"
-                              variant="ghost"
-                              size="sm"
-                              class="text-red-400/80 hover:text-red-400 hover:bg-red-500/10"
-                              @click="deleteExperience(experience.id)"
-                            >
-                              <span class="material-symbols-outlined text-sm">delete</span>
-                              Remove
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    </article>
-                  </div>
-                </div>
-                <div v-else class="text-center py-16 px-6 rounded-2xl border border-dashed border-white/10 bg-white/[0.02]">
-                  <span class="material-symbols-outlined text-5xl text-slate-600 mb-4 block">work</span>
-                  <p class="text-slate-400 font-medium mb-2">No portfolio items yet</p>
-                  <p class="text-slate-500 text-sm">Add your experience to show clients your track record.</p>
-                  <Button v-if="authStore.isProvider" variant="outline" size="default" class="mt-6 border-amber/30 text-amber" @click="showAddExperience = true">
-                    <span class="material-symbols-outlined text-lg mr-1">add</span>
-                    Add experience
-                  </Button>
-                </div>
-              </div>
-            </section>
-            <section v-if="activeTab === 'about'">
+            <!-- Provider: Portfolio (experiences) -->
+            <section v-if="authStore.isProvider && activeTab === 'portfolio'">
               <Card class="bg-midnight-light border-white/10">
                 <CardContent class="p-8">
-                  <h3 class="text-xl font-bold text-white mb-4">About</h3>
-                  <p v-if="profilesStore.profile?.bio" class="text-slate-300 leading-relaxed mb-6">
-                    {{ profilesStore.profile.bio }}
-                  </p>
-                  <div v-if="profilesStore.experiences.length > 0" class="space-y-4">
-                    <h4 class="text-lg font-bold text-white mb-3">Experience</h4>
+                  <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-xl font-bold text-white">Portfolio</h3>
+                    <Dialog v-model:open="showAddExperience" @update:open="(v: boolean) => !v && resetExpForm()">
+                      <DialogTrigger as-child>
+                        <Button variant="outline" size="default" class="border-amber/30 text-amber">
+                          <span class="material-symbols-outlined text-lg mr-1">add</span>
+                          Add experience
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent class="sm:max-w-[480px]">
+                        <DialogHeader>
+                          <DialogTitle>Add experience</DialogTitle>
+                          <DialogDescription>Add a role or project. Dates help clients see your journey.</DialogDescription>
+                        </DialogHeader>
+                        <form id="add-experience-form" @submit.prevent="submitExperience" class="space-y-4">
+                          <FormField :error="expErrors.title">
+                            <Label class="text-slate-300">Title</Label>
+                            <Input v-model="expForm.title" class="bg-white/5 border-white/10 text-white" placeholder="e.g. Senior Plumber" required />
+                          </FormField>
+                          <FormField :error="expErrors.company_name">
+                            <Label class="text-slate-300">Company</Label>
+                            <Input v-model="expForm.company_name" class="bg-white/5 border-white/10 text-white" placeholder="e.g. ABC Services" />
+                          </FormField>
+                          <FormField :error="expErrors.description">
+                            <Label class="text-slate-300">Description</Label>
+                            <textarea v-model="expForm.description" class="w-full rounded-xl border border-white/10 bg-white/5 text-white p-4 min-h-[80px] placeholder:text-slate-500" placeholder="What did you do there?" />
+                          </FormField>
+                          <div class="grid grid-cols-2 gap-4">
+                            <FormField :error="expErrors.start_date">
+                              <Label class="text-slate-300">Start date</Label>
+                              <Input v-model="expForm.start_date" type="date" class="bg-white/5 border-white/10 text-white [color-scheme:dark]" required />
+                            </FormField>
+                            <FormField :error="expErrors.end_date">
+                              <Label class="text-slate-300">End date</Label>
+                              <Input v-model="expForm.end_date" type="date" class="bg-white/5 border-white/10 text-white [color-scheme:dark]" :disabled="expForm.is_current" />
+                            </FormField>
+                          </div>
+                          <label class="flex items-center gap-2 cursor-pointer">
+                            <input v-model="expForm.is_current" type="checkbox" class="rounded border-white/20 bg-white/5 text-amber focus:ring-amber" />
+                            <span class="text-slate-300 text-sm">Currently working here</span>
+                          </label>
+                        </form>
+                        <DialogFooter>
+                          <DialogClose as-child>
+                            <Button type="button" variant="outline" class="border-white/20 text-white">Cancel</Button>
+                          </DialogClose>
+                          <Button type="submit" form="add-experience-form" :loading="profilesStore.loading" variant="default" class="bg-amber text-midnight">
+                            Add experience
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                  <div v-if="(profilesStore.providerProfile?.experiences || profilesStore.experiences).length > 0" class="space-y-4">
                     <div
                       v-for="exp in (profilesStore.providerProfile?.experiences || profilesStore.experiences)"
                       :key="exp.id"
-                      class="border-l-2 border-amber/30 pl-4 py-2"
+                      class="border-l-2 border-amber/30 pl-4 py-2 flex items-start justify-between gap-4"
                     >
-                      <div class="flex items-baseline gap-2 mb-1">
-                        <h5 class="font-bold text-white">{{ exp.title }}</h5>
-                        <span v-if="exp.company_name" class="text-slate-400 text-sm">{{ exp.company_name }}</span>
+                      <div>
+                        <div class="flex items-baseline gap-2 mb-1">
+                          <h5 class="font-bold text-white">{{ exp.title }}</h5>
+                          <span v-if="exp.company_name" class="text-slate-400 text-sm">{{ exp.company_name }}</span>
+                        </div>
+                        <p v-if="exp.description" class="text-slate-400 text-sm">{{ exp.description }}</p>
+                        <p class="text-slate-500 text-xs mt-1">
+                          {{ formatDate(exp.start_date) }} - {{ exp.is_current ? 'Present' : formatDate(exp.end_date || '') }}
+                        </p>
                       </div>
-                      <p v-if="exp.description" class="text-slate-400 text-sm">{{ exp.description }}</p>
-                      <p class="text-slate-500 text-xs mt-1">
-                        {{ formatDate(exp.start_date) }} - {{ exp.is_current ? 'Present' : formatDate(exp.end_date || '') }}
-                      </p>
+                      <Button
+                        v-if="exp.id"
+                        variant="ghost"
+                        size="sm"
+                        class="text-red-400/80 hover:text-red-400 hover:bg-red-500/10 flex-shrink-0"
+                        @click="deleteExperience(exp.id)"
+                      >
+                        <span class="material-symbols-outlined text-sm">delete</span>
+                      </Button>
                     </div>
                   </div>
+                  <p v-else class="text-slate-400">No portfolio items yet. Add your experience above.</p>
                 </CardContent>
               </Card>
             </section>
-            <section v-if="activeTab === 'services'">
+            <!-- Provider: Services (skills) -->
+            <section v-if="authStore.isProvider && activeTab === 'services'">
               <Card class="bg-midnight-light border-white/10">
                 <CardContent class="p-8">
-                  <h3 class="text-xl font-bold text-white mb-4">Services Offered</h3>
+                  <h3 class="text-xl font-bold text-white mb-4">Services</h3>
                   <div v-if="providerSkills.length > 0" class="flex flex-wrap gap-2.5 mb-4">
                     <span
                       v-for="tag in providerSkills"
@@ -328,7 +295,6 @@
                     >
                       {{ tag.name }}
                       <button
-                        v-if="authStore.isProvider"
                         type="button"
                         class="ml-1 text-slate-400 hover:text-red-400"
                         aria-label="Remove skill"
@@ -338,91 +304,103 @@
                       </button>
                     </span>
                   </div>
-                  <div v-if="authStore.isProvider" class="mt-4 space-y-4">
-                    <div class="flex flex-wrap items-end gap-2">
-                      <div class="min-w-[200px]">
-                        <Label class="text-slate-300 block mb-2">Add skill from list</Label>
-                        <Select v-model="selectedSkillId" class="w-full">
-                          <SelectTrigger class="w-full">
-                            <SelectValue placeholder="Select a skill..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem
-                              v-for="tag in availableSkillsToAdd"
-                              :key="tag.id"
-                              :value="tag.id"
-                            >
-                              {{ tag.name }}
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="default"
-                        size="default"
-                        class="bg-amber text-midnight"
-                        :disabled="!selectedSkillId"
-                        @click="addSkill()"
-                      >
-                        Add
-                      </Button>
+                  <div class="flex flex-wrap items-end gap-2 mb-4">
+                    <div class="min-w-[200px]">
+                      <Label class="text-slate-300 block mb-2">Add skill from list</Label>
+                      <Select v-model="selectedSkillId">
+                        <SelectTrigger class="w-full bg-white/5 border-white/10 text-white">
+                          <SelectValue placeholder="Select a skill..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem
+                            v-for="tag in availableSkillsToAdd"
+                            :key="tag.id"
+                            :value="tag.id"
+                            class="rounded-lg focus:bg-slate-100 focus:text-slate-900"
+                          >
+                            {{ tag.name }}
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
-                    <div class="flex flex-wrap items-end gap-2">
-                      <div>
-                        <Label class="text-slate-300 block mb-2">Or create new skill</Label>
-                        <Input
-                          v-model="newSkillName"
-                          placeholder="e.g. Plumbing, Electrical"
-                          class="bg-white/5 border-white/10 text-white min-w-[200px]"
-                          @keydown.enter.prevent="addNewSkill()"
-                        />
-                      </div>
-                      <Button
-                        type="button"
-                        variant="default"
-                        size="default"
-                        class="bg-amber text-midnight"
-                        :disabled="!newSkillName.trim()"
-                        :loading="addingNewSkill"
-                        @click="addNewSkill()"
-                      >
-                        Create &amp; Add
-                      </Button>
-                    </div>
+                    <Button type="button" variant="default" size="default" class="bg-amber text-midnight" :disabled="!selectedSkillId" @click="addSkill()">
+                      Add
+                    </Button>
                   </div>
-                  <p v-if="providerSkills.length === 0 && !authStore.isProvider" class="text-slate-400">No services listed yet</p>
-                  <p v-else-if="providerSkills.length === 0" class="text-slate-400">Add skills above to show your services.</p>
+                  <div class="flex flex-wrap items-end gap-2">
+                    <div>
+                      <Label class="text-slate-300 block mb-2">Or create new skill</Label>
+                      <Input
+                        v-model="newSkillName"
+                        placeholder="e.g. Plumbing, Electrical"
+                        class="bg-white/5 border-white/10 text-white min-w-[200px]"
+                        @keydown.enter.prevent="addNewSkill()"
+                      />
+                    </div>
+                    <Button type="button" variant="default" size="default" class="bg-amber text-midnight" :disabled="!newSkillName.trim()" :loading="addingNewSkill" @click="addNewSkill()">
+                      Create &amp; Add
+                    </Button>
+                  </div>
+                  <p v-if="providerSkills.length === 0" class="text-slate-400 mt-4">Add skills above to show your services.</p>
                 </CardContent>
               </Card>
             </section>
-            <section v-if="activeTab === 'reviews'">
-              <div v-if="reviews.length > 0" class="space-y-4">
+            <!-- Jobs tab: contracts with job link + review if completed (provider and client) -->
+            <section v-if="activeTab === 'jobs'">
+              <div v-if="profileContractsLoading" class="flex justify-center py-12">
+                <span class="material-symbols-outlined animate-spin text-4xl text-amber">refresh</span>
+              </div>
+              <div v-else-if="profileContractsList.length === 0" class="text-center py-12 rounded-2xl border border-white/10 bg-midnight-light">
+                <p class="text-slate-400 mb-4">{{ authStore.isClient ? 'No jobs with contracts yet' : 'No hired jobs yet' }}</p>
+                <router-link v-if="authStore.isClient" to="/jobs/create">
+                  <Button variant="outline" class="border-amber/30 text-amber">Post a job</Button>
+                </router-link>
+              </div>
+              <div v-else class="flex flex-col gap-4">
                 <Card
-                  v-for="review in reviews"
-                  :key="review.id"
+                  v-for="c in profileContractsList"
+                  :key="c.id"
                   class="bg-midnight-light border-white/10"
                 >
                   <CardContent class="p-6">
-                    <div class="flex items-center gap-3 mb-3">
-                      <div class="flex text-amber">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div class="min-w-0">
+                        <router-link :to="c.job ? `/jobs/${c.job}` : '#'" class="text-lg font-bold text-white hover:text-amber transition-colors line-clamp-1">
+                          {{ c.job_title || 'Job' }}
+                        </router-link>
                         <span
-                          v-for="i in 5"
-                          :key="i"
-                          class="material-symbols-outlined filled text-lg"
-                          :class="i <= review.rating ? 'text-amber' : 'text-slate-600'"
+                          :class="[
+                            'inline-block mt-2 text-[10px] font-bold px-2 py-0.5 rounded uppercase',
+                            c.status === 'ACTIVE' ? 'bg-amber/20 text-amber' : c.status === 'COMPLETED' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-500/20 text-slate-400',
+                          ]"
                         >
-                          star
+                          {{ c.status === 'ACTIVE' ? 'Active' : c.status === 'COMPLETED' ? 'Completed' : c.status.replace(/_/g, ' ') }}
                         </span>
                       </div>
-                      <span class="text-slate-400 text-sm">{{ formatDate(review.created_at) }}</span>
+                      <router-link v-if="c.job" :to="`/contracts/${c.id}`">
+                        <Button variant="outline" size="sm" class="border-white/20 text-slate-300 hover:text-white">
+                          View contract
+                        </Button>
+                      </router-link>
                     </div>
-                    <p v-if="review.comment" class="text-slate-300">{{ review.comment }}</p>
+                    <div v-if="c.status === 'COMPLETED' && contractReviewByContractId[c.id]" class="mt-4 pt-4 border-t border-white/10">
+                      <div class="flex items-center gap-2 mb-2">
+                        <div class="flex text-amber">
+                          <span
+                            v-for="i in 5"
+                            :key="i"
+                            class="material-symbols-outlined filled text-lg"
+                            :class="i <= (contractReviewByContractId[c.id].score ?? 0) ? 'text-amber' : 'text-slate-600'"
+                          >
+                            star
+                          </span>
+                        </div>
+                        <span class="text-slate-400 text-sm">{{ formatDate(contractReviewByContractId[c.id].created_at) }}</span>
+                      </div>
+                      <p v-if="contractReviewByContractId[c.id].comment" class="text-slate-300 text-sm">{{ contractReviewByContractId[c.id].comment }}</p>
+                    </div>
                   </CardContent>
                 </Card>
-              </div>
-              <div v-else class="text-center py-12">
-                <p class="text-slate-400">No reviews yet</p>
               </div>
             </section>
           </div>
@@ -452,7 +430,7 @@
                 <div class="flex items-baseline justify-between mb-6">
                   <span class="text-sm font-bold uppercase tracking-widest opacity-70">Premium Rate</span>
                   <div class="text-right">
-                    <span class="text-4xl font-black">${{ Math.round(profilesStore.providerProfile.hourly_rate) }}</span>
+                    <span class="text-4xl font-black">Br {{ Math.round(profilesStore.providerProfile.hourly_rate).toLocaleString() }}/hr</span>
                     <span class="text-sm font-bold opacity-70">/hr</span>
                   </div>
                 </div>
@@ -464,10 +442,6 @@
                   <li class="flex items-center gap-3 font-bold text-sm">
                     <span class="material-symbols-outlined text-xl">verified</span>
                     Priority Scheduling
-                  </li>
-                  <li class="flex items-center gap-3 font-bold text-sm">
-                    <span class="material-symbols-outlined text-xl">verified</span>
-                    5-Year Warranty on Labor
                   </li>
                 </ul>
                 <Button variant="secondary" class="w-full bg-midnight text-white hover:bg-midnight-light">
@@ -576,6 +550,8 @@ import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useProfilesStore } from '@/stores/profiles'
 import { ratingsService, type Rating, type RatingStats } from '@/services/ratings'
+import { contractsService, type Contract } from '@/services/contracts'
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select'
 import AppLayout from '@/components/AppLayout.vue'
 import Card from '@/components/ui/Card.vue'
 import CardContent from '@/components/ui/CardContent.vue'
@@ -593,17 +569,15 @@ import {
   DialogFooter,
   DialogClose,
 } from '@/components/ui/dialog'
-import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select'
 import { toast } from 'vue-sonner'
 import { paymentsService, type StripeConnectStatus } from '@/services/payments'
 
 const authStore = useAuthStore()
 const profilesStore = useProfilesStore()
-const activeTab = ref<'portfolio' | 'about' | 'services' | 'reviews'>('portfolio')
+const activeTab = ref<'portfolio' | 'services' | 'jobs'>(authStore.isProvider ? 'portfolio' : 'jobs')
 const ratingStats = ref<RatingStats | null>(null)
-const reviews = ref<Rating[]>([])
 const showEditProfile = ref(false)
-const showAddExperience = ref(false)
+const avatarInputRef = ref<HTMLInputElement | null>(null)
 
 const editForm = ref({
   first_name: '',
@@ -613,7 +587,6 @@ const editForm = ref({
   bio: '',
 })
 const editErrors = ref<Record<string, string>>({})
-
 const expForm = ref({
   title: '',
   company_name: '',
@@ -623,9 +596,19 @@ const expForm = ref({
   is_current: false,
 })
 const expErrors = ref<Record<string, string>>({})
+const showAddExperience = ref(false)
 const selectedSkillId = ref('')
 const newSkillName = ref('')
 const addingNewSkill = ref(false)
+const profileContracts = ref<Contract[]>([])
+const profileContractsList = computed(() => Array.isArray(profileContracts.value) ? profileContracts.value : [])
+const profileContractsLoading = ref(false)
+const contractReviewByContractId = ref<Record<string, Rating>>({})
+const providerSkills = computed(() => profilesStore.providerProfile?.skills || [])
+const availableSkillsToAdd = computed(() => {
+  const currentIds = new Set(providerSkills.value.map((s: { id: string }) => s.id))
+  return skillTags.value.filter(tag => !currentIds.has(tag.id))
+})
 
 const stripeConnectStatus = ref<StripeConnectStatus | null>(null)
 const stripeConnectLoading = ref(false)
@@ -649,7 +632,12 @@ const initials = computed(() => {
 })
 
 const profilePictureUrl = computed(() => {
-  return profilesStore.profile?.avatar || authStore.user?.avatar || null
+  const raw = profilesStore.profile?.avatar || (authStore.user as { avatar?: string })?.avatar || null
+  if (!raw) return null
+  if (raw.startsWith('http')) return raw
+  const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1'
+  const origin = apiBase.replace(/\/api\/v1\/?$/, '')
+  return origin + (raw.startsWith('/') ? raw : '/' + raw)
 })
 
 const location = computed(() => {
@@ -667,78 +655,41 @@ const skillTags = computed(() => {
   return tags.filter(tag => (tag.category || '').toUpperCase() === 'SKILL')
 })
 
-const providerSkills = computed(() => {
-  return profilesStore.providerProfile?.skills || []
-})
-
-const availableSkillsToAdd = computed(() => {
-  const currentIds = new Set(providerSkills.value.map((s: { id: string }) => s.id))
-  return skillTags.value.filter(tag => !currentIds.has(tag.id))
-})
-
-const portfolioItems = computed(() => {
-  if (profilesStore.providerProfile?.experiences?.length) {
-    return profilesStore.providerProfile.experiences.map((exp: { id: string; title: string; description?: string; company_name?: string; start_date: string; end_date?: string; is_current?: boolean }) => ({
-      id: exp.id,
-      title: exp.title,
-      description: exp.description,
-      company_name: exp.company_name,
-      start_date: exp.start_date,
-      end_date: exp.end_date,
-      is_current: exp.is_current,
-      image: null,
-    }))
-  }
-  const exps = profilesStore.experiences
-  if (!Array.isArray(exps)) return []
-  return exps.map((exp: { id: string; title: string; description?: string; company_name?: string; start_date: string; end_date?: string; is_current?: boolean }) => ({
-    id: exp.id,
-    title: exp.title,
-    description: exp.description,
-    company_name: exp.company_name,
-    start_date: exp.start_date,
-    end_date: exp.end_date,
-    is_current: exp.is_current,
-    image: null,
-  }))
-})
-
-function formatDate(dateString: string) {
-  if (!dateString) return ''
-  const date = new Date(dateString)
-  return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+function onTabClick(tab: 'portfolio' | 'services' | 'jobs') {
+  activeTab.value = tab
+  if (tab === 'jobs') loadProfileContracts()
 }
 
-function initEditForm() {
-  const p = profilesStore.profile
-  if (p) {
-    editForm.value = {
-      first_name: p.first_name || '',
-      last_name: p.last_name || '',
-      phone_number: p.phone_number || '',
-      location: p.location || '',
-      bio: p.bio || '',
-    }
-    editErrors.value = {}
-  }
-}
-
-async function saveProfile() {
-  editErrors.value = {}
+async function loadProfileContracts() {
+  profileContractsLoading.value = true
   try {
-    await profilesStore.updateProfile(editForm.value)
-    showEditProfile.value = false
-    toast.success('Profile updated')
-  } catch (err: any) {
-    const data = err.response?.data
-    if (data && typeof data === 'object') {
-      Object.keys(data).forEach(key => {
-        const val = data[key]
-        editErrors.value[key] = Array.isArray(val) ? val[0] : val
-      })
+    const params = authStore.isClient ? { my_contracts: 'true' } : undefined
+    const res = await contractsService.list(params)
+    const list = res.data.results ?? []
+    profileContracts.value = list
+    const completedIds = list.filter((c: Contract) => c.status === 'COMPLETED').map((c: Contract) => c.id)
+    if (completedIds.length > 0) {
+      const ratingType = authStore.isClient ? 'PROVIDER_TO_CLIENT' : 'CLIENT_TO_PROVIDER'
+      const map: Record<string, Rating> = {}
+      await Promise.all(
+        completedIds.map(async (id: string) => {
+          try {
+            const r = await ratingsService.list({ contract: id, rating_type: ratingType })
+            const data = r.data as { results?: Rating[] } | Rating[]
+            const arr = Array.isArray(data) ? data : (data?.results ?? [])
+            if (arr.length > 0) map[id] = arr[0]
+          } catch (_) {}
+        })
+      )
+      contractReviewByContractId.value = map
     } else {
-      toast.error('Failed to update profile')
+      contractReviewByContractId.value = {}
     }
+  } catch (err) {
+    console.error('Failed to load contracts:', err)
+    profileContracts.value = []
+  } finally {
+    profileContractsLoading.value = false
   }
 }
 
@@ -795,8 +746,7 @@ function addSkill() {
   if (!selectedSkillId.value) return
   const currentIds = (profilesStore.providerProfile?.skills || []).map((s: { id: string }) => s.id)
   if (currentIds.includes(selectedSkillId.value)) return
-  const newIds = [...currentIds, selectedSkillId.value]
-  profilesStore.updateProviderProfile({ skill_ids: newIds }).then(() => {
+  profilesStore.updateProviderProfile({ skill_ids: [...currentIds, selectedSkillId.value] }).then(() => {
     toast.success('Skill added')
     selectedSkillId.value = ''
     profilesStore.fetchProviderProfile()
@@ -829,19 +779,78 @@ async function addNewSkill() {
       } else throw err
     }
     const currentIds = (profilesStore.providerProfile?.skills || []).map((s: { id: string }) => s.id)
-    if (currentIds.includes(tagId)) {
-      toast.success('Skill already added')
-    } else {
+    if (!currentIds.includes(tagId)) {
       await profilesStore.updateProviderProfile({ skill_ids: [...currentIds, tagId] })
-      toast.success('Skill added')
       await profilesStore.fetchProviderProfile()
     }
+    toast.success('Skill added')
     newSkillName.value = ''
     await profilesStore.fetchTags()
   } catch (err: any) {
     toast.error(err.response?.data?.name?.[0] || err.response?.data?.detail || 'Failed to add skill')
   } finally {
     addingNewSkill.value = false
+  }
+}
+
+function formatDate(dateString: string) {
+  if (!dateString) return ''
+  const date = new Date(dateString)
+  return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+}
+
+function initEditForm() {
+  const p = profilesStore.profile
+  if (p) {
+    editForm.value = {
+      first_name: p.first_name || '',
+      last_name: p.last_name || '',
+      phone_number: p.phone_number || '',
+      location: p.location || '',
+      bio: p.bio || '',
+    }
+    editErrors.value = {}
+  }
+}
+
+function triggerAvatarUpload() {
+  avatarInputRef.value?.click()
+}
+
+async function onAvatarFileChange(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  if (!file.type.startsWith('image/')) {
+    toast.error('Please select an image file')
+    input.value = ''
+    return
+  }
+  try {
+    await profilesStore.uploadAvatar(file)
+    toast.success('Profile picture updated')
+  } catch {
+    toast.error('Failed to upload photo')
+  }
+  input.value = ''
+}
+
+async function saveProfile() {
+  editErrors.value = {}
+  try {
+    await profilesStore.updateProfile(editForm.value)
+    showEditProfile.value = false
+    toast.success('Profile updated')
+  } catch (err: any) {
+    const data = err.response?.data
+    if (data && typeof data === 'object') {
+      Object.keys(data).forEach(key => {
+        const val = data[key]
+        editErrors.value[key] = Array.isArray(val) ? val[0] : val
+      })
+    } else {
+      toast.error('Failed to update profile')
+    }
   }
 }
 
@@ -897,46 +906,30 @@ onMounted(async () => {
     await profilesStore.fetchProviderProfile()
     await profilesStore.fetchTags({ category: 'SKILL' })
     await profilesStore.fetchExperiences()
-    
-    if (profilesStore.providerProfile?.id) {
-      try {
-        const userId = typeof profilesStore.profile?.user === 'string' ? profilesStore.profile.user : profilesStore.profile?.user
-        const [statsResponse, reviewsResponse] = await Promise.all([
-          ratingsService.getStats(userId),
-          ratingsService.getProviderRatings(profilesStore.providerProfile.id),
-        ])
-        ratingStats.value = statsResponse.data
-        reviews.value = reviewsResponse.data
-      } catch (err) {
-        console.error('Failed to fetch ratings:', err)
+  }
+  const userId = typeof profilesStore.profile?.user === 'string'
+    ? profilesStore.profile.user
+    : (profilesStore.profile?.user as { id?: string })?.id ?? authStore.user?.id
+  if (userId) {
+    try {
+      const statsResponse = await ratingsService.getStats(userId)
+      const stats = statsResponse.data as import('@/services/ratings').RatingStats
+      const total = (stats.total_ratings ?? 0) || 0
+      const countP = stats.rating_count_as_provider ?? 0
+      const countC = stats.rating_count_as_client ?? 0
+      const avgP = stats.average_rating_as_provider ?? 0
+      const avgC = stats.average_rating_as_client ?? 0
+      const combinedAvg = total > 0 ? (avgP * countP + avgC * countC) / total : 0
+      ratingStats.value = {
+        ...stats,
+        average_rating: combinedAvg,
+        total_ratings: total,
       }
+    } catch (err) {
+      console.error('Failed to fetch rating stats:', err)
     }
   }
+  if (activeTab.value === 'jobs') loadProfileContracts()
 })
 </script>
 
-<style scoped>
-.portfolio-grid {
-  column-count: 1;
-  column-gap: 1.5rem;
-}
-
-@media (min-width: 768px) {
-  .portfolio-grid {
-    column-count: 2;
-  }
-}
-
-@media (min-width: 1024px) {
-  .portfolio-grid {
-    column-count: 3;
-  }
-}
-
-.portfolio-item {
-  display: inline-block;
-  width: 100%;
-  margin-bottom: 1.5rem;
-  break-inside: avoid;
-}
-</style>

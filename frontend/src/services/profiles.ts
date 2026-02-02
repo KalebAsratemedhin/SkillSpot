@@ -66,6 +66,11 @@ export const profilesService = {
   updateProfile(data: Partial<Profile>): Promise<AxiosResponse<Profile>> {
     return api.patch('/profiles/me/', data)
   },
+  uploadProfileAvatar(file: File): Promise<AxiosResponse<Profile>> {
+    const formData = new FormData()
+    formData.append('avatar', file)
+    return api.patch('/profiles/me/', formData)
+  },
   getProviderProfile(): Promise<AxiosResponse<ServiceProviderProfile>> {
     return api.get('/profiles/provider/')
   },

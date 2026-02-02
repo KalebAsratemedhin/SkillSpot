@@ -33,6 +33,9 @@ class ProfileSerializer(serializers.ModelSerializer):
             data['first_name'] = instance.user.first_name
         if not data.get('last_name') and instance.user.last_name:
             data['last_name'] = instance.user.last_name
+        request = self.context.get('request')
+        if request and instance.avatar:
+            data['avatar'] = request.build_absolute_uri(instance.avatar.url)
         return data
 
     def validate_avatar(self, value):

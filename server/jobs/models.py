@@ -55,6 +55,20 @@ class Job(models.Model):
     currency = models.CharField(max_length=3, default='ETB')
     location = models.CharField(max_length=200)
     address = models.TextField(blank=True)
+    latitude = models.DecimalField(
+        max_digits=9,
+        decimal_places=6,
+        null=True,
+        blank=True,
+        help_text=_('Latitude for map display')
+    )
+    longitude = models.DecimalField(
+        max_digits=9,
+        decimal_places=6,
+        null=True,
+        blank=True,
+        help_text=_('Longitude for map display')
+    )
     is_remote = models.BooleanField(default=False)
     status = models.CharField(
         max_length=20,

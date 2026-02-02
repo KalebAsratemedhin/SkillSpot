@@ -38,6 +38,20 @@ export const useProfilesStore = defineStore('profiles', () => {
     }
   }
 
+  async function uploadAvatar(file: File) {
+    try {
+      loading.value = true
+      error.value = null
+      const response = await profilesService.uploadProfileAvatar(file)
+      profile.value = response.data
+    } catch (err: any) {
+      error.value = err.response?.data?.detail || 'Failed to upload photo'
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
   async function fetchProviderProfile() {
     try {
       loading.value = true
@@ -166,6 +180,7 @@ export const useProfilesStore = defineStore('profiles', () => {
     error,
     fetchProfile,
     updateProfile,
+    uploadAvatar,
     fetchProviderProfile,
     updateProviderProfile,
     fetchTags,

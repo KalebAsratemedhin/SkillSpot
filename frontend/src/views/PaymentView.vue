@@ -23,7 +23,7 @@
                   <div class="flex justify-between items-start mb-4">
                     <div>
                       <p class="text-amber text-xs font-black uppercase tracking-widest mb-1">Payment Amount</p>
-                      <h3 class="text-white text-2xl font-black">${{ payAmount.toLocaleString() }}</h3>
+                      <h3 class="text-white text-2xl font-black">Br {{ payAmount.toLocaleString() }}</h3>
                     </div>
                     <div class="p-2 bg-amber/10 rounded-xl text-amber">
                       <span class="material-symbols-outlined text-2xl">account_balance_wallet</span>
@@ -34,7 +34,7 @@
                   <div class="pt-4 border-t border-white/5 flex justify-between items-end">
                     <div>
                       <p class="text-slate-500 text-[10px] font-black uppercase tracking-widest">Amount to Pay</p>
-                      <p class="text-white text-3xl font-black tracking-tight">${{ payAmount.toLocaleString() }}</p>
+                      <p class="text-white text-3xl font-black tracking-tight">Br {{ payAmount.toLocaleString() }}</p>
                     </div>
                     <div class="text-right">
                       <p class="text-emerald-500 text-[10px] font-black uppercase tracking-widest mb-1">Includes Tax</p>
@@ -90,7 +90,7 @@
                   </div>
                   <div class="flex justify-between text-sm">
                     <span class="text-slate-400">Amount</span>
-                    <span class="text-amber font-bold">${{ payAmount.toLocaleString() }}</span>
+                    <span class="text-amber font-bold">Br {{ payAmount.toLocaleString() }}</span>
                   </div>
                 </div>
               </Card>
@@ -179,12 +179,19 @@ async function handlePayment() {
     }
     const paymentRes = await paymentsService.create(payload)
     const payment = paymentRes.data
-    await paymentsService.createPaymentIntent({
+    const sessionRes = await paymentsService.createCheckoutSession({
       payment_id: payment.id,
-      return_url: `${window.location.origin}/contracts/${contract.value.id}`,
+      success_url: `${window.location.origin}/contracts/${contract.value.id}?payment=success`,
+      cancel_url: `${window.location.origin}/payments/contract/${contract.value.id}`,
     })
-    toast.success('Payment initiated. You will be redirected to complete payment with Stripe when supported.')
-    router.push(`/contracts/${contract.value.id}`)
+    const checkoutUrl = sessionRes.data?.url
+    if (checkoutUrl) {
+      toast.success('Redirecting to Stripe to complete payment.')
+      window.location.href = checkoutUrl
+    } else {
+      toast.error('Could not start checkout.')
+      processing.value = false
+    }
   } catch (err: any) {
     const msg = err.response?.data?.error ?? err.response?.data?.detail ?? 'Failed to start payment.'
     console.error('Failed to create payment:', err)

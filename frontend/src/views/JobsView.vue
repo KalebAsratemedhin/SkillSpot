@@ -16,20 +16,31 @@
           <Button variant="default">Create Your First Job</Button>
         </router-link>
       </div>
-      <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div v-else class="flex flex-col gap-4">
         <JobCard
           v-for="job in jobsStore.jobs"
           :key="job.id"
           :job="job"
           :show-apply="authStore.isProvider"
         />
+        <div v-if="jobsStore.nextPage" class="mt-6 flex justify-center">
+          <Button
+            variant="outline"
+            :loading="jobsStore.loading"
+            @click="loadMore"
+            class="border-2 border-slate-200"
+          >
+            Load more
+            <span class="material-symbols-outlined ml-1">expand_more</span>
+          </Button>
+        </div>
       </div>
     </div>
   </AppLayout>
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useJobsStore } from '@/stores/jobs'
 import AppLayout from '@/components/AppLayout.vue'
@@ -38,8 +49,19 @@ import JobCard from '@/components/JobCard.vue'
 
 const authStore = useAuthStore()
 const jobsStore = useJobsStore()
+const currentPage = ref(1)
+
+async function loadMore() {
+  if (!jobsStore.nextPage) return
+  currentPage.value += 1
+  await jobsStore.fetchJobs(
+    { ...(authStore.isClient ? { my_jobs: true } : {}), page: currentPage.value },
+    { append: true }
+  )
+}
 
 onMounted(async () => {
+  currentPage.value = 1
   await jobsStore.fetchJobs(
     authStore.isClient ? { my_jobs: true } : undefined
   )

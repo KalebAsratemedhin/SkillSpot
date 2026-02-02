@@ -117,6 +117,18 @@ const router = createRouter({
       component: () => import('@/views/PaymentView.vue'),
       meta: { requiresAuth: true },
     },
+    {
+      path: '/stripe/onboarding/return',
+      name: 'stripe-onboarding-return',
+      component: () => import('@/views/StripeOnboardingReturnView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/stripe/onboarding/refresh',
+      name: 'stripe-onboarding-refresh',
+      component: () => import('@/views/StripeOnboardingReturnView.vue'),
+      meta: { requiresAuth: true },
+    },
   ],
 })
 

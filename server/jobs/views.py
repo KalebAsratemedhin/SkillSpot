@@ -72,6 +72,14 @@ class JobListCreateView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         serializer.save(client=self.request.user)
+        job = serializer.instance
+        print(
+            '[Job Create] Backend saved job:',
+            'id=', getattr(job, 'id', None),
+            'latitude=', getattr(job, 'latitude', None),
+            'longitude=', getattr(job, 'longitude', None),
+            'has_lat_lng=', job.latitude is not None and job.longitude is not None,
+        )
 
 
 class JobDetailView(generics.RetrieveUpdateDestroyAPIView):

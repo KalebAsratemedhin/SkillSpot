@@ -60,6 +60,14 @@ export const paymentsService = {
   createPaymentIntent(data: { payment_id: string; return_url?: string }): Promise<AxiosResponse<PaymentIntent>> {
     return api.post('/payments/create-intent/', data)
   },
+  /** Create Stripe Checkout Session (redirect to Stripe's hosted page). Charge is on behalf of connected provider. */
+  createCheckoutSession(data: { payment_id: string; success_url?: string; cancel_url?: string }): Promise<AxiosResponse<{ url: string; session_id: string; payment_id: string }>> {
+    return api.post('/payments/create-checkout-session/', data)
+  },
+  /** Create one Stripe Checkout Session for all approved unpaid time entries of an hourly contract. */
+  createCheckoutSessionForTimeEntries(data: { contract_id: string; success_url?: string; cancel_url?: string }): Promise<AxiosResponse<{ url: string; session_id: string; payment_ids: string }>> {
+    return api.post('/payments/create-checkout-session-time-entries/', data)
+  },
   confirmPayment(paymentId: string, data: { payment_intent_id: string }): Promise<AxiosResponse<Payment>> {
     return api.post(`/payments/${paymentId}/confirm/`, data)
   },

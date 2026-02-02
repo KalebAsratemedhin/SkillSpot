@@ -14,7 +14,16 @@
           <div class="flex flex-col md:flex-row md:items-end justify-between gap-6">
             <div class="flex flex-col gap-4">
               <div class="flex items-center gap-3">
-                <span class="bg-amber/10 text-amber text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest border border-amber/20">Active Contract</span>
+                <span
+                  :class="[
+                    'text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest border',
+                    contract.status === 'ACTIVE' ? 'bg-amber/10 text-amber border-amber/20' : '',
+                    contract.status === 'TERMINATED' || contract.status === 'COMPLETED' ? 'bg-slate-600 text-slate-300 border-slate-500/30' : '',
+                    contract.status === 'DRAFT' || contract.status === 'PENDING_SIGNATURES' ? 'bg-slate-600 text-slate-400 border-slate-500/30' : '',
+                  ]"
+                >
+                  {{ contract.status === 'ACTIVE' ? 'Active Contract' : contract.status === 'TERMINATED' ? 'Ended' : contract.status === 'COMPLETED' ? 'Completed' : contract.status.replace(/_/g, ' ') }}
+                </span>
                 <p class="text-slate-500 text-sm font-mono tracking-tighter">#SS-{{ contract.id.slice(0, 8).toUpperCase() }}</p>
               </div>
               <h1 class="text-white text-5xl font-extrabold tracking-tight leading-none">{{ contractTitle }}</h1>
@@ -57,6 +66,30 @@
                 Sign Contract
               </Button>
               <Button
+                v-if="canCloseContract"
+                variant="default"
+                size="default"
+                class="bg-amber text-midnight hover:bg-amber-dark shadow-lg"
+                :disabled="closeContractLoading"
+                @click="showCloseContractConfirm = true"
+              >
+                <span v-if="closeContractLoading" class="material-symbols-outlined mr-2 text-lg animate-spin">refresh</span>
+                <span v-else class="material-symbols-outlined mr-2 text-lg">check_circle</span>
+                Close contract
+              </Button>
+              <Button
+                v-if="canEndContract"
+                variant="outline"
+                size="default"
+                class="border-amber/50 text-amber hover:bg-amber/10"
+                :disabled="endContractLoading"
+                @click="showEndContractConfirm = true"
+              >
+                <span v-if="endContractLoading" class="material-symbols-outlined mr-2 text-lg animate-spin">refresh</span>
+                <span v-else class="material-symbols-outlined mr-2 text-lg">flag</span>
+                End contract (terminate)
+              </Button>
+              <Button
                 v-if="canDelete"
                 variant="outline"
                 size="default"
@@ -68,6 +101,113 @@
               </Button>
             </div>
           </div>
+          <Dialog v-model:open="showCloseContractConfirm">
+            <DialogContent class="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Close contract</DialogTitle>
+                <DialogDescription>
+                  Mark this contract as complete? You'll be asked to leave a review for the provider. This action cannot be undone.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <DialogClose as-child>
+                  <Button type="button" variant="outline">Cancel</Button>
+                </DialogClose>
+                <Button
+                  type="button"
+                  variant="default"
+                  class="bg-amber text-midnight hover:bg-amber/90"
+                  :loading="closeContractLoading"
+                  @click="confirmCloseContract"
+                >
+                  Close contract
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+          <Dialog v-model:open="showEndContractConfirm">
+            <DialogContent class="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>End contract</DialogTitle>
+                <DialogDescription>
+                  Terminate this contract? No further work will be required. This action cannot be undone.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <DialogClose as-child>
+                  <Button type="button" variant="outline">Cancel</Button>
+                </DialogClose>
+                <Button
+                  type="button"
+                  variant="default"
+                  class="bg-amber text-midnight hover:bg-amber/90"
+                  :loading="endContractLoading"
+                  @click="confirmEndContract"
+                >
+                  End contract
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+          <!-- Review prompt when contract is completed -->
+          <Card
+            v-if="(showReviewForClient || showReviewForProvider) && !showReviewModal"
+            class="bg-amber/10 border-amber/30"
+          >
+            <CardContent class="p-6">
+              <h3 class="text-lg font-bold text-white mb-2">
+                {{ showReviewForClient ? 'Rate the provider' : 'Rate the client' }}
+              </h3>
+              <p class="text-slate-400 text-sm mb-4">
+                {{ showReviewForClient ? 'How was your experience working with the provider?' : 'How was your experience working with the client?' }}
+              </p>
+              <Button variant="default" class="bg-amber text-midnight" @click="openReviewModal">
+                <span class="material-symbols-outlined mr-2">star</span>
+                Leave a review
+              </Button>
+            </CardContent>
+          </Card>
+          <Dialog v-model:open="showReviewModal" @update:open="(v: boolean) => !v && resetReviewForm()">
+            <DialogContent class="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>{{ reviewModalTitle }}</DialogTitle>
+                <DialogDescription>{{ reviewModalDescription }}</DialogDescription>
+              </DialogHeader>
+              <form class="space-y-4" @submit.prevent="submitReview">
+                <div>
+                  <p class="text-slate-300 text-sm mb-2">Rating (1–5 stars)</p>
+                  <div class="flex gap-1">
+                    <button
+                      v-for="i in 5"
+                      :key="i"
+                      type="button"
+                      class="p-2 rounded-lg transition-colors"
+                      :class="reviewForm.score >= i ? 'text-amber bg-amber/20' : 'text-slate-500 hover:text-slate-300'"
+                      @click="reviewForm.score = i"
+                    >
+                      <span class="material-symbols-outlined filled text-2xl">star</span>
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <label class="text-slate-300 text-sm block mb-2">Comment (optional)</label>
+                  <textarea
+                    v-model="reviewForm.comment"
+                    class="w-full rounded-xl border border-white/10 bg-white/5 text-white p-3 min-h-[80px] text-sm focus:ring-2 focus:ring-amber/40"
+                    placeholder="Share your experience..."
+                  />
+                </div>
+                <DialogFooter>
+                  <DialogClose as-child>
+                    <Button type="button" variant="outline">Cancel</Button>
+                  </DialogClose>
+                  <Button type="submit" class="bg-amber text-midnight" :loading="reviewSubmitting">
+                    Submit review
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
           <Dialog v-model:open="showDeleteConfirm">
             <DialogContent class="sm:max-w-[425px]">
               <DialogHeader>
@@ -106,7 +246,8 @@
                   <input
                     v-model="newTimeEntry.date"
                     type="date"
-                    class="w-full px-3 py-2 rounded-lg bg-midnight border border-white/10 text-white"
+                    :min="timeEntryMinDate"
+                    class="w-full px-3 py-2 rounded-lg bg-midnight border border-white/10 text-white [color-scheme:dark]"
                   />
                 </div>
                 <div class="grid gap-2">
@@ -152,7 +293,6 @@
                     <span class="material-symbols-outlined text-amber">{{ isHourly ? 'schedule' : 'payments' }}</span>
                     {{ isHourly ? 'Time entries' : 'Fixed price' }}
                   </h2>
-                  <span v-if="contract.completion_percentage != null" class="text-xs font-bold text-slate-400 uppercase tracking-widest">{{ contract.completion_percentage }}% complete</span>
                 </div>
                 <CardContent class="p-8">
                   <template v-if="isHourly">
@@ -179,18 +319,27 @@
                           </span>
                         </div>
                         <div class="flex items-center gap-2">
-                          <span v-if="entry.amount != null" class="text-white font-bold">${{ Number(entry.amount).toLocaleString() }}</span>
+                          <span v-if="entry.amount != null" class="text-white font-bold">Br {{ Number(entry.amount).toLocaleString() }}</span>
                           <template v-if="isClient && entry.status === 'PENDING_APPROVAL'">
                             <Button variant="outline" size="sm" class="border-emerald-500/50 text-emerald-400" @click="approveTimeEntry(entry.id)">Approve</Button>
                             <Button variant="outline" size="sm" class="border-red-500/50 text-red-400" @click="rejectTimeEntry(entry.id)">Reject</Button>
                           </template>
-                          <router-link
-                            v-if="isClient && canPayContract && entry.status === 'APPROVED' && !timeEntryPaid(entry.id)"
-                            :to="`/payments/contract/${contract.id}/time-entry/${entry.id}`"
-                          >
-                            <Button variant="default" size="sm" class="bg-[#635bff] hover:bg-[#7a73ff] text-white">Pay</Button>
-                          </router-link>
                         </div>
+                      </div>
+                      <div v-if="isClient && canPayContract && approvedUnpaidTimeEntries.length > 0" class="pt-4 border-t border-white/5 flex flex-wrap items-center justify-between gap-4">
+                        <p class="text-slate-400 text-sm">
+                          {{ approvedUnpaidTimeEntries.length }} approved entr{{ approvedUnpaidTimeEntries.length === 1 ? 'y' : 'ies' }} · Total Br {{ totalUnpaidAmount.toLocaleString() }}
+                        </p>
+                        <Button
+                          variant="default"
+                          size="default"
+                          class="bg-[#635bff] hover:bg-[#7a73ff] text-white"
+                          :loading="payTimeEntriesLoading"
+                          @click="payAllTimeEntries"
+                        >
+                          <span class="material-symbols-outlined mr-2">payments</span>
+                          Pay Br {{ totalUnpaidAmount.toLocaleString() }}
+                        </Button>
                       </div>
                       <div v-if="isProvider && contract.payment_schedule === 'HOURLY'" class="pt-4 border-t border-white/5">
                         <Button variant="outline" size="default" class="border-amber/50 text-amber" @click="showAddTimeEntry = true">
@@ -201,7 +350,7 @@
                     </div>
                   </template>
                   <template v-else>
-                    <p class="text-slate-400 text-sm">Single payment of ${{ contract.total_amount.toLocaleString() }} when work is complete.</p>
+                    <p class="text-slate-400 text-sm">Single payment of Br {{ contract.total_amount.toLocaleString() }} when work is complete.</p>
                     <p v-if="isClient && canPayContract && !fixedPricePaid" class="text-amber text-sm mt-2">Use the &quot;Pay full amount&quot; button above to pay.</p>
                   </template>
                 </CardContent>
@@ -214,7 +363,7 @@
                   <div class="grid grid-cols-2 md:grid-cols-3 gap-y-8 gap-x-12">
                     <div>
                       <p class="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-1">Total Budget</p>
-                      <p class="text-white text-lg font-extrabold">${{ contract.total_amount.toLocaleString() }}</p>
+                      <p class="text-white text-lg font-extrabold">Br {{ contract.total_amount.toLocaleString() }}</p>
                     </div>
                     <div>
                       <p class="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-1">Escrow Status</p>
@@ -224,20 +373,12 @@
                       </div>
                     </div>
                     <div>
-                      <p class="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-1">Warranty</p>
-                      <p class="text-white text-sm font-bold">12-Month Labor</p>
-                    </div>
-                    <div>
                       <p class="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-1">Status</p>
                       <p class="text-white text-sm font-bold">{{ contract.status }}</p>
                     </div>
                     <div>
                       <p class="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-1">Commenced</p>
                       <p class="text-white text-sm font-bold">{{ formatDate(contract.start_date || contract.created_at) }}</p>
-                    </div>
-                    <div>
-                      <p class="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-1">Standard</p>
-                      <p class="text-white text-sm font-bold">Premium Tier</p>
                     </div>
                   </div>
                 </CardContent>
@@ -264,7 +405,7 @@
                   <div class="pt-4 border-t border-white/5 flex justify-between items-end">
                     <div>
                       <p class="text-slate-500 text-[10px] font-black uppercase tracking-widest">Amount to Pay</p>
-                      <p class="text-white text-3xl font-black tracking-tight">${{ contract.total_amount.toLocaleString() }}</p>
+                      <p class="text-white text-3xl font-black tracking-tight">Br {{ contract.total_amount.toLocaleString() }}</p>
                     </div>
                     <div class="text-right">
                       <p class="text-emerald-500 text-[10px] font-black uppercase tracking-widest mb-1">Includes Tax</p>
@@ -307,10 +448,10 @@
                   >
                     <div class="size-1.5 rounded-full bg-emerald-500 mt-1.5 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
                     <div class="flex-1">
-                      <p class="text-slate-200 text-xs font-bold leading-none mb-1">{{ payment.status === 'completed' ? 'Funds Released' : 'Payment Pending' }}</p>
+                      <p class="text-slate-200 text-xs font-bold leading-none mb-1">{{ (payment.status === 'COMPLETED' || payment.status === 'completed') ? 'Funds Released' : 'Payment Pending' }}</p>
                       <p class="text-slate-500 text-[10px]">{{ formatDate(payment.created_at) }}</p>
                     </div>
-                    <span class="text-slate-400 text-xs font-bold">${{ payment.amount.toLocaleString() }}</span>
+                    <span class="text-slate-400 text-xs font-bold">Br {{ payment.amount.toLocaleString() }}</span>
                   </div>
                 </div>
               </Card>
@@ -329,6 +470,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useMessagingStore } from '@/stores/messaging'
 import { contractsService, type Contract, type ContractMilestone, type TimeEntry } from '@/services/contracts'
 import { paymentsService, type Payment } from '@/services/payments'
+import { ratingsService, type Rating, type RatingType } from '@/services/ratings'
 import Header from '@/components/Header.vue'
 import Card from '@/components/ui/Card.vue'
 import CardContent from '@/components/ui/CardContent.vue'
@@ -356,10 +498,37 @@ const loading = ref(false)
 const contactLoading = ref(false)
 const signLoading = ref(false)
 const deleteLoading = ref(false)
+const endContractLoading = ref(false)
+const closeContractLoading = ref(false)
+const showCloseContractConfirm = ref(false)
 const showDeleteConfirm = ref(false)
+const showEndContractConfirm = ref(false)
 const showAddTimeEntry = ref(false)
+const contractRatings = ref<Rating[]>([])
+const showReviewModal = ref(false)
+const reviewForm = reactive({ score: 5, comment: '' })
+const reviewSubmitting = ref(false)
+const reviewTypeRef = ref<RatingType | null>(null)
 const addTimeEntryLoading = ref(false)
+const payTimeEntriesLoading = ref(false)
 const newTimeEntry = reactive({ date: '', hours: 0, description: '' })
+
+const approvedUnpaidTimeEntries = computed(() => {
+  return timeEntries.value.filter(
+    (e: TimeEntry) => e.status === 'APPROVED' && !timeEntryPaid(e.id)
+  )
+})
+const totalUnpaidAmount = computed(() => {
+  return approvedUnpaidTimeEntries.value.reduce(
+    (sum: number, e: TimeEntry) => sum + Number(e.amount ?? 0),
+    0
+  )
+})
+
+const timeEntryMinDate = computed(() => {
+  const d = new Date()
+  return d.toISOString().slice(0, 10)
+})
 
 const isFixedPrice = computed(() => (contract.value?.payment_schedule ?? 'FIXED') === 'FIXED')
 const isHourly = computed(() => contract.value?.payment_schedule === 'HOURLY')
@@ -407,6 +576,49 @@ const canDelete = computed(() => {
   return ['DRAFT', 'CANCELLED'].includes(c.status)
 })
 
+const canCloseContract = computed(() => {
+  const c = contract.value
+  if (!c || !authStore.user) return false
+  return isClient.value && c.status === 'ACTIVE'
+})
+
+const canEndContract = computed(() => {
+  const c = contract.value
+  if (!c || !authStore.user) return false
+  const clientId = typeof c.client === 'object' && c.client !== null && 'id' in c.client ? (c.client as { id: string }).id : c.client
+  const providerId = typeof c.provider === 'object' && c.provider !== null && 'id' in c.provider ? (c.provider as { id: string }).id : c.provider
+  const isParty = authStore.user.id === clientId || authStore.user.id === providerId
+  return isParty && c.status === 'ACTIVE'
+})
+
+const contractRatingsList = computed(() =>
+  Array.isArray(contractRatings.value) ? contractRatings.value : []
+)
+const hasClientRatedProvider = computed(() =>
+  contractRatingsList.value.some((r: Rating) => r.rating_type === 'CLIENT_TO_PROVIDER')
+)
+const hasProviderRatedClient = computed(() =>
+  contractRatingsList.value.some((r: Rating) => r.rating_type === 'PROVIDER_TO_CLIENT')
+)
+const showReviewForClient = computed(() => {
+  const c = contract.value
+  if (!c || c.status !== 'COMPLETED' || !isClient.value) return false
+  return !hasClientRatedProvider.value
+})
+const showReviewForProvider = computed(() => {
+  const c = contract.value
+  if (!c || c.status !== 'COMPLETED' || !isProvider.value) return false
+  return !hasProviderRatedClient.value
+})
+const reviewModalTitle = computed(() =>
+  showReviewForClient.value ? 'Rate the provider' : 'Rate the client'
+)
+const reviewModalDescription = computed(() =>
+  showReviewForClient.value
+    ? 'How was your experience working with the provider?'
+    : 'How was your experience working with the client?'
+)
+
 const isClient = computed(() => {
   const c = contract.value
   if (!c || !authStore.user) return false
@@ -438,6 +650,36 @@ async function rejectTimeEntry(entryId: string) {
     await loadContract()
   } catch (err: any) {
     toast.error(err.response?.data?.error ?? 'Failed to reject.')
+  }
+}
+
+async function payAllTimeEntries() {
+  const c = contract.value
+  if (!c?.id || approvedUnpaidTimeEntries.value.length === 0) return
+  if (totalUnpaidAmount.value < 25) {
+    toast.error('Total payment must be at least 25 ETB. Please add more hours.')
+    return
+  }
+  payTimeEntriesLoading.value = true
+  try {
+    const res = await paymentsService.createCheckoutSessionForTimeEntries({
+      contract_id: c.id,
+      success_url: `${window.location.origin}/contracts/${c.id}?payment=success`,
+      cancel_url: `${window.location.origin}/contracts/${c.id}`,
+    })
+    const url = res.data?.url
+    if (url) {
+      toast.success('Redirecting to Stripe to complete payment.')
+      window.location.href = url
+    } else {
+      toast.error('Could not start checkout.')
+      payTimeEntriesLoading.value = false
+    }
+  } catch (err: any) {
+    const msg = err.response?.data?.error ?? err.response?.data?.detail ?? 'Failed to start payment.'
+    toast.error(msg)
+  } finally {
+    payTimeEntriesLoading.value = false
   }
 }
 
@@ -530,6 +772,91 @@ async function confirmDelete() {
   }
 }
 
+async function confirmCloseContract() {
+  const c = contract.value
+  if (!c?.id || !canCloseContract.value) return
+  closeContractLoading.value = true
+  try {
+    await contractsService.update(c.id, { status: 'COMPLETED' })
+    showCloseContractConfirm.value = false
+    toast.success('Contract closed. Please leave a review for the provider.')
+    await loadContract()
+    reviewTypeRef.value = 'CLIENT_TO_PROVIDER'
+    showReviewModal.value = true
+  } catch (err: any) {
+    const msg = err.response?.data?.status?.[0] ?? err.response?.data?.error ?? err.response?.data?.detail ?? 'Failed to close contract'
+    toast.error(msg)
+  } finally {
+    closeContractLoading.value = false
+  }
+}
+
+async function confirmEndContract() {
+  const c = contract.value
+  if (!c?.id || !canEndContract.value) return
+  endContractLoading.value = true
+  try {
+    await contractsService.update(c.id, { status: 'TERMINATED' })
+    showEndContractConfirm.value = false
+    toast.success('Contract ended.')
+    await loadContract()
+  } catch (err: any) {
+    const msg = err.response?.data?.status?.[0] ?? err.response?.data?.error ?? err.response?.data?.detail ?? 'Failed to end contract'
+    toast.error(msg)
+  } finally {
+    endContractLoading.value = false
+  }
+}
+
+async function loadContractRatings() {
+  const c = contract.value
+  if (!c?.id || c.status !== 'COMPLETED') return
+  try {
+    const res = await ratingsService.list({ contract: c.id })
+    const data = res.data as { results?: Rating[] } | Rating[]
+    contractRatings.value = Array.isArray(data) ? data : (data.results ?? [])
+  } catch {
+    contractRatings.value = []
+  }
+}
+
+function openReviewModal() {
+  reviewForm.score = 5
+  reviewForm.comment = ''
+  reviewTypeRef.value = showReviewForClient.value ? 'CLIENT_TO_PROVIDER' : 'PROVIDER_TO_CLIENT'
+  showReviewModal.value = true
+}
+
+function resetReviewForm() {
+  reviewForm.score = 5
+  reviewForm.comment = ''
+  reviewTypeRef.value = null
+}
+
+async function submitReview() {
+  const c = contract.value
+  const type = reviewTypeRef.value
+  if (!c?.id || !type || reviewForm.score < 1 || reviewForm.score > 5) return
+  reviewSubmitting.value = true
+  try {
+    await ratingsService.create({
+      contract_id: c.id,
+      rating_type: type,
+      score: reviewForm.score,
+      comment: reviewForm.comment.trim() || undefined,
+    })
+    toast.success('Review submitted.')
+    showReviewModal.value = false
+    resetReviewForm()
+    await loadContractRatings()
+  } catch (err: any) {
+    const msg = err.response?.data?.detail ?? err.response?.data?.rating_type?.[0] ?? err.response?.data?.score?.[0] ?? 'Failed to submit review'
+    toast.error(msg)
+  } finally {
+    reviewSubmitting.value = false
+  }
+}
+
 function formatDate(dateString: string) {
   if (!dateString) return 'N/A'
   const date = new Date(dateString)
@@ -559,6 +886,9 @@ async function loadContract() {
     if (contractResponse.data.payment_schedule === 'HOURLY' && timeEntries.value.length === 0) {
       const teRes = await contractsService.getTimeEntries(contractId)
       timeEntries.value = teRes.data.results ?? []
+    }
+    if (contractResponse.data.status === 'COMPLETED') {
+      await loadContractRatings()
     }
   } catch (err) {
     console.error('Failed to fetch contract data:', err)

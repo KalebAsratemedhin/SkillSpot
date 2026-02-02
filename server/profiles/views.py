@@ -1,4 +1,5 @@
 from rest_framework import generics, permissions, status
+from rest_framework.parsers import JSONParser, MultiPartParser, FormParser
 from rest_framework.response import Response
 from django.contrib.auth import get_user_model
 from .models import Profile, ServiceProviderProfile, Tag, Experience
@@ -16,6 +17,7 @@ User = get_user_model()
 class ProfileDetailView(generics.RetrieveUpdateAPIView):
     serializer_class = ProfileSerializer
     permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
     http_method_names = ['get', 'patch']
 
     def get_object(self):

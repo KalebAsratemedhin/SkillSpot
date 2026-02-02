@@ -52,8 +52,11 @@
                     </div>
                     <div class="flex items-center gap-2 text-gray-600">
                       <span class="material-symbols-outlined text-amber text-xl">payments</span>
-                      <span class="text-sm font-medium">${{ jobsStore.currentJob.budget_min }} - ${{ jobsStore.currentJob.budget_max }} Budget</span>
+                      <span class="text-sm font-medium">{{ jobBudgetLabel }}</span>
                     </div>
+                  </div>
+                  <div v-if="hasJobLocation" class="job-detail-map-wrapper relative z-0 mt-6 rounded-xl overflow-hidden border border-gray-200 bg-gray-100" style="min-height: 240px;">
+                    <div ref="jobDetailMapContainer" class="w-full min-h-[240px]" style="height: 240px;"></div>
                   </div>
                 </div>
                 <div class="mt-12 space-y-8">
@@ -100,7 +103,7 @@
                         </span>
                       </div>
                       <p v-if="app.cover_letter" class="text-gray-600 text-sm">{{ app.cover_letter }}</p>
-                      <p v-if="app.proposed_rate != null" class="text-sm text-gray-500">Proposed rate: ${{ app.proposed_rate }}</p>
+                      <p v-if="app.proposed_rate != null" class="text-sm text-gray-500">Proposed rate: Br {{ Number(app.proposed_rate).toLocaleString() }}/hr</p>
                       <div class="flex gap-2 mt-2 flex-wrap">
                         <Button v-if="app.status === 'PENDING'" size="sm" @click="handleApplicationStatus(app.id, 'ACCEPTED')">Accept</Button>
                         <Button v-if="app.status === 'PENDING'" size="sm" variant="outline" @click="handleApplicationStatus(app.id, 'REJECTED')">Reject</Button>
@@ -303,10 +306,10 @@
               <div class="absolute top-0 right-0 -mr-16 -mt-16 w-32 h-32 bg-amber/10 blur-3xl rounded-full"></div>
               <div class="relative z-10 space-y-8">
                 <div>
-                  <p class="text-amber text-xs font-black uppercase tracking-[0.2em] mb-2">Investment Range</p>
+                  <p class="text-amber text-xs font-black uppercase tracking-[0.2em] mb-2">{{ isHourlyJob ? 'Hourly rate (Br/hr)' : 'Investment' }}</p>
                   <div class="flex items-baseline gap-2">
-                    <span class="text-white text-4xl font-black tracking-tight">${{ formatBudgetMax(jobsStore.currentJob.budget_max) }}</span>
-                    <span class="text-gray-400 text-sm font-medium">max budget</span>
+                    <span class="text-white text-4xl font-black tracking-tight">Br {{ formatBudgetMax(jobsStore.currentJob.budget_max) }}</span>
+                    <span class="text-gray-400 text-sm font-medium">{{ isHourlyJob ? 'Br/hr' : 'max budget' }}</span>
                   </div>
                 </div>
                 <div class="space-y-4">
@@ -324,44 +327,15 @@
                     Save Project
                   </Button>
                 </div>
-                <div class="pt-8 border-t border-white/10 space-y-6">
-                  <h4 class="text-xs font-black uppercase tracking-[0.2em] text-gray-400">Market Insight</h4>
-                  <div class="grid grid-cols-1 gap-4">
-                    <div class="flex items-center justify-between p-4 rounded-2xl bg-white/5 border border-white/10">
-                      <div class="flex items-center gap-3">
-                        <div class="p-2 rounded-lg bg-amber/10">
-                          <span class="material-symbols-outlined text-amber">groups</span>
-                        </div>
-                        <span class="text-sm text-gray-300 font-medium">Proposals</span>
+                <div v-if="jobsStore.currentJob" class="pt-8 border-t border-white/10">
+                  <div class="flex items-center justify-between p-4 rounded-2xl bg-white/5 border border-white/10">
+                    <div class="flex items-center gap-3">
+                      <div class="p-2 rounded-lg bg-amber/10">
+                        <span class="material-symbols-outlined text-amber">groups</span>
                       </div>
-                      <span class="text-white font-bold">5 - 10</span>
+                      <span class="text-sm text-gray-300 font-medium">Proposals</span>
                     </div>
-                    <div class="flex items-center justify-between p-4 rounded-2xl bg-white/5 border border-white/10">
-                      <div class="flex items-center gap-3">
-                        <div class="p-2 rounded-lg bg-amber/10">
-                          <span class="material-symbols-outlined text-amber">analytics</span>
-                        </div>
-                        <span class="text-sm text-gray-300 font-medium">Interest</span>
-                      </div>
-                      <span class="text-white font-bold">High</span>
-                    </div>
-                    <div class="flex items-center justify-between p-4 rounded-2xl bg-white/5 border border-white/10">
-                      <div class="flex items-center gap-3">
-                        <div class="p-2 rounded-lg bg-amber/10">
-                          <span class="material-symbols-outlined text-amber">verified</span>
-                        </div>
-                        <span class="text-sm text-gray-300 font-medium">Site Visits</span>
-                      </div>
-                      <span class="text-white font-bold">3 Booked</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="bg-amber/5 border border-amber/20 rounded-2xl p-4">
-                  <div class="flex gap-3">
-                    <span class="material-symbols-outlined text-amber text-lg">lightbulb</span>
-                    <p class="text-xs text-gray-300 leading-relaxed">
-                      <span class="text-amber font-bold">Expert Tip:</span> Highlighting your portfolio of similar <span class="italic">residential kitchen projects</span> can increase your selection chance by 45%.
-                    </p>
+                    <span class="text-white font-bold">{{ applicationsCountForJob }}</span>
                   </div>
                 </div>
               </div>
@@ -430,6 +404,26 @@ const jobTags = computed(() => {
   if (job.required_skills?.length) return job.required_skills.map((s: { name: string }) => s.name)
   return []
 })
+
+const isHourlyJob = computed(() => {
+  const job = jobsStore.currentJob
+  return job?.payment_schedule === 'HOURLY' || job?.budget_type === 'hourly'
+})
+
+const jobBudgetLabel = computed(() => {
+  const job = jobsStore.currentJob
+  if (!job) return ''
+  const min = job.budget_min ?? 0
+  const max = job.budget_max ?? min
+  if (isHourlyJob.value) {
+    return min === max ? `Br ${min.toLocaleString()} Br/hr` : `Br ${min.toLocaleString()} – ${max.toLocaleString()} Br/hr`
+  }
+  if (job.budget_type === 'fixed' || job.payment_schedule === 'FIXED') {
+    return `Br ${(max || min).toLocaleString()} fixed`
+  }
+  return `Br ${min.toLocaleString()} – ${max.toLocaleString()}`
+})
+
 const clientName = computed(() => jobsStore.currentJob?.client_name || null)
 const clientEmail = computed(() => jobsStore.currentJob?.client_email || null)
 const isJobOwner = computed(() => {
@@ -446,6 +440,46 @@ const applicationsForThisJob = computed(() => {
   if (!Array.isArray(apps)) return []
   return apps.filter((a: JobApplication) => a.job === jobId)
 })
+
+const applicationsCountForJob = computed(() => {
+  const job = jobsStore.currentJob
+  if (job?.applications_count != null) return job.applications_count
+  return applicationsForThisJob.value.length
+})
+
+const hasJobLocation = computed(() => {
+  const job = jobsStore.currentJob as { latitude?: number | null; longitude?: number | null } | undefined
+  return job != null && job.latitude != null && job.longitude != null
+})
+
+const jobDetailMapContainer = ref<HTMLElement | null>(null)
+let jobDetailMapInstance: import('leaflet').Map | null = null
+
+function initJobDetailMap() {
+  const job = jobsStore.currentJob as { latitude?: number | string; longitude?: number | string } | null
+  const container = jobDetailMapContainer.value
+  if (!container || !job?.latitude || !job?.longitude) return
+  const lat = Number(job.latitude)
+  const lng = Number(job.longitude)
+  if (Number.isNaN(lat) || Number.isNaN(lng)) return
+
+  if (jobDetailMapInstance) {
+    jobDetailMapInstance.remove()
+    jobDetailMapInstance = null
+  }
+
+  import('leaflet').then((L) => {
+    if (!container.isConnected) return
+    const map = L.map(container, { zoomControl: false }).setView([lat, lng], 14)
+    L.control.zoom({ position: 'topright' }).addTo(map)
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map)
+    L.circleMarker([lat, lng], { radius: 10, fillColor: '#f59e0b', color: '#b45309', weight: 2, fillOpacity: 0.9 }).addTo(map)
+    jobDetailMapInstance = map
+    requestAnimationFrame(() => {
+      map.invalidateSize()
+    })
+  })
+}
 
 const invitationsForThisJob = computed(() => {
   const jobId = jobsStore.currentJob?.id
@@ -609,6 +643,14 @@ async function loadJob() {
   if (!jobId) return
   jobsStore.currentJob = null
   await jobsStore.fetchJob(jobId)
+  const job = jobsStore.currentJob as typeof jobsStore.currentJob
+  console.log('[Job Detail] After fetch – API response:', {
+    jobId,
+    hasJob: !!job,
+    latitude: job != null ? (job as Record<string, unknown>).latitude : undefined,
+    longitude: job != null ? (job as Record<string, unknown>).longitude : undefined,
+    fullJob: job != null ? { ...(job as object) } : null,
+  })
   if (isJobOwner.value) {
     await jobsStore.fetchApplications(jobId)
     await jobsStore.fetchInvitations()
@@ -622,4 +664,51 @@ onMounted(loadJob)
 watch(() => route.params.id, () => {
   if (route.name === 'job-detail') loadJob()
 })
+
+watch(
+  () => jobsStore.currentJob,
+  (job) => {
+    if (job == null) {
+      console.log('[Job Detail] Job not loaded yet (waiting for fetch...)')
+      return
+    }
+    const j = job as Record<string, unknown>
+    const latRaw = j.latitude
+    const lngRaw = j.longitude
+    const lat = latRaw != null ? Number(latRaw) : undefined
+    const lng = lngRaw != null ? Number(lngRaw) : undefined
+    const hasCoords = lat != null && lng != null && !Number.isNaN(lat) && !Number.isNaN(lng)
+
+    console.log('[Job Detail] Job loaded – latitude/longitude check:', {
+      jobId: j.id,
+      latitude: latRaw,
+      longitude: lngRaw,
+      asNumbers: { lat, lng },
+      hasCoords,
+      willShowMap: hasCoords,
+      rawJobKeys: Object.keys(j),
+    })
+
+    if (!hasCoords) {
+      if (jobDetailMapInstance) {
+        jobDetailMapInstance.remove()
+        jobDetailMapInstance = null
+      }
+      return
+    }
+    import('vue').then(({ nextTick }) => {
+      nextTick()
+        .then(() => nextTick())
+        .then(() => setTimeout(initJobDetailMap, 100))
+    })
+  },
+  { immediate: true }
+)
 </script>
+
+<style scoped>
+.job-detail-map-wrapper :deep(.leaflet-pane),
+.job-detail-map-wrapper :deep(.leaflet-control) {
+  z-index: 1 !important;
+}
+</style>

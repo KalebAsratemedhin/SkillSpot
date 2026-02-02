@@ -79,6 +79,12 @@ class TimeEntryCreateSerializer(serializers.ModelSerializer):
         model = TimeEntry
         fields = ('date', 'hours', 'description')
 
+    def validate_date(self, value):
+        today = timezone.localdate()
+        if value < today:
+            raise serializers.ValidationError('Time entry date must be today or a future date.')
+        return value
+
     def validate_hours(self, value):
         if value <= 0:
             raise serializers.ValidationError('Hours must be greater than zero.')
@@ -269,15 +275,30 @@ class ContractUpdateSerializer(serializers.ModelSerializer):
         )
 
     def validate(self, attrs):
+        if 'status' not in attrs:
+            return attrs
+        contract = self.instance
+        new_status = attrs['status']
         # Don't allow status changes to ACTIVE if not fully signed
-        if 'status' in attrs:
-            contract = self.instance
-            if attrs['status'] == Contract.ContractStatus.ACTIVE:
-                if not contract.is_fully_signed():
-                    raise serializers.ValidationError({
-                        'status': 'Contract must be fully signed before it can be activated.'
-                    })
+        if new_status == Contract.ContractStatus.ACTIVE:
+            if not contract.is_fully_signed():
+                raise serializers.ValidationError({
+                    'status': 'Contract must be fully signed before it can be activated.'
+                })
+            return attrs
+        # Allow ending contract: ACTIVE -> TERMINATED or COMPLETED
+        if new_status in (Contract.ContractStatus.TERMINATED, Contract.ContractStatus.COMPLETED):
+            if contract.status != Contract.ContractStatus.ACTIVE:
+                raise serializers.ValidationError({
+                    'status': 'Only active contracts can be ended.'
+                })
         return attrs
+
+    def update(self, instance, validated_data):
+        new_status = validated_data.get('status')
+        if new_status in (Contract.ContractStatus.TERMINATED, Contract.ContractStatus.COMPLETED):
+            validated_data['completed_at'] = timezone.now()
+        return super().update(instance, validated_data)
 
 
 class ContractSignatureCreateSerializer(serializers.Serializer):

@@ -26,7 +26,7 @@
             <div class="flex items-start justify-between">
               <div>
                 <p class="text-emerald-100 text-xs font-black uppercase tracking-widest mb-2">Total {{ authStore.isProvider ? 'Earned' : 'Paid' }}</p>
-                <h3 class="text-white text-3xl font-black">${{ totalAmount.toLocaleString() }}</h3>
+                <h3 class="text-white text-3xl font-black">Br {{ totalAmount.toLocaleString() }}</h3>
               </div>
               <div class="p-3 bg-white/20 rounded-xl">
                 <span class="material-symbols-outlined text-2xl text-white">{{ authStore.isProvider ? 'account_balance_wallet' : 'payment' }}</span>
@@ -130,7 +130,7 @@
                   </div>
                   <div>
                     <p class="text-slate-500 text-xs font-bold uppercase tracking-wider mb-1">{{ authStore.isProvider ? 'Platform Fee' : 'Transaction' }}</p>
-                    <p class="text-slate-400 text-sm">{{ payment.platform_fee ? `$${payment.platform_fee}` : 'N/A' }}</p>
+                    <p class="text-slate-400 text-sm">{{ payment.platform_fee ? `Br ${Number(payment.platform_fee).toLocaleString()}` : 'N/A' }}</p>
                   </div>
                 </div>
 
@@ -144,7 +144,7 @@
                   <p class="text-slate-500 text-xs font-bold uppercase tracking-wider mb-1">Amount</p>
                   <p class="text-white text-2xl font-black">${{ payment.amount.toLocaleString() }}</p>
                   <p v-if="authStore.isProvider && payment.provider_amount" class="text-emerald-500 text-xs font-bold mt-1">
-                    You received: ${{ payment.provider_amount }}
+                    You received: Br {{ payment.provider_amount != null ? Number(payment.provider_amount).toLocaleString() : '0' }}
                   </p>
                 </div>
                 <router-link

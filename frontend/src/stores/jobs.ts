@@ -13,12 +13,17 @@ export const useJobsStore = defineStore('jobs', () => {
   const nextPage = ref<string | null>(null)
   const previousPage = ref<string | null>(null)
 
-  async function fetchJobs(params?: JobListParams) {
+  async function fetchJobs(params?: JobListParams, options?: { append?: boolean }) {
     try {
       loading.value = true
       error.value = null
       const response = await jobsService.list(params)
-      jobs.value = response.data.results
+      const newResults = response.data.results
+      if (options?.append && params?.page && params.page > 1) {
+        jobs.value = [...jobs.value, ...newResults]
+      } else {
+        jobs.value = newResults
+      }
       totalCount.value = response.data.count
       nextPage.value = response.data.next || null
       previousPage.value = response.data.previous || null
