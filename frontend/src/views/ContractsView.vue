@@ -28,34 +28,69 @@
             </div>
           </CardContent>
         </Card>
+        <PaginationBar
+          v-if="totalCount > 0"
+          :current-page="currentPage"
+          :total-pages="totalPages"
+          :total-count="totalCount"
+          :page-size="pageSize"
+          :loading="loading"
+          @go-to-page="goToPage"
+          @update-page-size="onPageSizeChange"
+        />
       </div>
     </div>
   </AppLayout>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { contractsService, type Contract } from '@/services/contracts'
 import AppLayout from '@/components/AppLayout.vue'
 import Card from '@/components/ui/Card.vue'
 import CardContent from '@/components/ui/CardContent.vue'
+import PaginationBar from '@/components/PaginationBar.vue'
 
 const contracts = ref<Contract[]>([])
+const totalCount = ref(0)
 const loading = ref(false)
+const currentPage = ref(1)
+const pageSize = ref(10)
+
+const totalPages = computed(() => Math.max(1, Math.ceil(totalCount.value / pageSize.value)))
 
 function formatDate(dateString: string) {
   return new Date(dateString).toLocaleDateString()
 }
 
-onMounted(async () => {
+async function fetchContracts() {
   loading.value = true
   try {
-    const response = await contractsService.list()
+    const response = await contractsService.list({ page: currentPage.value })
     contracts.value = response.data.results || []
+    totalCount.value = response.data.count ?? 0
   } catch (err) {
     console.error('Failed to fetch contracts:', err)
+    contracts.value = []
+    totalCount.value = 0
   } finally {
     loading.value = false
   }
+}
+
+function goToPage(page: number) {
+  if (page < 1 || page > totalPages.value) return
+  currentPage.value = page
+  fetchContracts()
+}
+
+function onPageSizeChange(size: number) {
+  pageSize.value = size
+  currentPage.value = 1
+  fetchContracts()
+}
+
+onMounted(() => {
+  fetchContracts()
 })
 </script>

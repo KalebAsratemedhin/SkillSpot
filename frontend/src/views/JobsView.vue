@@ -23,47 +23,58 @@
           :job="job"
           :show-apply="authStore.isProvider"
         />
-        <div v-if="jobsStore.nextPage" class="mt-6 flex justify-center">
-          <Button
-            variant="outline"
-            :loading="jobsStore.loading"
-            @click="loadMore"
-            class="border-2 border-slate-200"
-          >
-            Load more
-            <span class="material-symbols-outlined ml-1">expand_more</span>
-          </Button>
-        </div>
+        <PaginationBar
+          v-if="jobsStore.totalCount > 0"
+          :current-page="currentPage"
+          :total-pages="jobsTotalPages"
+          :total-count="jobsStore.totalCount"
+          :page-size="pageSize"
+          :loading="jobsStore.loading"
+          @go-to-page="goToPage"
+          @update-page-size="onPageSizeChange"
+        />
       </div>
     </div>
   </AppLayout>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useJobsStore } from '@/stores/jobs'
 import AppLayout from '@/components/AppLayout.vue'
-import Button from '@/components/ui/Button.vue'
 import JobCard from '@/components/JobCard.vue'
+import PaginationBar from '@/components/PaginationBar.vue'
 
 const authStore = useAuthStore()
 const jobsStore = useJobsStore()
 const currentPage = ref(1)
+const pageSize = ref(10)
 
-async function loadMore() {
-  if (!jobsStore.nextPage) return
-  currentPage.value += 1
+const jobsTotalPages = computed(() => Math.max(1, Math.ceil(jobsStore.totalCount / pageSize.value)))
+
+async function goToPage(page: number) {
+  if (page < 1 || page > jobsTotalPages.value) return
+  currentPage.value = page
   await jobsStore.fetchJobs(
-    { ...(authStore.isClient ? { my_jobs: true } : {}), page: currentPage.value },
-    { append: true }
+    { ...(authStore.isClient ? { my_jobs: true } : {}), page: currentPage.value, page_size: pageSize.value },
+    { append: false }
+  )
+}
+
+function onPageSizeChange(size: number) {
+  pageSize.value = size
+  currentPage.value = 1
+  jobsStore.fetchJobs(
+    { ...(authStore.isClient ? { my_jobs: true } : {}), page: 1, page_size: pageSize.value },
+    { append: false }
   )
 }
 
 onMounted(async () => {
   currentPage.value = 1
   await jobsStore.fetchJobs(
-    authStore.isClient ? { my_jobs: true } : undefined
+    { ...(authStore.isClient ? { my_jobs: true } : {}), page: 1, page_size: pageSize.value }
   )
 })
 </script>

@@ -48,7 +48,7 @@ export interface StripeConnectStatus {
 }
 
 export const paymentsService = {
-  list(params?: { contract?: string; milestone?: string; time_entry?: string; status?: string }): Promise<AxiosResponse<PaginatedResponse<Payment>>> {
+  list(params?: { contract?: string; milestone?: string; time_entry?: string; status?: string; page?: number; page_size?: number }): Promise<AxiosResponse<PaginatedResponse<Payment>>> {
     return api.get('/payments/', { params })
   },
   get(id: string): Promise<AxiosResponse<Payment>> {

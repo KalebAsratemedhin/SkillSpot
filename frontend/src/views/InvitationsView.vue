@@ -76,6 +76,15 @@
                   <span class="material-symbols-outlined mr-2 text-lg">close</span>
                   Decline
                 </Button>
+                <router-link
+                  v-if="invitation.status === 'ACCEPTED' && authStore.isClient && getJobId(invitation.job) && getProviderId(invitation.provider)"
+                  :to="`/contracts/create?job=${getJobId(invitation.job)}&provider=${getProviderId(invitation.provider)}`"
+                >
+                  <Button variant="default" size="default" class="bg-amber text-midnight hover:bg-amber-dark">
+                    <span class="material-symbols-outlined mr-2 text-lg">description</span>
+                    Create Contract
+                  </Button>
+                </router-link>
                 <router-link v-if="getJobId(invitation.job)" :to="`/jobs/${getJobId(invitation.job)}`">
                   <Button variant="outline" size="default" class="border-white/10 text-slate-400 hover:text-white hover:border-white/20">
                     <span class="material-symbols-outlined mr-2 text-lg">visibility</span>
@@ -123,6 +132,12 @@ function getJobId(job: string | { id?: string } | any) {
   if (job == null) return null
   if (typeof job === 'string') return job
   return job?.id ?? null
+}
+
+function getProviderId(provider: string | { id?: string } | any) {
+  if (provider == null) return null
+  if (typeof provider === 'string') return provider
+  return provider?.id ?? null
 }
 
 async function handleAccept(id: string) {

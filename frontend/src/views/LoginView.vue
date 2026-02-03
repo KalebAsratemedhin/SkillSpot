@@ -14,7 +14,11 @@
         </div>
         <div class="flex items-center gap-4">
           <div class="relative">
-            <div class="w-16 h-16 rounded-full object-cover border-2 border-amber bg-slate-400"></div>
+            <img
+              src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=128&h=128&fit=crop&q=80"
+              alt="Sarah Chen"
+              class="w-16 h-16 rounded-full object-cover border-2 border-amber bg-slate-400"
+            />
             <div class="absolute -bottom-1 -right-1 bg-green-500 w-5 h-5 rounded-full border-2 border-midnight flex items-center justify-center">
               <span class="material-symbols-outlined text-[10px] text-white">check</span>
             </div>

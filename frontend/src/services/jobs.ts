@@ -59,6 +59,7 @@ export interface JobListParams {
   status?: string
   search?: string
   page?: number
+  page_size?: number
   skill?: string
   budget_min?: number
   budget_max?: number

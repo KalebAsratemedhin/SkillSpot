@@ -105,7 +105,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useMessagingStore } from '@/stores/messaging'
@@ -160,11 +160,19 @@ async function selectConversation(id: string) {
   router.push({ name: 'conversation', params: { id } })
   await messagingStore.fetchConversation(id)
   await messagingStore.markAsRead(id)
+  if (typeof messagingStore.connectChat === 'function') {
+    messagingStore.connectChat(id)
+  }
 }
 
 async function handleSendMessage() {
-  if (!selectedConversation.value || !messageForm.value.content) return
-  await messagingStore.sendMessage(selectedConversation.value, messageForm.value.content)
+  const content = messageForm.value.content?.trim()
+  if (!selectedConversation.value || !content) return
+  if (messagingStore.sendMessageViaWs(content)) {
+    messageForm.value.content = ''
+    return
+  }
+  await messagingStore.sendMessage(selectedConversation.value, content)
   messageForm.value.content = ''
 }
 
@@ -185,6 +193,15 @@ onMounted(async () => {
     selectedConversation.value = id
     await messagingStore.fetchConversation(id)
     await messagingStore.markAsRead(id)
+    if (typeof messagingStore.connectChat === 'function') {
+      messagingStore.connectChat(id)
+    }
+  }
+})
+
+onUnmounted(() => {
+  if (typeof messagingStore.disconnectChat === 'function') {
+    messagingStore.disconnectChat()
   }
 })
 
@@ -195,8 +212,14 @@ watch(
       selectedConversation.value = id
       await messagingStore.fetchConversation(id)
       await messagingStore.markAsRead(id)
+      messagingStore.connectChat(id)
     }
-    if (!id) selectedConversation.value = null
+    if (!id) {
+      selectedConversation.value = null
+      if (typeof messagingStore.disconnectChat === 'function') {
+        messagingStore.disconnectChat()
+      }
+    }
   }
 )
 </script>

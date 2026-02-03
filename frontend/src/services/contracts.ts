@@ -88,7 +88,7 @@ export interface CreateContractPayload {
 }
 
 export const contractsService = {
-  list(params?: { my_contracts?: string; status?: string }): Promise<AxiosResponse<PaginatedResponse<Contract>>> {
+  list(params?: { my_contracts?: string; status?: string; page?: number; page_size?: number }): Promise<AxiosResponse<PaginatedResponse<Contract>>> {
     return api.get('/contracts/', { params })
   },
   get(id: string): Promise<AxiosResponse<Contract>> {

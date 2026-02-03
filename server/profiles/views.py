@@ -2,6 +2,8 @@ from rest_framework import generics, permissions, status
 from rest_framework.parsers import JSONParser, MultiPartParser, FormParser
 from rest_framework.response import Response
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
+from skillspot.cache_utils import tags_list_cache_key, invalidate_tags_list, TAGS_LIST_TIMEOUT
 from .models import Profile, ServiceProviderProfile, Tag, Experience
 from .serializers import (
     ProfileSerializer,
@@ -49,11 +51,28 @@ class TagListCreateView(generics.ListCreateAPIView):
     permission_classes = [permissions.AllowAny]
 
     def get_queryset(self):
-        queryset = Tag.objects.all()
-        category = self.request.query_params.get('category', None)
+        queryset = Tag.objects.all().order_by('name')
+        category = self.request.query_params.get('category')
         if category:
-            queryset = queryset.filter(category=category)
+            # Normalize to uppercase to match Tag.TagCategory (e.g. SKILL)
+            queryset = queryset.filter(category=category.upper())
         return queryset
+
+    def list(self, request, *args, **kwargs):
+        if request.method != 'GET':
+            return super().list(request, *args, **kwargs)
+        category = request.query_params.get('category')
+        key = tags_list_cache_key(category.upper() if category else None)
+        data = cache.get(key)
+        if data is not None:
+            return Response(data)
+        response = super().list(request, *args, **kwargs)
+        cache.set(key, response.data, timeout=TAGS_LIST_TIMEOUT)
+        return response
+
+    def perform_create(self, serializer):
+        serializer.save()
+        invalidate_tags_list()
 
 
 class ExperienceListCreateView(generics.ListCreateAPIView):

@@ -2,6 +2,12 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { messagingService, type Conversation, type Message, type CreateConversationPayload } from '@/services/messaging'
 
+function getWsBaseUrl(): string {
+  const api = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1'
+  const u = api.replace(/\/api\/v1\/?$/, '').trim()
+  return (u.startsWith('https') ? 'wss:' : 'ws:') + u.replace(/^https?:\/\//, '//')
+}
+
 export const useMessagingStore = defineStore('messaging', () => {
   const conversations = ref<Conversation[]>([])
   const currentConversation = ref<Conversation | null>(null)
@@ -9,6 +15,8 @@ export const useMessagingStore = defineStore('messaging', () => {
   const unreadCount = ref(0)
   const loading = ref(false)
   const error = ref<string | null>(null)
+  const chatWs = ref<WebSocket | null>(null)
+  const wsConnected = ref(false)
 
   async function fetchConversations() {
     try {
@@ -83,6 +91,49 @@ export const useMessagingStore = defineStore('messaging', () => {
     }
   }
 
+  function connectChat(conversationId: string) {
+    disconnectChat()
+    const token = localStorage.getItem('access_token')
+    if (!token) return
+    const base = getWsBaseUrl()
+    const url = `${base}/ws/chat/${conversationId}/?token=${encodeURIComponent(token)}`
+    const ws = new WebSocket(url)
+    chatWs.value = ws
+    ws.onopen = () => { wsConnected.value = true }
+    ws.onclose = () => {
+      wsConnected.value = false
+      chatWs.value = null
+    }
+    ws.onerror = () => { wsConnected.value = false }
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data) as Message
+        if (data?.id && data?.content != null) {
+          if (!messages.value.some((m) => m.id === data.id)) {
+            messages.value = [...messages.value, data]
+          }
+        }
+      } catch {
+        // ignore parse errors
+      }
+    }
+  }
+
+  function disconnectChat() {
+    if (chatWs.value) {
+      chatWs.value.close()
+      chatWs.value = null
+    }
+    wsConnected.value = false
+  }
+
+  function sendMessageViaWs(content: string): boolean {
+    const ws = chatWs.value
+    if (!ws || ws.readyState !== WebSocket.OPEN) return false
+    ws.send(JSON.stringify({ type: 'send_message', content }))
+    return true
+  }
+
   async function markAsRead(conversationId: string) {
     try {
       await messagingService.markRead(conversationId)
@@ -112,11 +163,16 @@ export const useMessagingStore = defineStore('messaging', () => {
     unreadCount,
     loading,
     error,
+    chatWs,
+    wsConnected,
     fetchConversations,
     fetchConversation,
     createConversation,
     fetchMessages,
     sendMessage,
+    sendMessageViaWs,
+    connectChat,
+    disconnectChat,
     markAsRead,
     fetchUnreadCount,
   }

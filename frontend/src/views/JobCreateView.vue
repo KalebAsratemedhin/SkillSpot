@@ -53,7 +53,12 @@
             >
               {{ tag.name }}
             </button>
-            <span v-if="!skillTags.length" class="text-slate-400 text-sm">Loading skills…</span>
+            <span v-if="skillsLoading" class="text-slate-400 text-sm">Loading skills…</span>
+            <span v-else-if="skillsLoadError" class="text-red-600 text-sm">
+              {{ skillsLoadError }}
+              <button type="button" class="ml-2 underline font-medium" @click="loadSkills">Retry</button>
+            </span>
+            <span v-else-if="!skillTags.length" class="text-slate-400 text-sm">No skills available. Add skills in your profile or ask an admin to add tags.</span>
           </div>
         </FormField>
 
@@ -87,7 +92,7 @@
             />
           </FormField>
           <FormField v-else :error="errors.budget_max">
-            <Label class="text-sm font-semibold text-slate-700">Fixed Price (Br)</Label>
+            <Label class="text-sm font-semibold text-slate-700">Fixed Price ($)</Label>
             <Input
               v-model="form.price_fixed"
               type="number"
@@ -133,9 +138,23 @@ const router = useRouter()
 const jobsStore = useJobsStore()
 const profilesStore = useProfilesStore()
 
+async function loadSkills() {
+  skillsLoadError.value = null
+  skillsLoading.value = true
+  try {
+    await profilesStore.fetchTags({ category: 'SKILL' })
+    const data = profilesStore.tags ?? []
+    skillTags.value = Array.isArray(data) ? data.map((t: { id: string; name: string }) => ({ id: t.id, name: t.name })) : []
+  } catch (_err: any) {
+    skillsLoadError.value = _err.response?.data?.detail || 'Could not load skills.'
+    skillTags.value = []
+  } finally {
+    skillsLoading.value = false
+  }
+}
+
 onMounted(async () => {
-  await profilesStore.fetchTags({ category: 'SKILL' })
-  skillTags.value = (profilesStore.tags || []).map((t: { id: string; name: string }) => ({ id: t.id, name: t.name }))
+  await loadSkills()
   showMap.value = true
   await import('vue').then(({ nextTick }) => nextTick())
   initMap()
@@ -166,6 +185,8 @@ const errors = reactive({
 })
 
 const skillTags = ref<{ id: string; name: string }[]>([])
+const skillsLoadError = ref<string | null>(null)
+const skillsLoading = ref(true)
 const showMap = ref(false)
 const mapContainer = ref<HTMLElement | null>(null)
 let mapInstance: import('leaflet').Map | null = null

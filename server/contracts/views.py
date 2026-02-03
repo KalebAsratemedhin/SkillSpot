@@ -5,6 +5,7 @@ from rest_framework.exceptions import ValidationError
 from django.contrib.auth import get_user_model
 from django.db.models import Q
 from django.utils import timezone
+from notifications.tasks import send_in_app_notification
 from .models import Contract, ContractMilestone, ContractSignature, TimeEntry
 from .serializers import (
     ContractSerializer,
@@ -83,6 +84,14 @@ class ContractListCreateView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         serializer.save()
+        contract = serializer.instance
+        send_in_app_notification.delay(
+            str(contract.provider_id),
+            'New contract',
+            f'You have been added to a contract: {contract.title}',
+            link=f'/contracts/{contract.id}/',
+            actor_id=str(self.request.user.id),
+        )
 
 
 class ContractDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -122,6 +131,25 @@ class ContractDetailView(generics.RetrieveUpdateDestroyAPIView):
             )
         return super().destroy(request, *args, **kwargs)
 
+    def perform_update(self, serializer):
+        contract = serializer.instance
+        old_status = contract.status
+        serializer.save()
+        new_status = serializer.instance.status
+        if new_status != old_status and new_status in (
+            Contract.ContractStatus.COMPLETED,
+            Contract.ContractStatus.TERMINATED,
+        ):
+            other = contract.provider if self.request.user == contract.client else contract.client
+            label = 'completed' if new_status == Contract.ContractStatus.COMPLETED else 'terminated'
+            send_in_app_notification.delay(
+                str(other.id),
+                f'Contract {label}',
+                f'Contract "{contract.title}" has been {label}.',
+                link=f'/contracts/{contract.id}/',
+                actor_id=str(self.request.user.id),
+            )
+
 
 class ContractSignView(generics.GenericAPIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -155,11 +183,27 @@ class ContractSignView(generics.GenericAPIView):
 
         if serializer.is_valid():
             signature = serializer.save()
+            contract.refresh_from_db()
+            other = contract.provider if request.user == contract.client else contract.client
+            send_in_app_notification.delay(
+                str(other.id),
+                'Contract signed',
+                f'{request.user.email} signed the contract "{contract.title}".'
+                + (' Contract is now active.' if contract.is_fully_signed() else ' Sign to activate.'),
+                link=f'/contracts/{contract.id}/',
+                actor_id=str(request.user.id),
+            )
+            if contract.is_fully_signed():
+                send_in_app_notification.delay(
+                    str(request.user.id),
+                    'Contract active',
+                    f'Contract "{contract.title}" is now active.',
+                    link=f'/contracts/{contract.id}/',
+                )
             return Response(
                 ContractSignatureSerializer(signature).data,
                 status=status.HTTP_200_OK
             )
-        
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 

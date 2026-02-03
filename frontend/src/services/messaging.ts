@@ -64,7 +64,7 @@ export const messagingService = {
   markRead(conversationId: string): Promise<AxiosResponse> {
     return api.post(`/messaging/conversations/${conversationId}/mark-read/`)
   },
-  getUnreadCount(): Promise<AxiosResponse<{ count: number }>> {
+  getUnreadCount(): Promise<AxiosResponse<{ total_unread?: number; count?: number }>> {
     return api.get('/messaging/conversations/unread-count/')
   },
 }

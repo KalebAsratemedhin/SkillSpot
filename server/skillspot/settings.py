@@ -32,6 +32,7 @@ ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='', cast=Csv())
 # Application definition
 
 INSTALLED_APPS = [
+    'daphne',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -44,6 +45,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'drf_spectacular',
     'corsheaders',
+    'channels',
     
     # local apps
     'accounts',
@@ -53,6 +55,7 @@ INSTALLED_APPS = [
     'messaging',
     'payments',
     'ratings',
+    'notifications',
 ]
 
 AUTH_USER_MODEL = 'accounts.User'
@@ -90,13 +93,30 @@ WSGI_APPLICATION = 'skillspot.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
-
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+# To use PostgreSQL (e.g. with Docker): set POSTGRES_DB=skillspot in server/.env
+# (optionally POSTGRES_USER, POSTGRES_PASSWORD, DB_HOST=localhost, DB_PORT=5432).
+# If POSTGRES_DB or DB_ENGINE=postgres is not set, Django uses SQLite (db.sqlite3).
+_db_engine = config('DB_ENGINE', default=None)
+_use_postgres = _db_engine == 'postgres' or config('POSTGRES_DB', default=None)
+if _use_postgres:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': config('POSTGRES_DB', default='skillspot'),
+            'USER': config('POSTGRES_USER', default='skillspot'),
+            'PASSWORD': config('POSTGRES_PASSWORD', default='skillspot'),
+            'HOST': config('DB_HOST', default='localhost'),
+            'PORT': config('DB_PORT', default='5432'),
+            'OPTIONS': {'connect_timeout': 10},
+        }
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 
 # Password validation
@@ -147,8 +167,8 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
     ),
-    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
-    'PAGE_SIZE': 20,
+    'DEFAULT_PAGINATION_CLASS': 'skillspot.pagination.OptionalPageSizePagination',
+    'PAGE_SIZE': 10,
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 
     'EXCEPTION_HANDLER': 'skillspot.exceptions.custom_exception_handler',
@@ -249,3 +269,43 @@ CORS_ALLOW_HEADERS = [
 ]
 
 CORS_PREFLIGHT_MAX_AGE = 86400
+
+# Redis cache: set REDIS_URL (e.g. redis://localhost:6379/0) to use Redis; otherwise in-memory cache is used.
+REDIS_URL = config('REDIS_URL', default='redis://localhost:6379/0')
+CACHE_KEY_PREFIX = config('CACHE_KEY_PREFIX', default='skillspot')
+CACHE_DEFAULT_TIMEOUT = config('CACHE_DEFAULT_TIMEOUT', default=300, cast=int)  # seconds
+
+if REDIS_URL.startswith('redis://'):
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+            'LOCATION': REDIS_URL,
+            'KEY_PREFIX': CACHE_KEY_PREFIX,
+            'TIMEOUT': CACHE_DEFAULT_TIMEOUT,
+        }
+    }
+else:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+            'KEY_PREFIX': CACHE_KEY_PREFIX,
+            'TIMEOUT': CACHE_DEFAULT_TIMEOUT,
+        }
+    }
+
+# Celery
+CELERY_BROKER_URL = config('CELERY_BROKER_URL', default=REDIS_URL)
+CELERY_RESULT_BACKEND = config('CELERY_RESULT_BACKEND', default=REDIS_URL)
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = TIME_ZONE
+
+# Django Channels (WebSocket)
+ASGI_APPLICATION = 'skillspot.asgi.application'
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {'hosts': [config('REDIS_URL', default='redis://localhost:6379/0')]},
+    },
+}

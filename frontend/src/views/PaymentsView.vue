@@ -83,7 +83,7 @@
           <span class="material-symbols-outlined animate-spin text-4xl text-amber">refresh</span>
         </div>
         
-        <div v-else-if="filteredPayments.length === 0" class="text-center py-16">
+        <div v-else-if="payments.length === 0" class="text-center py-16">
           <div class="inline-flex items-center justify-center size-20 rounded-full bg-white/5 mb-4">
             <span class="material-symbols-outlined text-4xl text-slate-500">receipt_long</span>
           </div>
@@ -93,7 +93,7 @@
 
         <div v-else class="space-y-4">
           <Card
-            v-for="payment in filteredPayments"
+            v-for="payment in payments"
             :key="payment.id"
             class="bg-midnight rounded-2xl border border-white/5 hover:border-white/10 transition-all p-6"
           >
@@ -161,30 +161,18 @@
           </Card>
         </div>
 
-        <!-- Pagination -->
-        <div v-if="!loading && totalPages > 1" class="flex justify-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            @click="currentPage--"
-            :disabled="currentPage === 1"
-            class="border-white/10 text-slate-400 hover:text-white disabled:opacity-50"
-          >
-            <span class="material-symbols-outlined text-base">chevron_left</span>
-          </Button>
-          <div class="flex items-center gap-2 px-4">
-            <span class="text-slate-400 text-sm">Page {{ currentPage }} of {{ totalPages }}</span>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            @click="currentPage++"
-            :disabled="currentPage === totalPages"
-            class="border-white/10 text-slate-400 hover:text-white disabled:opacity-50"
-          >
-            <span class="material-symbols-outlined text-base">chevron_right</span>
-          </Button>
-        </div>
+        <!-- Pagination: always show when there are results -->
+        <PaginationBar
+          v-if="!loading && totalCount > 0"
+          :current-page="currentPage"
+          :total-pages="totalPages"
+          :total-count="totalCount"
+          :page-size="pageSize"
+          :loading="loading"
+          variant="dark"
+          @go-to-page="onGoToPage"
+          @update-page-size="onPageSizeChange"
+        />
       </div>
     </main>
   </div>
@@ -198,12 +186,14 @@ import Header from '@/components/Header.vue'
 import Card from '@/components/ui/Card.vue'
 import Button from '@/components/ui/Button.vue'
 
+const PAGE_SIZE = 20
+
 const authStore = useAuthStore()
 const payments = ref<Payment[]>([])
+const totalCount = ref(0)
 const loading = ref(false)
 const selectedStatus = ref<string>('all')
 const currentPage = ref(1)
-const itemsPerPage = 10
 
 const statusFilters = [
   { value: 'all', label: 'All', icon: 'receipt_long' },
@@ -213,24 +203,7 @@ const statusFilters = [
   { value: 'FAILED', label: 'Failed', icon: 'error' },
 ]
 
-const filteredPayments = computed(() => {
-  let filtered = payments.value
-  if (selectedStatus.value !== 'all') {
-    filtered = filtered.filter(p => p.status === selectedStatus.value)
-  }
-  // Paginate
-  const start = (currentPage.value - 1) * itemsPerPage
-  const end = start + itemsPerPage
-  return filtered.slice(start, end)
-})
-
-const totalPages = computed(() => {
-  let filtered = payments.value
-  if (selectedStatus.value !== 'all') {
-    filtered = filtered.filter(p => p.status === selectedStatus.value)
-  }
-  return Math.ceil(filtered.length / itemsPerPage)
-})
+const totalPages = computed(() => Math.max(1, Math.ceil(totalCount.value / pageSize.value)))
 
 const totalAmount = computed(() => {
   return payments.value
@@ -243,13 +216,8 @@ const totalAmount = computed(() => {
     }, 0)
 })
 
-const completedCount = computed(() => {
-  return payments.value.filter(p => p.status === 'COMPLETED').length
-})
-
-const pendingCount = computed(() => {
-  return payments.value.filter(p => p.status === 'PENDING' || p.status === 'PROCESSING').length
-})
+const completedCount = computed(() => payments.value.filter(p => p.status === 'COMPLETED').length)
+const pendingCount = computed(() => payments.value.filter(p => p.status === 'PENDING' || p.status === 'PROCESSING').length)
 
 function formatDate(dateString: string) {
   const date = new Date(dateString)
@@ -274,11 +242,15 @@ function formatPaymentMethod(method: string) {
 async function fetchPayments() {
   loading.value = true
   try {
-    const response = await paymentsService.list()
+    const params: Record<string, string | number> = { page: currentPage.value, page_size: pageSize.value }
+    if (selectedStatus.value !== 'all') params.status = selectedStatus.value
+    const response = await paymentsService.list(params)
     payments.value = response.data.results || []
+    totalCount.value = response.data.count ?? 0
   } catch (err) {
     console.error('Failed to fetch payments:', err)
     payments.value = []
+    totalCount.value = 0
   } finally {
     loading.value = false
   }
@@ -286,7 +258,23 @@ async function fetchPayments() {
 
 watch(selectedStatus, () => {
   currentPage.value = 1
+  fetchPayments()
 })
+
+watch(currentPage, () => {
+  fetchPayments()
+}, { immediate: false })
+
+function onGoToPage(page: number) {
+  if (page < 1 || page > totalPages.value) return
+  currentPage.value = page
+}
+
+function onPageSizeChange(size: number) {
+  pageSize.value = size
+  currentPage.value = 1
+  fetchPayments()
+}
 
 onMounted(async () => {
   await fetchPayments()

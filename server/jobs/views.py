@@ -1,11 +1,13 @@
 from rest_framework import generics, permissions, status, filters
 from rest_framework.exceptions import PermissionDenied
-
 from rest_framework.response import Response
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.db.models import Q
 from django.http import Http404
 from django.utils import timezone
+from skillspot.cache_utils import job_list_cache_key, JOB_LIST_TIMEOUT
+from notifications.tasks import send_in_app_notification
 from .models import Job, JobApplication, JobInvitation
 from .serializers import (
     JobSerializer,
@@ -70,6 +72,23 @@ class JobListCreateView(generics.ListCreateAPIView):
             return JobCreateSerializer
         return JobSerializer
 
+    def list(self, request, *args, **kwargs):
+        if request.method != 'GET':
+            return super().list(request, *args, **kwargs)
+        is_my_jobs = (
+            request.query_params.get('my_jobs') == 'true'
+            and request.user.user_type in ['CLIENT', 'BOTH']
+        )
+        if is_my_jobs:
+            return super().list(request, *args, **kwargs)
+        key = job_list_cache_key(request)
+        data = cache.get(key)
+        if data is not None:
+            return Response(data)
+        response = super().list(request, *args, **kwargs)
+        cache.set(key, response.data, timeout=JOB_LIST_TIMEOUT)
+        return response
+
     def perform_create(self, serializer):
         serializer.save(client=self.request.user)
         job = serializer.instance
@@ -131,6 +150,14 @@ class JobCloseView(generics.GenericAPIView):
             job.status = Job.JobStatus.COMPLETED
             job.closed_at = timezone.now()
             job.save()
+            for app in job.applications.filter(status=JobApplication.ApplicationStatus.ACCEPTED):
+                send_in_app_notification.delay(
+                    str(app.provider_id),
+                    'Job completed',
+                    f'Job "{job.title}" has been marked as completed.',
+                    link=f'/jobs/{job.id}/',
+                    actor_id=str(request.user.id),
+                )
             return Response(
                 {'message': 'Job closed successfully.'},
                 status=status.HTTP_200_OK
@@ -198,10 +225,17 @@ class JobApplicationListCreateView(generics.ListCreateAPIView):
                 {'error': 'Job not found.'},
                 status=status.HTTP_404_NOT_FOUND
             )
-        
         serializer.save(
             job=job,
             provider=self.request.user
+        )
+        # Notify job owner (client) about the new application
+        send_in_app_notification.delay(
+            str(job.client_id),
+            'New application',
+            f'Someone applied to your job: {job.title}',
+            link=f'/jobs/{job.id}/',
+            actor_id=str(self.request.user.id),
         )
 
 
@@ -234,7 +268,14 @@ class JobApplicationDetailView(generics.RetrieveUpdateDestroyAPIView):
                 if new_status == 'ACCEPTED':
                     application.job.status = Job.JobStatus.IN_PROGRESS
                     application.job.save()
-                
+                    # Notify provider their application was accepted
+                    send_in_app_notification.delay(
+                        str(application.provider_id),
+                        'Application accepted',
+                        f'Your application for "{application.job.title}" was accepted.',
+                        link=f'/jobs/{application.job_id}/',
+                        actor_id=str(request.user.id),
+                    )
                 return Response(JobApplicationSerializer(application).data)
         
         if application.provider == request.user:
@@ -270,6 +311,14 @@ class JobInvitationListCreateView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         invitation = serializer.save(client=self.request.user)
+        # Notify provider they were invited to the job
+        send_in_app_notification.delay(
+            str(invitation.provider_id),
+            'Job invitation',
+            f'You were invited to apply for "{invitation.job.title}".',
+            link=f'/jobs/{invitation.job_id}/',
+            actor_id=str(self.request.user.id),
+        )
         # Auto-create a conversation between client and provider for this job
         from messaging.models import Conversation
         client = self.request.user

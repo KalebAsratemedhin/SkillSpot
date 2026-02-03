@@ -9,6 +9,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.http import JsonResponse
 from django.utils import timezone
+from notifications.tasks import send_in_app_notification
 from .models import Payment, PaymentTransaction
 from contracts.models import Contract, ContractMilestone, TimeEntry
 from .serializers import (
@@ -592,6 +593,13 @@ class ConfirmStripePaymentView(generics.GenericAPIView):
                     payment.time_entry.status = TimeEntry.TimeEntryStatus.PAID
                     payment.time_entry.save(update_fields=['status', 'updated_at'])
 
+                send_in_app_notification.delay(
+                    str(payment.recipient_id),
+                    'Payment received',
+                    f'You received a payment of {payment.amount} {payment.currency or "ETB"} for "{payment.contract.title}".',
+                    link=f'/contracts/{payment.contract_id}/',
+                    actor_id=str(payment.payer_id),
+                )
                 return Response(
                     PaymentSerializer(payment).data,
                     status=status.HTTP_200_OK
@@ -718,6 +726,13 @@ def stripe_webhook(request):
                 if payment.time_entry:
                     payment.time_entry.status = TimeEntry.TimeEntryStatus.PAID
                     payment.time_entry.save(update_fields=['status', 'updated_at'])
+                send_in_app_notification.delay(
+                    str(payment.recipient_id),
+                    'Payment received',
+                    f'You received a payment of {payment.amount} {payment.currency or "ETB"} for "{payment.contract.title}".',
+                    link=f'/contracts/{payment.contract_id}/',
+                    actor_id=str(payment.payer_id),
+                )
                 completed_any = True
                 logger.info('[Stripe webhook] checkout.session.completed updated Payment id=%s to COMPLETED', payment.id)
             if not completed_any and not payment_ids_list:
@@ -763,6 +778,13 @@ def stripe_webhook(request):
                 if payment.time_entry:
                     payment.time_entry.status = TimeEntry.TimeEntryStatus.PAID
                     payment.time_entry.save(update_fields=['status', 'updated_at'])
+                send_in_app_notification.delay(
+                    str(payment.recipient_id),
+                    'Payment received',
+                    f'You received a payment of {payment.amount} {payment.currency or "ETB"} for "{payment.contract.title}".',
+                    link=f'/contracts/{payment.contract_id}/',
+                    actor_id=str(payment.payer_id),
+                )
                 logger.info('[Stripe webhook] payment_intent.succeeded updated Payment id=%s to COMPLETED', payment.id)
 
         elif event_type == 'payment_intent.payment_failed':

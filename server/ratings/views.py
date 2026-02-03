@@ -2,6 +2,7 @@ from rest_framework import generics, permissions, status, filters
 from rest_framework.response import Response
 from django.contrib.auth import get_user_model
 from django.db.models import Q, Avg, Count
+from notifications.tasks import send_in_app_notification
 from .models import Rating
 from .serializers import (
     RatingSerializer,
@@ -69,7 +70,15 @@ class RatingListCreateView(generics.ListCreateAPIView):
         return context
 
     def perform_create(self, serializer):
-        serializer.save(rater=self.request.user)
+        rating = serializer.save(rater=self.request.user)
+        link = f'/contracts/{rating.contract_id}/' if rating.contract_id else (f'/jobs/{rating.job_id}/' if rating.job_id else '/profile')
+        send_in_app_notification.delay(
+            str(rating.rated_user_id),
+            'New review',
+            f'You received a {rating.score}-star review.',
+            link=link,
+            actor_id=str(self.request.user.id),
+        )
 
 
 class RatingDetailView(generics.RetrieveUpdateDestroyAPIView):
