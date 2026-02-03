@@ -149,7 +149,6 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useJobsStore } from '@/stores/jobs'
 import AppLayout from '@/components/AppLayout.vue'
@@ -163,7 +162,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 
-const router = useRouter()
 const authStore = useAuthStore()
 const jobsStore = useJobsStore()
 
@@ -175,12 +173,12 @@ const searchForm = ref({
   budget_max: undefined as number | undefined,
 })
 
-const PAGE_SIZE = 20
 const sortBy = ref('-created_at')
 const skillTags = ref<{ id: string; name: string }[]>([])
 const currentPage = ref(1)
+const pageSize = ref(10)
 
-const jobsTotalPages = computed(() => Math.max(1, Math.ceil(jobsStore.totalCount / PAGE_SIZE)))
+const jobsTotalPages = computed(() => Math.max(1, Math.ceil(jobsStore.totalCount / pageSize.value)))
 
 function buildParams(append = false) {
   const page = append ? currentPage.value : 1
@@ -193,6 +191,7 @@ function buildParams(append = false) {
     budget_max: searchForm.value.budget_max,
     ordering: sortBy.value,
     page,
+    page_size: pageSize.value,
   }
   return params
 }
@@ -218,6 +217,7 @@ function onPageSizeChange(size: number) {
   currentPage.value = 1
   jobsStore.fetchJobs(buildParams())
 }
+
 
 onMounted(async () => {
   try {

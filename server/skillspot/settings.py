@@ -93,30 +93,39 @@ WSGI_APPLICATION = 'skillspot.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
-# To use PostgreSQL (e.g. with Docker): set POSTGRES_DB=skillspot in server/.env
-# (optionally POSTGRES_USER, POSTGRES_PASSWORD, DB_HOST=localhost, DB_PORT=5432).
-# If POSTGRES_DB or DB_ENGINE=postgres is not set, Django uses SQLite (db.sqlite3).
-_db_engine = config('DB_ENGINE', default=None)
-_use_postgres = _db_engine == 'postgres' or config('POSTGRES_DB', default=None)
-if _use_postgres:
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.postgresql',
-            'NAME': config('POSTGRES_DB', default='skillspot'),
-            'USER': config('POSTGRES_USER', default='skillspot'),
-            'PASSWORD': config('POSTGRES_PASSWORD', default='skillspot'),
-            'HOST': config('DB_HOST', default='localhost'),
-            'PORT': config('DB_PORT', default='5432'),
-            'OPTIONS': {'connect_timeout': 10},
-        }
-    }
+# Option 1 (external): set DATABASE_URL to a Postgres connection string (e.g. from Render, Neon).
+# Option 2 (local/in-container): set POSTGRES_DB=skillspot (or DB_ENGINE=postgres) and optionally
+#   POSTGRES_USER, POSTGRES_PASSWORD, DB_HOST, DB_PORT.
+# If neither is set, Django uses SQLite (db.sqlite3).
+import dj_database_url
+
+_database_url = config('DATABASE_URL', default=None)
+if _database_url:
+    _db = dj_database_url.parse(_database_url, conn_max_age=600)
+    _db.setdefault('CONN_HEALTH_CHECKS', True)
+    DATABASES = {'default': _db}
 else:
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
+    _db_engine = config('DB_ENGINE', default=None)
+    _use_postgres = _db_engine == 'postgres' or config('POSTGRES_DB', default=None)
+    if _use_postgres:
+        DATABASES = {
+            'default': {
+                'ENGINE': 'django.db.backends.postgresql',
+                'NAME': config('POSTGRES_DB', default='skillspot'),
+                'USER': config('POSTGRES_USER', default='skillspot'),
+                'PASSWORD': config('POSTGRES_PASSWORD', default='skillspot'),
+                'HOST': config('DB_HOST', default='localhost'),
+                'PORT': config('DB_PORT', default='5432'),
+                'OPTIONS': {'connect_timeout': 10},
+            }
         }
-    }
+    else:
+        DATABASES = {
+            'default': {
+                'ENGINE': 'django.db.backends.sqlite3',
+                'NAME': BASE_DIR / 'db.sqlite3',
+            }
+        }
 
 
 # Password validation

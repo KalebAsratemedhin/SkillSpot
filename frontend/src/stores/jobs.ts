@@ -113,7 +113,8 @@ export const useJobsStore = defineStore('jobs', () => {
       error.value = null
       const response = await jobsService.getApplications(jobId)
 
-      applications.value = Array.isArray(response.data?.results) ? response.data.results : []
+      const data = response.data as { results?: JobApplication[] } | JobApplication[]
+      applications.value = Array.isArray(data) ? data : (data && 'results' in data ? (data.results ?? []) : [])
     } catch (err: any) {
       error.value = err.response?.data?.detail || 'Failed to fetch applications'
       throw err
@@ -145,7 +146,8 @@ export const useJobsStore = defineStore('jobs', () => {
       loading.value = true
       error.value = null
       const response = await jobsService.getMyApplications()
-      applications.value = Array.isArray(response.data?.results) ? response.data.results : []
+      const data = response.data as { results?: JobApplication[] } | JobApplication[]
+      applications.value = Array.isArray(data) ? data : (data && 'results' in data ? (data.results ?? []) : [])
     } catch (err: any) {
       error.value = err.response?.data?.detail || 'Failed to fetch applications'
       throw err

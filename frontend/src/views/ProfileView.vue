@@ -162,7 +162,7 @@
               <nav class="flex gap-6 md:gap-10 overflow-x-auto">
                 <template v-if="authStore.isProvider">
                   <button
-                    v-for="tab in ['portfolio', 'services', 'jobs']"
+                    v-for="tab in profileTabs"
                     :key="tab"
                     :class="[
                       'relative pb-3 md:pb-4 text-sm md:text-base font-semibold transition-colors whitespace-nowrap capitalize',
@@ -574,6 +574,7 @@ import { paymentsService, type StripeConnectStatus } from '@/services/payments'
 
 const authStore = useAuthStore()
 const profilesStore = useProfilesStore()
+const profileTabs = ['portfolio', 'services', 'jobs'] as const
 const activeTab = ref<'portfolio' | 'services' | 'jobs'>(authStore.isProvider ? 'portfolio' : 'jobs')
 const ratingStats = ref<RatingStats | null>(null)
 const showEditProfile = ref(false)
@@ -909,7 +910,7 @@ onMounted(async () => {
   }
   const userId = typeof profilesStore.profile?.user === 'string'
     ? profilesStore.profile.user
-    : (profilesStore.profile?.user as { id?: string })?.id ?? authStore.user?.id
+    : (profilesStore.profile?.user as unknown as { id?: string })?.id ?? authStore.user?.id
   if (userId) {
     try {
       const statsResponse = await ratingsService.getStats(userId)

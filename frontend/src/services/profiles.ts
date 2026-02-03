@@ -30,6 +30,8 @@ export interface ServiceProviderProfile {
   skills?: Tag[]
   certifications?: Tag[]
   languages?: Tag[]
+  /** For API update: list of tag IDs to set as skills */
+  skill_ids?: string[]
   portfolio_visibility?: boolean
   total_jobs_completed?: number
   average_rating?: number

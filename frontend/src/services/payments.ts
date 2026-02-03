@@ -10,7 +10,7 @@ export interface PaginatedResponse<T> {
 
 export interface Payment {
   id: string
-  contract: string
+  contract: string | { id: string }
   milestone?: string
   time_entry?: string
   time_entry_id?: string
@@ -18,6 +18,9 @@ export interface Payment {
   status: string
   payment_method: string
   stripe_payment_intent_id?: string
+  platform_fee?: number | string
+  provider_amount?: number | string
+  description?: string
   created_at: string
 }
 

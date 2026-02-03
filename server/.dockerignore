@@ -1,0 +1,31 @@
+# Dependencies and local state
+venv
+.venv
+env
+.env
+.env.*
+!.env.example
+__pycache__
+*.py[cod]
+*.pyo
+.pytest_cache
+.coverage
+htmlcov
+*.sqlite3
+db.sqlite3
+
+# Git and IDE
+.git
+.gitignore
+.cache
+
+# Docker
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+# Docs and scripts (optional; keep start.sh for local dev)
+# start.sh
+
+# Media can be large; mount as volume in production if needed
+# media/

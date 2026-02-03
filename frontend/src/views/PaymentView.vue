@@ -104,7 +104,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { contractsService, type Contract, type ContractMilestone, type TimeEntry } from '@/services/contracts'
 import { paymentsService } from '@/services/payments'
 import { toast } from 'vue-sonner'
@@ -114,7 +114,6 @@ import CardContent from '@/components/ui/CardContent.vue'
 import Button from '@/components/ui/Button.vue'
 
 const route = useRoute()
-const router = useRouter()
 const contract = ref<Contract | null>(null)
 const milestone = ref<ContractMilestone | null>(null)
 const timeEntry = ref<TimeEntry | null>(null)

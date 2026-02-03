@@ -66,12 +66,8 @@
             :key="filter.value"
             :variant="selectedStatus === filter.value ? 'default' : 'outline'"
             size="sm"
+            :class="filterButtonClass(filter.value)"
             @click="selectedStatus = filter.value"
-            :class="[
-              selectedStatus === filter.value 
-                ? 'bg-amber text-midnight hover:bg-amber-dark' 
-                : 'border-white/10 text-slate-400 hover:text-white hover:border-white/20'
-            ]"
           >
             <span class="material-symbols-outlined mr-2 text-base">{{ filter.icon }}</span>
             {{ filter.label }}
@@ -185,8 +181,7 @@ import { paymentsService, type Payment } from '@/services/payments'
 import Header from '@/components/Header.vue'
 import Card from '@/components/ui/Card.vue'
 import Button from '@/components/ui/Button.vue'
-
-const PAGE_SIZE = 20
+import PaginationBar from '@/components/PaginationBar.vue'
 
 const authStore = useAuthStore()
 const payments = ref<Payment[]>([])
@@ -194,6 +189,13 @@ const totalCount = ref(0)
 const loading = ref(false)
 const selectedStatus = ref<string>('all')
 const currentPage = ref(1)
+const pageSize = ref(10)
+
+function filterButtonClass(value: string): string {
+  return selectedStatus.value === value
+    ? 'bg-amber text-midnight hover:bg-amber-dark'
+    : 'border-white/10 text-slate-400 hover:text-white hover:border-white/20'
+}
 
 const statusFilters = [
   { value: 'all', label: 'All', icon: 'receipt_long' },

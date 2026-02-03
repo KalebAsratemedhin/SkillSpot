@@ -86,7 +86,8 @@ export const useProfilesStore = defineStore('profiles', () => {
       error.value = null
       const response = await profilesService.listTags(params)
       const data = response.data
-      tags.value = Array.isArray(data) ? data : (data?.results ?? [])
+      const dataTyped = data as Tag[] | { results?: Tag[] }
+      tags.value = Array.isArray(dataTyped) ? dataTyped : (dataTyped?.results ?? [])
     } catch (err: any) {
       error.value = err.response?.data?.detail || 'Failed to fetch tags'
       throw err
@@ -116,7 +117,8 @@ export const useProfilesStore = defineStore('profiles', () => {
       error.value = null
       const response = await profilesService.listExperiences()
       const data = response.data
-      experiences.value = Array.isArray(data) ? data : (data?.results ?? [])
+      const dataTyped = data as Experience[] | { results?: Experience[] }
+      experiences.value = Array.isArray(dataTyped) ? dataTyped : (dataTyped?.results ?? [])
     } catch (err: any) {
       error.value = err.response?.data?.detail || 'Failed to fetch experiences'
       throw err

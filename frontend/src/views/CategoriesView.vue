@@ -22,7 +22,7 @@
                 :alt="category.name"
                 class="w-full h-full object-cover"
                 loading="lazy"
-                @error="(e) => (e.currentTarget!.src = category.fallbackImage)"
+                @error="(e) => { const t = (e.currentTarget as HTMLImageElement); if (t) t.src = category.fallbackImage }"
               />
             </div>
             <div class="p-6 md:p-8 flex-1 flex flex-col justify-center">

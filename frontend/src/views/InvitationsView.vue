@@ -46,7 +46,7 @@
                   >
                     {{ invitation.status }}
                   </span>
-                  <span class="text-slate-500 text-sm">{{ formatDate(invitation.invited_at || invitation.created_at) }}</span>
+                  <span class="text-slate-500 text-sm">{{ formatDate(invitation.invited_at ?? invitation.created_at ?? '') }}</span>
                 </div>
                 <h3 class="text-white text-2xl font-bold">
                   {{ getJobTitle(invitation.job) }}
