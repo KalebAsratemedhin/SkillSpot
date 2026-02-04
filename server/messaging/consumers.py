@@ -91,3 +91,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
         """Send the message payload to the WebSocket."""
         await self.send(text_data=json.dumps(event['message']))
 
+
+
+

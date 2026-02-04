@@ -38,3 +38,6 @@ class NotificationMarkReadSerializer(serializers.ModelSerializer):
 
 
 
+
+
+

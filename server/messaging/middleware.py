@@ -42,3 +42,6 @@ class JWTAuthMiddleware:
             scope['user'] = await sync_to_async(get_user_from_scope)(scope)
         await self.app(scope, receive, send)
 
+
+
+

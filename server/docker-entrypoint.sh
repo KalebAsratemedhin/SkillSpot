@@ -38,6 +38,16 @@ echo "==> Redis ready."
 echo "==> Running migrations..."
 python3 manage.py migrate --noinput
 
+# Collect static files (admin CSS, etc.)
+echo "==> Collecting static files..."
+python3 manage.py collectstatic --noinput
+
+# Create superuser if env vars set (idempotent; skips if user exists). Use with persistent DB or re-run on each deploy.
+if [ -n "${DJANGO_SUPERUSER_USERNAME}" ] && [ -n "${DJANGO_SUPERUSER_PASSWORD}" ]; then
+  echo "==> Creating superuser (if not exists)..."
+  python3 manage.py createsuperuser --noinput 2>/dev/null || true
+fi
+
 # Celery in background
 echo "==> Starting Celery worker..."
 celery -A skillspot worker -l info &
@@ -48,3 +58,6 @@ trap "kill $CELERY_PID 2>/dev/null" EXIT
 PORT="${PORT:-8000}"
 echo "==> Starting Daphne on 0.0.0.0:$PORT..."
 exec daphne -b 0.0.0.0 -p "$PORT" skillspot.asgi:application
+
+
+

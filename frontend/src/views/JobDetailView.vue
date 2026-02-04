@@ -56,7 +56,7 @@
                     </div>
                   </div>
                   <div v-if="hasJobLocation" class="job-detail-map-wrapper relative z-0 mt-6 rounded-xl overflow-hidden border border-gray-200 bg-gray-100" style="min-height: 240px;">
-                    <div ref="jobDetailMapContainer" class="w-full min-h-[240px]" style="height: 240px;"></div>
+                    <div ref="jobDetailMapContainer" class="w-full min-h-[240px] bg-slate-200" style="height: 240px; width: 100%;"></div>
                   </div>
                 </div>
                 <div class="mt-12 space-y-8">
@@ -473,11 +473,22 @@ function initJobDetailMap() {
     const map = L.map(container, { zoomControl: false }).setView([lat, lng], 14)
     L.control.zoom({ position: 'topright' }).addTo(map)
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map)
-    L.circleMarker([lat, lng], { radius: 10, fillColor: '#f59e0b', color: '#b45309', weight: 2, fillOpacity: 0.9 }).addTo(map)
-    jobDetailMapInstance = map
-    requestAnimationFrame(() => {
-      map.invalidateSize()
+    const jobForTooltip = jobsStore.currentJob as { location?: string; address?: string } | null
+    const tooltipText = jobForTooltip?.location || jobForTooltip?.address || 'Job location'
+    const marker = L.circleMarker([lat, lng], { radius: 10, fillColor: '#f59e0b', color: '#b45309', weight: 2, fillOpacity: 0.9 }).addTo(map)
+    marker.bindTooltip(tooltipText, {
+      permanent: false,
+      direction: 'top',
+      opacity: 0.95,
+      className: 'job-detail-map-tooltip',
     })
+    jobDetailMapInstance = map
+    const refreshSize = () => {
+      map.invalidateSize()
+    }
+    requestAnimationFrame(refreshSize)
+    setTimeout(refreshSize, 100)
+    setTimeout(refreshSize, 400)
   })
 }
 
@@ -665,11 +676,19 @@ watch(() => route.params.id, () => {
   if (route.name === 'job-detail') loadJob()
 })
 
+function scheduleMapInit() {
+  if (!hasJobLocation.value) return
+  import('vue').then(({ nextTick }) => {
+    nextTick()
+      .then(() => nextTick())
+      .then(() => setTimeout(initJobDetailMap, 250))
+  })
+}
+
 watch(
   () => jobsStore.currentJob,
   (job) => {
     if (job == null) {
-      console.log('[Job Detail] Job not loaded yet (waiting for fetch...)')
       return
     }
     const j = job as Record<string, unknown>
@@ -679,16 +698,6 @@ watch(
     const lng = lngRaw != null ? Number(lngRaw) : undefined
     const hasCoords = lat != null && lng != null && !Number.isNaN(lat) && !Number.isNaN(lng)
 
-    console.log('[Job Detail] Job loaded – latitude/longitude check:', {
-      jobId: j.id,
-      latitude: latRaw,
-      longitude: lngRaw,
-      asNumbers: { lat, lng },
-      hasCoords,
-      willShowMap: hasCoords,
-      rawJobKeys: Object.keys(j),
-    })
-
     if (!hasCoords) {
       if (jobDetailMapInstance) {
         jobDetailMapInstance.remove()
@@ -696,19 +705,40 @@ watch(
       }
       return
     }
-    import('vue').then(({ nextTick }) => {
-      nextTick()
-        .then(() => nextTick())
-        .then(() => setTimeout(initJobDetailMap, 100))
-    })
+    scheduleMapInit()
   },
   { immediate: true }
 )
+
+watch(jobDetailMapContainer, (el) => {
+  if (el && hasJobLocation.value && !jobDetailMapInstance) {
+    setTimeout(initJobDetailMap, 150)
+  }
+})
 </script>
 
 <style scoped>
 .job-detail-map-wrapper :deep(.leaflet-pane),
 .job-detail-map-wrapper :deep(.leaflet-control) {
   z-index: 1 !important;
+}
+</style>
+<style>
+/* Global so Leaflet tooltip (rendered in map pane) gets styles in production (e.g. Vercel) */
+.job-detail-map-tooltip.leaflet-tooltip {
+  background: #1f2937;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+.job-detail-map-tooltip.leaflet-tooltip-left::before,
+.job-detail-map-tooltip.leaflet-tooltip-right::before,
+.job-detail-map-tooltip.leaflet-tooltip-top::before,
+.job-detail-map-tooltip.leaflet-tooltip-bottom::before {
+  border-color: #1f2937 transparent transparent transparent;
 }
 </style>

@@ -129,6 +129,7 @@ Open the URL shown (e.g. `http://localhost:5173`). The browser tab will show the
 
 - **Backend**: Deploy the Docker image (e.g. to Render) or run Django with Gunicorn/Daphne behind a reverse proxy; set `ALLOWED_HOSTS`, `DATABASE_URL`, `SECRET_KEY`, CORS, and Stripe env vars.
 - **Frontend**: `npm run build` and serve the `dist/` folder (or deploy to a static host) with `VITE_API_BASE_URL` pointing to the backend.
+- **Persistent data and admin**: If the app uses in-container Postgres, the database is wiped on each deploy. For a persistent DB (and to keep your admin user), add a **PostgreSQL** service (e.g. Render Postgres), set **`DATABASE_URL`** in the backend’s environment, and redeploy. To (re)create an admin user on startup, set **`DJANGO_SUPERUSER_USERNAME`**, **`DJANGO_SUPERUSER_PASSWORD`**, and optionally **`DJANGO_SUPERUSER_EMAIL`**; the entrypoint runs `createsuperuser --noinput` when these are set (idempotent if the user already exists).
 
 ---
 
@@ -140,3 +141,6 @@ Open the URL shown (e.g. `http://localhost:5173`). The browser tab will show the
 | Backend (Docker single container) | `cd server && docker build -t skillspot . && docker run -p 8000:8000 -e SECRET_KEY=xxx skillspot` |
 | Frontend dev | `cd frontend && npm run dev` |
 | API docs (after backend running) | `http://localhost:8000/api/docs/` (Swagger), `http://localhost:8000/api/redoc/` (ReDoc) |
+
+
+

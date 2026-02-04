@@ -1,5 +1,6 @@
 django
 dj-database-url
+whitenoise
 djangorestframework
 djangorestframework-simplejwt
 python-decouple

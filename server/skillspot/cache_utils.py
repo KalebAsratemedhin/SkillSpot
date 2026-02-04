@@ -35,3 +35,6 @@ def invalidate_tags_list():
     from django.core.cache import cache
     for cat in (None, "SKILL", "CERTIFICATION", "LANGUAGE"):
         cache.delete(tags_list_cache_key(cat))
+
+
+

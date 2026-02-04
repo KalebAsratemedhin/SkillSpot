@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
+import os
 from pathlib import Path
 from decouple import config, Csv
 
@@ -26,7 +27,24 @@ SECRET_KEY = config('SECRET_KEY', default='django-insecure-4f(7w2p#i-qk=wfs61u!7
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DEBUG', default=True, cast=bool)
 
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='', cast=Csv())
+ALLOWED_HOSTS = list(config('ALLOWED_HOSTS', default='', cast=Csv()) or [])
+
+# Render (and similar): add RENDER_EXTERNAL_HOSTNAME so host and CSRF work without extra config
+_render_host = os.environ.get('RENDER_EXTERNAL_HOSTNAME', '').strip()
+if _render_host and _render_host not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append(_render_host)
+
+# CSRF: allow origins for same-host requests (e.g. admin login). Set CSRF_TRUSTED_ORIGINS or we derive from ALLOWED_HOSTS.
+_csvr_origins = config('CSRF_TRUSTED_ORIGINS', default='', cast=Csv())
+if _csvr_origins:
+    CSRF_TRUSTED_ORIGINS = list(_csvr_origins)
+else:
+    CSRF_TRUSTED_ORIGINS = []
+    for h in ALLOWED_HOSTS:
+        h = (h or '').strip()
+        if h and h != '*':
+            CSRF_TRUSTED_ORIGINS.append(f'https://{h}')
+            CSRF_TRUSTED_ORIGINS.append(f'http://{h}')
 
 
 # Application definition
@@ -62,6 +80,7 @@ AUTH_USER_MODEL = 'accounts.User'
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -162,7 +181,8 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 # Media files (user uploads)
 MEDIA_URL = '/media/'

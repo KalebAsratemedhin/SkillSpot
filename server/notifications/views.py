@@ -62,3 +62,6 @@ class NotificationMarkAllReadView(generics.GenericAPIView):
 
 
 
+
+
+
