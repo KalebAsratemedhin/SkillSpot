@@ -1,0 +1,23 @@
+# Dependencies and local state
+venv
+.venv
+env
+.env
+.env.*
+!.env.example
+__pycache__
+*.py[cod]
+*.pyo
+.pytest_cache
+.coverage
+htmlcov
+*.sqlite3
+db.sqlite3
+
+# Git and IDE
+.git
+.gitignore
+.cache
+
+# Media (mounted as volume in compose)
+media/

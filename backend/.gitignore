@@ -1,0 +1,9 @@
+*design.md
+venv/
+db.sqlite3
+.env
+*.pyc
+__pycache__/
+*.log
+.env
+practices/

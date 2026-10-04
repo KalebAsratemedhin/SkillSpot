@@ -1,0 +1,64 @@
+# Local full stack: Postgres + Redis + app (Celery + Daphne in the app container).
+# From backend/: docker compose up --build
+#
+# Production: build/run the Dockerfile alone with DATABASE_URL + REDIS_URL (e.g. Upstash).
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: skillspot-db
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-skillspot}
+      POSTGRES_USER: ${POSTGRES_USER:-skillspot}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-skillspot}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-skillspot} -d ${POSTGRES_DB:-skillspot}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: skillspot-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  web:
+    build: .
+    container_name: skillspot-web
+    ports:
+      - "${PORT:-8000}:8000"
+    env_file:
+      - .env
+    environment:
+      # Compose network hostnames override any localhost URLs in .env
+      DATABASE_URL: postgres://${POSTGRES_USER:-skillspot}:${POSTGRES_PASSWORD:-skillspot}@db:5432/${POSTGRES_DB:-skillspot}
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: ${SECRET_KEY:-dev-only-change-me}
+      DEBUG: ${DEBUG:-True}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1,web}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+      PORT: "8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - media_data:/app/media
+
+volumes:
+  postgres_data:
+  redis_data:
+  media_data:
