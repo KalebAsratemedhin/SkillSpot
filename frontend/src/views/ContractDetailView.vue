@@ -1,8 +1,6 @@
 <template>
-  <div class="min-h-screen bg-[#020617]">
-    <Header />
-    <main class="flex-1 flex flex-col items-center">
-      <div class="w-full max-w-[1280px] px-8 py-10 flex flex-col gap-10">
+  <AppLayout>
+    <div class="w-full max-w-[1280px] mx-auto px-4 md:px-6 lg:px-10 py-6 md:py-10 flex flex-col gap-8 md:gap-10">
         <div v-if="loading" class="flex justify-center py-12">
           <span class="material-symbols-outlined animate-spin text-4xl text-amber">refresh</span>
         </div>
@@ -18,15 +16,15 @@
                   :class="[
                     'text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest border',
                     contract.status === 'ACTIVE' ? 'bg-amber/10 text-amber border-amber/20' : '',
-                    contract.status === 'TERMINATED' || contract.status === 'COMPLETED' ? 'bg-slate-600 text-slate-300 border-slate-500/30' : '',
-                    contract.status === 'DRAFT' || contract.status === 'PENDING_SIGNATURES' ? 'bg-slate-600 text-slate-400 border-slate-500/30' : '',
+                    contract.status === 'TERMINATED' || contract.status === 'COMPLETED' ? 'bg-slate-100 text-slate-600 border-slate-200' : '',
+                    contract.status === 'DRAFT' || contract.status === 'PENDING_SIGNATURES' ? 'bg-slate-100 text-slate-500 border-slate-200' : '',
                   ]"
                 >
                   {{ contract.status === 'ACTIVE' ? 'Active Contract' : contract.status === 'TERMINATED' ? 'Ended' : contract.status === 'COMPLETED' ? 'Completed' : contract.status.replace(/_/g, ' ') }}
                 </span>
                 <p class="text-slate-500 text-sm font-mono tracking-tighter">#SS-{{ contract.id.slice(0, 8).toUpperCase() }}</p>
               </div>
-              <h1 class="text-white text-5xl font-extrabold tracking-tight leading-none">{{ contractTitle }}</h1>
+              <h1 class="text-midnight text-3xl md:text-4xl font-extrabold tracking-tight leading-none">{{ contractTitle }}</h1>
             </div>
             <div class="flex gap-4 flex-wrap">
               <router-link
@@ -38,10 +36,6 @@
                   Pay full amount
                 </Button>
               </router-link>
-              <Button variant="outline" size="default" class="border-2 border-white/10 bg-white/5 text-white hover:bg-white/10">
-                <span class="material-symbols-outlined mr-2 text-lg">description</span>
-                View Agreement
-              </Button>
               <Button
                 variant="default"
                 size="default"
@@ -81,7 +75,7 @@
                 v-if="canEndContract"
                 variant="outline"
                 size="default"
-                class="border-amber/50 text-amber hover:bg-amber/10"
+                class="border-amber/40 text-amber hover:bg-amber/10"
                 :disabled="endContractLoading"
                 @click="showEndContractConfirm = true"
               >
@@ -93,7 +87,7 @@
                 v-if="canDelete"
                 variant="outline"
                 size="default"
-                class="border-red-500/50 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                class="border-red-300 text-red-600 hover:bg-red-50"
                 @click="showDeleteConfirm = true"
               >
                 <span class="material-symbols-outlined mr-2 text-lg">delete</span>
@@ -155,7 +149,7 @@
             class="bg-amber/10 border-amber/30"
           >
             <CardContent class="p-6">
-              <h3 class="text-lg font-bold text-white mb-2">
+              <h3 class="text-lg font-bold text-midnight mb-2">
                 {{ showReviewForClient ? 'Rate the provider' : 'Rate the client' }}
               </h3>
               <p class="text-slate-400 text-sm mb-4">
@@ -175,14 +169,14 @@
               </DialogHeader>
               <form class="space-y-4" @submit.prevent="submitReview">
                 <div>
-                  <p class="text-slate-300 text-sm mb-2">Rating (1–5 stars)</p>
+                  <p class="text-slate-500 text-sm mb-2">Rating (1–5 stars)</p>
                   <div class="flex gap-1">
                     <button
                       v-for="i in 5"
                       :key="i"
                       type="button"
                       class="p-2 rounded-lg transition-colors"
-                      :class="reviewForm.score >= i ? 'text-amber bg-amber/20' : 'text-slate-500 hover:text-slate-300'"
+                      :class="reviewForm.score >= i ? 'text-amber bg-amber/20' : 'text-slate-500 hover:text-slate-500'"
                       @click="reviewForm.score = i"
                     >
                       <span class="material-symbols-outlined filled text-2xl">star</span>
@@ -190,10 +184,10 @@
                   </div>
                 </div>
                 <div>
-                  <label class="text-slate-300 text-sm block mb-2">Comment (optional)</label>
+                  <label class="text-slate-500 text-sm block mb-2">Comment (optional)</label>
                   <textarea
                     v-model="reviewForm.comment"
-                    class="w-full rounded-xl border border-white/10 bg-white/5 text-white p-3 min-h-[80px] text-sm focus:ring-2 focus:ring-amber/40"
+                    class="w-full rounded-xl border border-slate-200 bg-white text-midnight p-3 min-h-[80px] text-sm focus:ring-2 focus:ring-amber/20"
                     placeholder="Share your experience..."
                   />
                 </div>
@@ -242,30 +236,30 @@
               </DialogHeader>
               <div class="grid gap-4 py-4">
                 <div class="grid gap-2">
-                  <label class="text-sm font-medium text-slate-200">Date</label>
+                  <label class="text-sm font-medium text-slate-700">Date</label>
                   <input
                     v-model="newTimeEntry.date"
                     type="date"
                     :min="timeEntryMinDate"
-                    class="w-full px-3 py-2 rounded-lg bg-midnight border border-white/10 text-white [color-scheme:dark]"
+                    class="w-full px-3 py-2 rounded-lg bg-white border border-slate-200 text-midnight"
                   />
                 </div>
                 <div class="grid gap-2">
-                  <label class="text-sm font-medium text-slate-200">Hours</label>
+                  <label class="text-sm font-medium text-slate-700">Hours</label>
                   <input
                     v-model.number="newTimeEntry.hours"
                     type="number"
                     step="0.25"
                     min="0.25"
-                    class="w-full px-3 py-2 rounded-lg bg-midnight border border-white/10 text-white"
+                    class="w-full px-3 py-2 rounded-lg bg-white border border-slate-200 text-midnight"
                   />
                 </div>
                 <div class="grid gap-2">
-                  <label class="text-sm font-medium text-slate-200">Description (optional)</label>
+                  <label class="text-sm font-medium text-slate-700">Description (optional)</label>
                   <textarea
                     v-model="newTimeEntry.description"
                     rows="2"
-                    class="w-full px-3 py-2 rounded-lg bg-midnight border border-white/10 text-white"
+                    class="w-full px-3 py-2 rounded-lg bg-white border border-slate-200 text-midnight"
                     placeholder="What did you work on?"
                   />
                 </div>
@@ -287,9 +281,9 @@
           </Dialog>
           <div class="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
             <div class="lg:col-span-7 flex flex-col gap-10">
-              <Card class="bg-midnight rounded-2xl border border-white/5 shadow-2xl overflow-hidden">
-                <div class="px-8 py-6 border-b border-white/5 flex justify-between items-center bg-white/[0.02]">
-                  <h2 class="text-white text-lg font-bold flex items-center gap-2">
+              <Card class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                <div class="px-8 py-6 border-b border-gray-100 flex justify-between items-center bg-slate-50">
+                  <h2 class="text-midnight text-lg font-bold flex items-center gap-2">
                     <span class="material-symbols-outlined text-amber">{{ isHourly ? 'schedule' : 'payments' }}</span>
                     {{ isHourly ? 'Time entries' : 'Fixed price' }}
                   </h2>
@@ -301,17 +295,17 @@
                       <div
                         v-for="entry in timeEntries"
                         :key="entry.id"
-                        class="flex flex-wrap items-center justify-between gap-4 p-4 rounded-xl border border-white/5 bg-white/[0.02]"
+                        class="flex flex-wrap items-center justify-between gap-4 p-4 rounded-xl border border-slate-200 bg-slate-50"
                       >
                         <div>
-                          <p class="text-white font-bold">{{ formatDate(entry.date) }} – {{ entry.hours }}h</p>
+                          <p class="text-midnight font-bold">{{ formatDate(entry.date) }} – {{ entry.hours }}h</p>
                           <p v-if="entry.description" class="text-slate-400 text-sm mt-1">{{ entry.description }}</p>
                           <span
                             :class="[
                               'inline-block mt-2 text-[10px] font-black px-2 py-0.5 rounded uppercase border',
                               entry.status === 'PAID' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : '',
                               entry.status === 'APPROVED' ? 'bg-amber/10 text-amber border-amber/20' : '',
-                              entry.status === 'PENDING_APPROVAL' ? 'bg-slate-600 border-slate-800 text-slate-400' : '',
+                              entry.status === 'PENDING_APPROVAL' ? 'bg-slate-100 border-slate-200 text-slate-600' : '',
                               entry.status === 'REJECTED' ? 'bg-red-500/10 text-red-400 border-red-500/20' : '',
                             ]"
                           >
@@ -319,14 +313,14 @@
                           </span>
                         </div>
                         <div class="flex items-center gap-2">
-                          <span v-if="entry.amount != null" class="text-white font-bold">Br {{ Number(entry.amount).toLocaleString() }}</span>
+                          <span v-if="entry.amount != null" class="text-midnight font-bold">Br {{ Number(entry.amount).toLocaleString() }}</span>
                           <template v-if="isClient && entry.status === 'PENDING_APPROVAL'">
-                            <Button variant="outline" size="sm" class="border-emerald-500/50 text-emerald-400" @click="approveTimeEntry(entry.id)">Approve</Button>
-                            <Button variant="outline" size="sm" class="border-red-500/50 text-red-400" @click="rejectTimeEntry(entry.id)">Reject</Button>
+                            <Button variant="outline" size="sm" class="border-emerald-300 text-emerald-700" @click="approveTimeEntry(entry.id)">Approve</Button>
+                            <Button variant="outline" size="sm" class="border-red-300 text-red-600" @click="rejectTimeEntry(entry.id)">Reject</Button>
                           </template>
                         </div>
                       </div>
-                      <div v-if="isClient && canPayContract && approvedUnpaidTimeEntries.length > 0" class="pt-4 border-t border-white/5 flex flex-wrap items-center justify-between gap-4">
+                      <div v-if="isClient && canPayContract && approvedUnpaidTimeEntries.length > 0" class="pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-4">
                         <p class="text-slate-400 text-sm">
                           {{ approvedUnpaidTimeEntries.length }} approved entr{{ approvedUnpaidTimeEntries.length === 1 ? 'y' : 'ies' }} · Total Br {{ totalUnpaidAmount.toLocaleString() }}
                         </p>
@@ -341,11 +335,16 @@
                           Pay Br {{ totalUnpaidAmount.toLocaleString() }}
                         </Button>
                       </div>
-                      <div v-if="isProvider && contract.payment_schedule === 'HOURLY'" class="pt-4 border-t border-white/5">
-                        <Button variant="outline" size="default" class="border-amber/50 text-amber" @click="showAddTimeEntry = true">
-                          <span class="material-symbols-outlined mr-2">add</span>
-                          Log hours
-                        </Button>
+                      <div v-if="isProvider && isHourly" class="pt-4 border-t border-slate-100">
+                        <template v-if="canLogHours">
+                          <Button variant="outline" size="default" class="border-amber/50 text-amber hover:bg-amber/10" @click="showAddTimeEntry = true">
+                            <span class="material-symbols-outlined mr-2">add</span>
+                            Log hours
+                          </Button>
+                        </template>
+                        <p v-else class="text-sm text-slate-500">
+                          Hours can be logged after both parties sign and the contract is active.
+                        </p>
                       </div>
                     </div>
                   </template>
@@ -355,15 +354,15 @@
                   </template>
                 </CardContent>
               </Card>
-              <Card class="bg-midnight rounded-2xl border border-white/5 shadow-xl overflow-hidden">
-                <div class="px-8 py-6 border-b border-white/5 bg-white/[0.01]">
-                  <h2 class="text-white text-lg font-bold">Contract Terms & Details</h2>
+              <Card class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                <div class="px-8 py-6 border-b border-gray-100 bg-slate-50">
+                  <h2 class="text-midnight text-lg font-bold">Contract Terms & Details</h2>
                 </div>
                 <CardContent class="p-8">
                   <div class="grid grid-cols-2 md:grid-cols-3 gap-y-8 gap-x-12">
                     <div>
                       <p class="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-1">Total Budget</p>
-                      <p class="text-white text-lg font-extrabold">Br {{ contract.total_amount.toLocaleString() }}</p>
+                      <p class="text-midnight text-lg font-extrabold">Br {{ contract.total_amount.toLocaleString() }}</p>
                     </div>
                     <div>
                       <p class="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-1">Escrow Status</p>
@@ -374,23 +373,23 @@
                     </div>
                     <div>
                       <p class="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-1">Status</p>
-                      <p class="text-white text-sm font-bold">{{ contract.status }}</p>
+                      <p class="text-midnight text-sm font-bold">{{ contract.status }}</p>
                     </div>
                     <div>
                       <p class="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-1">Commenced</p>
-                      <p class="text-white text-sm font-bold">{{ formatDate(contract.start_date || contract.created_at) }}</p>
+                      <p class="text-midnight text-sm font-bold">{{ formatDate(contract.start_date || contract.created_at) }}</p>
                     </div>
                   </div>
                 </CardContent>
               </Card>
             </div>
             <div class="lg:col-span-5 flex flex-col gap-6 sticky top-28">
-              <Card v-if="isClient && canPayContract && isFixedPrice && !fixedPricePaid" class="bg-midnight rounded-3xl border border-white/10 shadow-[0_30px_60px_-12px_rgba(0,0,0,0.5)] overflow-hidden">
-                <div class="bg-gradient-to-br from-midnight-light to-midnight px-8 py-8 border-b border-white/5">
+              <Card v-if="isClient && canPayContract && isFixedPrice && !fixedPricePaid" class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                <div class="bg-slate-50 px-8 py-8 border-b border-gray-100">
                   <div class="flex justify-between items-start mb-4">
                     <div>
                       <p class="text-amber text-xs font-black uppercase tracking-widest mb-1">Payment</p>
-                      <h3 class="text-white text-2xl font-black">Full amount</h3>
+                      <h3 class="text-midnight text-2xl font-black">Full amount</h3>
                     </div>
                     <div class="p-2 bg-amber/10 rounded-xl text-amber">
                       <span class="material-symbols-outlined text-2xl">account_balance_wallet</span>
@@ -402,17 +401,17 @@
                   </div>
                 </div>
                 <CardContent class="p-8 flex flex-col gap-8">
-                  <div class="pt-4 border-t border-white/5 flex justify-between items-end">
+                  <div class="pt-4 border-t border-slate-100 flex justify-between items-end">
                     <div>
                       <p class="text-slate-500 text-[10px] font-black uppercase tracking-widest">Amount to Pay</p>
-                      <p class="text-white text-3xl font-black tracking-tight">Br {{ contract.total_amount.toLocaleString() }}</p>
+                      <p class="text-midnight text-3xl font-black tracking-tight">Br {{ contract.total_amount.toLocaleString() }}</p>
                     </div>
                     <div class="text-right">
                       <p class="text-emerald-500 text-[10px] font-black uppercase tracking-widest mb-1">Includes Tax</p>
                       <p class="text-slate-500 text-xs">{{ contract.currency || 'ETB' }}</p>
                     </div>
                   </div>
-                  <div class="bg-white/5 p-4 rounded-xl border border-white/5 flex gap-3">
+                  <div class="bg-amber/5 p-4 rounded-xl border border-amber/20 flex gap-3">
                     <span class="material-symbols-outlined text-amber">shield_with_heart</span>
                     <p class="text-slate-400 text-[11px] leading-relaxed">
                       SkillSpot Escrow Protection active. Funds are held securely and released when you approve the work.
@@ -438,8 +437,8 @@
                   </div>
                 </CardContent>
               </Card>
-              <Card class="bg-midnight rounded-2xl border border-white/5 p-6 flex flex-col gap-4">
-                <h3 class="text-white text-xs font-black uppercase tracking-widest opacity-50">Transaction History</h3>
+              <Card class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 flex flex-col gap-4">
+                <h3 class="text-slate-400 text-xs font-black uppercase tracking-widest">Transaction History</h3>
                 <div class="space-y-4">
                   <div
                     v-for="payment in payments"
@@ -458,9 +457,8 @@
             </div>
           </div>
         </div>
-      </div>
-    </main>
-  </div>
+    </div>
+  </AppLayout>
 </template>
 
 <script setup lang="ts">
@@ -471,7 +469,7 @@ import { useMessagingStore } from '@/stores/messaging'
 import { contractsService, type Contract, type ContractMilestone, type TimeEntry } from '@/services/contracts'
 import { paymentsService, type Payment } from '@/services/payments'
 import { ratingsService, type Rating, type RatingType } from '@/services/ratings'
-import Header from '@/components/Header.vue'
+import AppLayout from '@/components/AppLayout.vue'
 import Card from '@/components/ui/Card.vue'
 import CardContent from '@/components/ui/CardContent.vue'
 import Button from '@/components/ui/Button.vue'
@@ -633,6 +631,13 @@ const canPayContract = computed(() => {
   return c.status === 'ACTIVE'
 })
 
+/** Provider may log hours only after both parties have signed (ACTIVE). */
+const canLogHours = computed(() => {
+  const c = contract.value
+  if (!c || !isProvider.value || !isHourly.value) return false
+  return c.status === 'ACTIVE'
+})
+
 async function approveTimeEntry(entryId: string) {
   try {
     await contractsService.updateTimeEntry(entryId, { status: 'APPROVED' })
@@ -685,6 +690,10 @@ async function payAllTimeEntries() {
 
 async function submitTimeEntry() {
   const c = contract.value
+  if (!canLogHours.value) {
+    toast.error('Sign the contract before logging hours.')
+    return
+  }
   if (!c?.id || !newTimeEntry.date || !newTimeEntry.hours || newTimeEntry.hours <= 0) {
     toast.error('Enter a valid date and hours.')
     return

@@ -4,7 +4,7 @@
     class="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6"
   >
     <div class="flex items-center gap-2">
-      <span :class="labelClass">Per page:</span>
+      <span :class="labelClass">Per page</span>
       <Select
         :model-value="String(pageSize)"
         @update:model-value="onPageSizeSelect"

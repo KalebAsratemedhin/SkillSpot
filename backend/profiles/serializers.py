@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from .models import Profile, ServiceProviderProfile, Tag, Experience
+from ratings.models import Rating
 
 User = get_user_model()
 
@@ -156,3 +157,94 @@ class ServiceProviderProfileUpdateSerializer(serializers.ModelSerializer):
             'service_radius', 'skill_ids', 'certification_ids',
             'language_ids', 'portfolio_visibility'
         )
+
+
+# --- Public provider directory (no email, phone, address, Stripe) ---
+
+def _absolute_avatar(request, profile):
+    if not profile or not profile.avatar:
+        return None
+    if request:
+        return request.build_absolute_uri(profile.avatar.url)
+    return profile.avatar.url
+
+
+def _public_display_name(profile):
+    if profile and (profile.first_name or profile.last_name):
+        return f'{profile.first_name} {profile.last_name}'.strip()
+    return ''
+
+
+def _provider_rating_payload(provider_profile, rating_count=None):
+    avg = provider_profile.average_rating
+    count = rating_count
+    if count is None:
+        count = Rating.calculate_average_rating(
+            provider_profile.profile.user,
+            rating_type=Rating.RatingType.CLIENT_TO_PROVIDER,
+        )['count'] or 0
+    if not count:
+        return {'average': None, 'count': 0}
+    return {
+        'average': float(avg) if avg is not None else None,
+        'count': count,
+    }
+
+
+class PublicProviderListSerializer(serializers.Serializer):
+    """Lean public card for provider directory."""
+
+    user_id = serializers.SerializerMethodField()
+    full_name = serializers.SerializerMethodField()
+    avatar = serializers.SerializerMethodField()
+    location = serializers.SerializerMethodField()
+    headline_skills = serializers.SerializerMethodField()
+    hourly_rate = serializers.SerializerMethodField()
+    availability = serializers.CharField(source='availability_status')
+    is_verified = serializers.SerializerMethodField()
+    rating = serializers.SerializerMethodField()
+    member_since = serializers.SerializerMethodField()
+
+    def get_user_id(self, obj):
+        return str(obj.profile.user_id)
+
+    def get_full_name(self, obj):
+        return _public_display_name(obj.profile)
+
+    def get_avatar(self, obj):
+        return _absolute_avatar(self.context.get('request'), obj.profile)
+
+    def get_location(self, obj):
+        return obj.profile.location or ''
+
+    def get_headline_skills(self, obj):
+        skills = list(obj.skills.all()[:5])
+        return [{'id': str(s.id), 'name': s.name} for s in skills]
+
+    def get_hourly_rate(self, obj):
+        return str(obj.hourly_rate) if obj.hourly_rate is not None else None
+
+    def get_is_verified(self, obj):
+        return bool(obj.profile.is_verified)
+
+    def get_rating(self, obj):
+        count = getattr(obj, 'rating_count', None)
+        return _provider_rating_payload(obj, rating_count=count)
+
+    def get_member_since(self, obj):
+        return obj.profile.created_at
+
+
+class PublicProviderDetailSerializer(PublicProviderListSerializer):
+    """Public provider profile detail — extends list card with bio/skills/experience."""
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data['bio'] = instance.profile.bio or ''
+        data['years_of_experience'] = instance.years_of_experience
+        data['total_jobs_completed'] = instance.total_jobs_completed
+        data['skills'] = TagSerializer(instance.skills.all(), many=True).data
+        data['certifications'] = TagSerializer(instance.certifications.all(), many=True).data
+        data['languages'] = TagSerializer(instance.languages.all(), many=True).data
+        data['experiences'] = ExperienceSerializer(instance.experiences.all(), many=True).data
+        return data

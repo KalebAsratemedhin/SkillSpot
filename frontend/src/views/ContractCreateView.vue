@@ -4,10 +4,22 @@
       <h1 class="text-3xl font-bold text-midnight mb-8">Create Contract</h1>
       <p v-if="!authStore.isClient" class="text-slate-500 mb-6">Only clients can create contracts from accepted applications.</p>
       <form v-else @submit.prevent="handleSubmit" class="space-y-6">
-        <div v-if="job" class="rounded-xl border border-slate-200 bg-slate-50 p-4 mb-6">
-          <p class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">From job</p>
+        <div v-if="job" class="rounded-xl border border-slate-200 bg-slate-50 p-4 mb-2 space-y-1">
+          <p class="text-xs font-bold uppercase tracking-wider text-slate-500">From job</p>
           <p class="text-midnight font-bold">{{ job.title }}</p>
-          <p v-if="job.description" class="text-slate-600 text-sm mt-1 line-clamp-2">{{ job.description }}</p>
+          <p v-if="job.description" class="text-slate-600 text-sm line-clamp-2">{{ job.description }}</p>
+          <p v-if="budgetCeiling != null" class="text-xs text-slate-500 pt-1">
+            Client budget ceiling: Br {{ budgetCeiling.toLocaleString() }}{{ isHourlyJob ? '/hr' : '' }}
+          </p>
+        </div>
+        <div
+          v-if="applicationPrefill"
+          class="rounded-xl border border-amber/20 bg-amber/5 p-4 text-sm text-slate-700"
+        >
+          Prefilling from provider proposal
+          <span v-if="applicationPrefill.proposed_rate != null" class="font-semibold text-midnight">
+            — Br {{ Number(applicationPrefill.proposed_rate).toLocaleString() }}/hr
+          </span>
         </div>
         <template v-if="!job">
           <FormField :error="errors.title">
@@ -40,7 +52,7 @@
           <Label class="text-sm font-semibold text-slate-700">Payment schedule</Label>
           <Select v-model="form.payment_schedule">
             <SelectTrigger class="h-11 w-full rounded-xl border border-slate-200 bg-white text-slate-900 placeholder:text-slate-500 focus:ring-2 focus:ring-amber/20 [&>span]:line-clamp-1">
-              <SelectValue placeholder="Select schedule" />
+              <SelectValue placeholder="Choose schedule" />
             </SelectTrigger>
             <SelectContent class="rounded-xl border border-slate-200 bg-white text-slate-900">
               <SelectItem value="FIXED" class="rounded-lg focus:bg-slate-100 focus:text-slate-900 data-[highlighted]:bg-slate-100 data-[highlighted]:text-slate-900">Fixed price (pay once)</SelectItem>
@@ -55,6 +67,7 @@
             type="number"
             step="0.01"
             min="0"
+            :max="budgetCeiling ?? undefined"
             placeholder="0"
             :error="errors.hourly_rate"
             class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-amber/20"
@@ -67,6 +80,7 @@
             type="number"
             step="0.01"
             min="0"
+            :max="form.payment_schedule === 'FIXED' ? (budgetCeiling ?? undefined) : undefined"
             placeholder="0"
             :error="errors.total_amount"
             class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-amber/20"
@@ -108,6 +122,7 @@ import { reactive, ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useJobsStore } from '@/stores/jobs'
+import { jobsService, type JobApplication } from '@/services/jobs'
 import { contractsService, type CreateContractPayload } from '@/services/contracts'
 import AppLayout from '@/components/AppLayout.vue'
 import Button from '@/components/ui/Button.vue'
@@ -128,6 +143,7 @@ const router = useRouter()
 const authStore = useAuthStore()
 const jobsStore = useJobsStore()
 const loading = ref(false)
+const applicationPrefill = ref<JobApplication | null>(null)
 
 const jobId = computed(() => route.query.job as string | undefined)
 const applicationId = computed(() => route.query.application as string | undefined)
@@ -135,7 +151,21 @@ const providerId = computed(() => route.query.provider as string | undefined)
 
 const job = computed(() => {
   if (!jobId.value || !jobsStore.currentJob) return null
-  return jobsStore.currentJob as { title?: string; description?: string; budget_type?: string; budget_min?: number; budget_max?: number }
+  return jobsStore.currentJob
+})
+
+const isHourlyJob = computed(() => {
+  const j = job.value
+  if (!j) return false
+  return j.payment_schedule === 'HOURLY' || j.budget_type === 'hourly'
+})
+
+const budgetCeiling = computed(() => {
+  const j = job.value
+  if (!j) return null
+  const max = j.budget_max ?? j.budget_min
+  if (max == null || Number.isNaN(Number(max))) return null
+  return Number(max)
 })
 
 const form = reactive({
@@ -171,24 +201,53 @@ function clearErrors() {
   errors.end_date = ''
 }
 
-onMounted(async () => {
-  if (jobId.value && authStore.isClient) {
-    await jobsStore.fetchJob(jobId.value)
-    const j = jobsStore.currentJob as { title?: string; description?: string; budget_type?: string; budget_max?: number; budget_min?: number } | null
-    if (j) {
-      form.title = j.title ?? ''
-      form.description = (j.description ?? '').trim() || 'As per job description.'
-      form.terms = 'Payment and terms as agreed. As per job agreement.'
-      if ((j.budget_max ?? j.budget_min) != null) {
-        form.total_amount = String(j.budget_max ?? j.budget_min)
-        if (j.budget_type === 'hourly') {
-          form.payment_schedule = 'HOURLY'
-          form.hourly_rate = String(j.budget_min ?? j.budget_max ?? '')
-        }
-      }
+function applyJobDefaults() {
+  const j = jobsStore.currentJob
+  if (!j) return
+  form.title = j.title ?? ''
+  form.description = (j.description ?? '').trim() || 'As per job description.'
+  form.terms = 'Payment and terms as agreed. As per job agreement.'
+  const ceiling = j.budget_max ?? j.budget_min
+  if (ceiling != null) {
+    form.total_amount = String(ceiling)
+  }
+  if (j.payment_schedule === 'HOURLY' || j.budget_type === 'hourly') {
+    form.payment_schedule = 'HOURLY'
+    form.hourly_rate = String(j.budget_min ?? j.budget_max ?? '')
+  }
+}
+
+function applyApplicationDefaults(app: JobApplication) {
+  applicationPrefill.value = app
+  const rate = app.proposed_rate != null ? Number(app.proposed_rate) : NaN
+  if (Number.isFinite(rate) && rate >= 0) {
+    form.payment_schedule = 'HOURLY'
+    form.hourly_rate = String(rate)
+    // Keep total cap at job budget when available; otherwise leave as-is / estimate lightly
+    if (!form.total_amount && budgetCeiling.value != null) {
+      form.total_amount = String(budgetCeiling.value)
     }
   }
-  if (!providerId.value && authStore.isClient) {
+}
+
+onMounted(async () => {
+  if (!authStore.isClient) return
+
+  if (jobId.value) {
+    await jobsStore.fetchJob(jobId.value)
+    applyJobDefaults()
+  }
+
+  if (applicationId.value) {
+    try {
+      const res = await jobsService.getApplication(applicationId.value)
+      applyApplicationDefaults(res.data)
+    } catch {
+      toast.error('Could not load the application proposal. Fill contract terms manually.')
+    }
+  }
+
+  if (!providerId.value) {
     toast.error('Missing provider. Create a contract from an accepted application on the job page.')
   }
 })
@@ -202,10 +261,22 @@ async function handleSubmit() {
   if (!form.description?.trim()) form.description = 'As per job description.'
   if (!form.terms?.trim()) form.terms = 'As per job agreement.'
   if (!form.start_date?.trim()) errors.start_date = 'Start date is required.'
-  if (form.payment_schedule === 'HOURLY' && (Number.isNaN(hourlyRate) || hourlyRate <= 0)) {
-    errors.hourly_rate = 'Enter a valid hourly rate.'
+  if (form.payment_schedule === 'HOURLY') {
+    if (Number.isNaN(hourlyRate) || hourlyRate <= 0) {
+      errors.hourly_rate = 'Enter a valid hourly rate.'
+    } else if (budgetCeiling.value != null && hourlyRate > budgetCeiling.value) {
+      errors.hourly_rate = `Hourly rate cannot exceed the client budget of Br ${budgetCeiling.value.toLocaleString()}/hr.`
+    }
   }
-  if (Number.isNaN(amount) || amount < 0) errors.total_amount = 'Enter a valid amount.'
+  if (Number.isNaN(amount) || amount < 0) {
+    errors.total_amount = 'Enter a valid amount.'
+  } else if (
+    form.payment_schedule === 'FIXED' &&
+    budgetCeiling.value != null &&
+    amount > budgetCeiling.value
+  ) {
+    errors.total_amount = `Amount cannot exceed the client budget of Br ${budgetCeiling.value.toLocaleString()}.`
+  }
   if (Object.values(errors).some(Boolean)) return
 
   loading.value = true

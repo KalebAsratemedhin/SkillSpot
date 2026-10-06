@@ -37,6 +37,10 @@ class Profile(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['location']),
+            models.Index(fields=['is_verified']),
+        ]
 
     def __str__(self):
         return f"{self.user.email}'s Profile"
@@ -164,6 +168,12 @@ class ServiceProviderProfile(models.Model):
 
     class Meta:
         ordering = ['-average_rating', '-total_jobs_completed']
+        indexes = [
+            models.Index(fields=['availability_status']),
+            models.Index(fields=['hourly_rate']),
+            models.Index(fields=['-average_rating']),
+            models.Index(fields=['portfolio_visibility', '-average_rating']),
+        ]
 
     def __str__(self):
         return f"{self.profile.user.email}'s Provider Profile"

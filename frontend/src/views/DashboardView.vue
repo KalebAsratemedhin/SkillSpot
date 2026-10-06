@@ -68,22 +68,27 @@
             </div>
             <div class="space-y-2">
               <h4 class="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Budget (Br)</h4>
-              <div class="flex gap-2 items-center">
-                <input
-                  v-model.number="searchForm.budget_min"
-                  type="number"
-                  min="0"
-                  placeholder="Min"
-                  class="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-900 text-sm focus:ring-2 focus:ring-amber/20 outline-none focus:outline-none"
-                />
-                <span class="text-slate-400">–</span>
-                <input
-                  v-model.number="searchForm.budget_max"
-                  type="number"
-                  min="0"
-                  placeholder="Max"
-                  class="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-900 text-sm focus:ring-2 focus:ring-amber/20 outline-none focus:outline-none"
-                />
+              <div class="grid grid-cols-2 gap-2">
+                <div class="space-y-1">
+                  <span class="text-xs font-semibold text-slate-500">Min</span>
+                  <input
+                    v-model.number="searchForm.budget_min"
+                    type="number"
+                    min="0"
+                    placeholder="0"
+                    class="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-900 text-sm focus:ring-2 focus:ring-amber/20 outline-none focus:outline-none"
+                  />
+                </div>
+                <div class="space-y-1">
+                  <span class="text-xs font-semibold text-slate-500">Max</span>
+                  <input
+                    v-model.number="searchForm.budget_max"
+                    type="number"
+                    min="0"
+                    placeholder="Any"
+                    class="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-900 text-sm focus:ring-2 focus:ring-amber/20 outline-none focus:outline-none"
+                  />
+                </div>
               </div>
             </div>
             <div class="pt-8 border-t border-slate-200">
@@ -102,11 +107,11 @@
               <h2 class="text-3xl font-display font-bold text-midnight">Available Jobs</h2>
               <p class="text-slate-500 text-sm mt-1">Found {{ jobsStore.totalCount }} physical service requests in your area</p>
             </div>
-            <div class="flex items-center gap-2 text-sm text-slate-500">
-              <span>Sort by:</span>
+            <div class="flex flex-col items-end gap-1">
+              <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Sort</span>
               <Select v-model="sortBy" @update:model-value="applySearch">
-                <SelectTrigger class="w-auto min-w-[10rem] h-9 bg-transparent border-none focus:ring-0 text-slate-900 font-semibold cursor-pointer [&>span]:line-clamp-1">
-                  <SelectValue placeholder="Sort" />
+                <SelectTrigger class="w-auto min-w-[10rem] h-9 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-amber/20 text-slate-900 font-semibold cursor-pointer [&>span]:line-clamp-1">
+                  <SelectValue placeholder="Newest first" />
                 </SelectTrigger>
                 <SelectContent class="rounded-xl border border-slate-200 bg-white text-slate-900">
                   <SelectItem value="-created_at" class="rounded-lg focus:bg-slate-100 focus:text-slate-900 data-[highlighted]:bg-slate-100 data-[highlighted]:text-slate-900">Newest first</SelectItem>

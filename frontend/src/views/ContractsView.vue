@@ -16,14 +16,16 @@
           @click="$router.push(`/contracts/${contract.id}`)"
         >
           <CardContent class="p-6">
-            <div class="flex items-center justify-between">
-              <div>
+            <div class="flex items-center justify-between gap-4">
+              <div class="min-w-0">
                 <h3 class="text-lg font-bold text-midnight">Contract #{{ contract.id.slice(0, 8) }}</h3>
-                <p class="text-sm text-slate-500 mt-1">Status: {{ contract.status }}</p>
+                <p class="text-xs text-slate-500 mt-1">{{ formatDate(contract.created_at) }}</p>
               </div>
-              <div class="text-right">
+              <div class="text-right shrink-0 space-y-1.5">
                 <p class="text-lg font-bold text-midnight">Br {{ Number(contract.total_amount).toLocaleString() }}</p>
-                <p class="text-xs text-slate-500">{{ formatDate(contract.created_at) }}</p>
+                <span class="inline-block text-xs font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                  {{ contract.status }}
+                </span>
               </div>
             </div>
           </CardContent>

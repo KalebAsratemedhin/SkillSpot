@@ -37,6 +37,20 @@ const router = createRouter({
       meta: { requiresGuest: true },
     },
     {
+      path: '/browse',
+      name: 'browse',
+      component: () => import('@/views/BrowseView.vue'),
+    },
+    {
+      path: '/providers',
+      redirect: { path: '/browse', query: { tab: 'providers' } },
+    },
+    {
+      path: '/providers/:userId',
+      name: 'provider-detail',
+      component: () => import('@/views/ProviderDetailView.vue'),
+    },
+    {
       path: '/dashboard',
       name: 'dashboard',
       component: () => import('@/views/DashboardView.vue'),
@@ -49,16 +63,16 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
-      path: '/jobs/:id',
-      name: 'job-detail',
-      component: () => import('@/views/JobDetailView.vue'),
-      meta: { requiresAuth: true },
-    },
-    {
       path: '/jobs/create',
       name: 'job-create',
       component: () => import('@/views/JobCreateView.vue'),
       meta: { requiresAuth: true },
+    },
+    {
+      path: '/jobs/:id',
+      name: 'job-detail',
+      component: () => import('@/views/JobDetailView.vue'),
+      // Public read; apply/message still gated in the view
     },
     {
       path: '/applications',

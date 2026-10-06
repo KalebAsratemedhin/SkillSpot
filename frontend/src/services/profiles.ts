@@ -20,6 +20,26 @@ export interface Profile {
   updated_at: string
 }
 
+export interface Tag {
+  id: string
+  name: string
+  category: 'SKILL' | 'CERTIFICATION' | 'LANGUAGE' | 'OTHER'
+  description?: string
+}
+
+export interface Experience {
+  id: string
+  title: string
+  company_name?: string
+  description?: string
+  location?: string
+  start_date: string
+  end_date?: string
+  is_current: boolean
+  created_at: string
+  updated_at: string
+}
+
 export interface ServiceProviderProfile {
   id: string
   profile: Profile | string
@@ -41,24 +61,65 @@ export interface ServiceProviderProfile {
   updated_at: string
 }
 
-export interface Tag {
+export interface ProviderRating {
+  average: number | null
+  count: number
+}
+
+export interface ProviderSkillTag {
   id: string
   name: string
-  category: 'SKILL' | 'CERTIFICATION' | 'LANGUAGE' | 'OTHER'
+  category?: string
   description?: string
 }
 
-export interface Experience {
-  id: string
-  title: string
-  company_name?: string
-  description?: string
+export interface PublicProvider {
+  user_id: string
+  full_name: string
+  avatar: string | null
+  location: string
+  headline_skills: ProviderSkillTag[]
+  hourly_rate: string | null
+  availability: string
+  is_verified: boolean
+  rating: ProviderRating
+  member_since: string
+}
+
+export interface PublicProviderDetail extends PublicProvider {
+  bio?: string
+  years_of_experience?: number
+  total_jobs_completed?: number
+  skills?: ProviderSkillTag[]
+  certifications?: ProviderSkillTag[]
+  languages?: ProviderSkillTag[]
+  experiences?: Experience[]
+}
+
+export interface PublicProviderListParams {
+  q?: string
+  search?: string
   location?: string
-  start_date: string
-  end_date?: string
-  is_current: boolean
-  created_at: string
-  updated_at: string
+  skill?: string
+  /** Single id, comma-separated ids, or array of ids (serialized as comma-separated). */
+  skills?: string | string[]
+  hourly_rate_min?: number
+  hourly_rate_max?: number
+  availability?: string
+  is_verified?: boolean | string
+  ordering?: string
+  page?: number
+  page_size?: number
+}
+
+export interface ProviderApplicationSummary {
+  user_id: string
+  full_name: string
+  avatar: string | null
+  location: string
+  hourly_rate: string | null
+  is_verified: boolean
+  rating: ProviderRating
 }
 
 export const profilesService = {
@@ -99,5 +160,25 @@ export const profilesService = {
   },
   deleteExperience(id: string): Promise<AxiosResponse> {
     return api.delete(`/profiles/experiences/${id}/`)
+  },
+  listPublicProviders(
+    params?: PublicProviderListParams
+  ): Promise<AxiosResponse<{ results: PublicProvider[]; count: number; next?: string; previous?: string } | PublicProvider[]>> {
+    const { skills, is_verified, ...rest } = params ?? {}
+    const query: Record<string, string | number | boolean | undefined> = { ...rest }
+    if (typeof is_verified === 'boolean') {
+      query.is_verified = is_verified ? 'true' : 'false'
+    } else if (is_verified != null && is_verified !== '') {
+      query.is_verified = is_verified
+    }
+    if (Array.isArray(skills)) {
+      if (skills.length) query.skills = skills.join(',')
+    } else if (skills) {
+      query.skills = skills
+    }
+    return api.get('/profiles/providers/', { params: query })
+  },
+  getPublicProvider(userId: string): Promise<AxiosResponse<PublicProviderDetail>> {
+    return api.get(`/profiles/providers/${userId}/`)
   },
 }

@@ -53,7 +53,12 @@ class Job(models.Model):
         help_text=_('FIXED = one total price; HOURLY = rate per hour, provider logs hours')
     )
     currency = models.CharField(max_length=3, default='ETB')
-    location = models.CharField(max_length=200)
+    location = models.CharField(
+        max_length=200,
+        blank=True,
+        default='',
+        help_text=_('Optional text location (city, area, address)'),
+    )
     address = models.TextField(blank=True)
     latitude = models.DecimalField(
         max_digits=9,
@@ -92,6 +97,10 @@ class Job(models.Model):
             models.Index(fields=['status', '-created_at']),
             models.Index(fields=['location']),
             models.Index(fields=['client', '-created_at']),
+            models.Index(fields=['payment_schedule']),
+            models.Index(fields=['budget_min']),
+            models.Index(fields=['budget_max']),
+            models.Index(fields=['status', 'payment_schedule', '-created_at']),
         ]
 
     def __str__(self):

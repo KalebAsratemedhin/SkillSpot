@@ -15,17 +15,19 @@
       <div v-else-if="validApplications.length === 0" class="text-center py-12">
         <p class="text-slate-500">No applications yet</p>
         <p class="text-slate-400 text-sm mt-1">
-          {{ authStore.isProvider ? 'Apply to jobs from Browse Jobs or My Jobs.' : 'Applications to your posted jobs will appear here.' }}
+          {{ authStore.isProvider ? 'Apply to jobs from Browse or My Jobs.' : 'Applications to your posted jobs will appear here.' }}
         </p>
       </div>
       <div v-else class="space-y-4 max-w-3xl">
         <Card
           v-for="app in validApplications"
           :key="app.id"
-          class="bg-white rounded-xl p-5 shadow-sm border border-slate-200 hover:shadow-md transition-all"
+          class="bg-white rounded-xl p-5 shadow-sm border border-slate-200 hover:shadow-md transition-all cursor-pointer"
+          :class="expandedId === app.id ? 'ring-2 ring-amber/30 border-amber/40' : ''"
+          @click="toggleExpanded(app.id)"
         >
           <CardContent class="p-0">
-            <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div class="flex flex-col md:flex-row md:items-start justify-between gap-3">
               <div class="flex-1 min-w-0">
                 <div class="flex items-center gap-2 flex-wrap mb-1.5">
                   <span
@@ -50,54 +52,135 @@
                     <span v-if="app.proposed_rate" class="text-slate-500"> · {{ formatRate(app.proposed_rate) }}</span>
                   </p>
                 </template>
-                <p v-if="app.cover_letter" class="text-slate-600 text-sm mt-1.5 line-clamp-2">
+                <p
+                  v-else-if="app.proposed_rate != null && expandedId !== app.id"
+                  class="text-slate-500 text-sm mt-1"
+                >
+                  {{ formatRate(app.proposed_rate) }}/hr
+                </p>
+                <p
+                  v-if="app.cover_letter && expandedId !== app.id"
+                  class="text-slate-600 text-sm mt-1.5 line-clamp-2"
+                >
                   {{ app.cover_letter }}
                 </p>
-              </div>
-              <div class="relative flex items-center shrink-0 overflow-visible">
-                <button
-                  type="button"
-                  class="p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-midnight transition-colors"
-                  :disabled="messageLoading === app.id"
-                  aria-haspopup="true"
-                  :aria-expanded="openDropdownId === app.id"
-                  @click="openDropdownId = openDropdownId === app.id ? null : app.id"
-                >
-                  <span class="material-symbols-outlined text-xl">more_vert</span>
-                </button>
+
+                <!-- Expanded application detail -->
                 <div
-                  v-if="openDropdownId === app.id"
-                  v-click-outside="() => (openDropdownId = null)"
-                  class="absolute right-0 top-full mt-1 z-20 min-w-[180px] rounded-xl border border-slate-200 bg-white py-1 shadow-lg"
+                  v-if="expandedId === app.id"
+                  class="mt-4 pt-4 border-t border-slate-100 space-y-4"
+                  @click.stop
                 >
+                  <div v-if="app.proposed_rate != null">
+                    <p class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Proposed rate</p>
+                    <p class="text-midnight font-semibold">{{ formatRate(app.proposed_rate) }}/hr</p>
+                  </div>
+                  <div>
+                    <p class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Cover letter</p>
+                    <p v-if="app.cover_letter" class="text-slate-700 text-sm whitespace-pre-wrap leading-relaxed">
+                      {{ app.cover_letter }}
+                    </p>
+                    <p v-else class="text-slate-400 text-sm italic">No message provided.</p>
+                  </div>
+                  <div class="flex flex-wrap gap-2 pt-1">
+                    <router-link
+                      v-if="getAppJobId(app)"
+                      :to="`/jobs/${getAppJobId(app)}`"
+                      class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-midnight hover:border-slate-300 hover:bg-slate-50"
+                    >
+                      <span class="material-symbols-outlined text-base">visibility</span>
+                      View job
+                    </router-link>
+                    <router-link
+                      v-if="authStore.isClient && getAppProviderId(app)"
+                      :to="`/providers/${getAppProviderId(app)}`"
+                      class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-midnight hover:border-slate-300 hover:bg-slate-50"
+                    >
+                      <span class="material-symbols-outlined text-base">person</span>
+                      View profile
+                    </router-link>
+                    <button
+                      type="button"
+                      class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-midnight hover:border-slate-300 hover:bg-slate-50 disabled:opacity-50"
+                      :disabled="messageLoading === app.id"
+                      @click="startConversation(app)"
+                    >
+                      <span v-if="messageLoading === app.id" class="material-symbols-outlined text-base animate-spin">refresh</span>
+                      <span v-else class="material-symbols-outlined text-base">chat</span>
+                      Message
+                    </button>
+                    <router-link
+                      v-if="authStore.isClient && app.status === 'PENDING' && getAppJobId(app) && getAppProviderId(app)"
+                      :to="{ path: '/contracts/create', query: { job: getAppJobId(app), application: app.id, provider: getAppProviderId(app) } }"
+                      class="inline-flex items-center gap-1.5 rounded-lg bg-amber px-3 py-2 text-sm font-semibold text-midnight hover:bg-amber-dark"
+                    >
+                      <span class="material-symbols-outlined text-base">description</span>
+                      Create contract
+                    </router-link>
+                  </div>
+                </div>
+              </div>
+              <div class="flex items-center gap-1 shrink-0" @click.stop>
+                <span
+                  class="material-symbols-outlined text-slate-400 transition-transform"
+                  :class="expandedId === app.id ? 'rotate-180' : ''"
+                >
+                  expand_more
+                </span>
+                <div class="relative">
+                  <button
+                    type="button"
+                    class="p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-midnight transition-colors"
+                    :disabled="messageLoading === app.id"
+                    aria-haspopup="true"
+                    :aria-expanded="openDropdownId === app.id"
+                    @click="openDropdownId = openDropdownId === app.id ? null : app.id"
+                  >
+                    <span class="material-symbols-outlined text-xl">more_vert</span>
+                  </button>
+                  <div
+                    v-if="openDropdownId === app.id"
+                    v-click-outside="() => (openDropdownId = null)"
+                    class="absolute right-0 top-full mt-1 z-20 min-w-[180px] rounded-xl border border-slate-200 bg-white py-1 shadow-lg"
+                  >
+                  <router-link
+                    v-if="authStore.isClient && app.provider"
+                    :to="`/providers/${typeof app.provider === 'string' ? app.provider : (app.provider as { id: string }).id}`"
+                    class="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50"
+                    @click="openDropdownId = null"
+                  >
+                    <span class="material-symbols-outlined text-lg">person</span>
+                    View Profile
+                  </router-link>
                   <router-link
                     v-if="getAppJobId(app)"
                     :to="`/jobs/${getAppJobId(app)}`"
                     class="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50"
                     @click="openDropdownId = null"
                   >
-                    <span class="material-symbols-outlined text-lg">visibility</span>
-                    View Job
-                  </router-link>
-                  <button
-                    type="button"
-                    class="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-                    :disabled="messageLoading === app.id"
-                    @click="startConversation(app); openDropdownId = null"
-                  >
-                    <span v-if="messageLoading === app.id" class="material-symbols-outlined text-lg animate-spin">refresh</span>
-                    <span v-else class="material-symbols-outlined text-lg">chat</span>
-                    Message
-                  </button>
-                  <router-link
-                    v-if="authStore.isClient && app.status === 'PENDING' && getAppJobId(app) && getAppProviderId(app)"
-                    :to="{ path: '/contracts/create', query: { job: getAppJobId(app), application: app.id, provider: getAppProviderId(app) } }"
-                    class="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50"
-                    @click="openDropdownId = null"
-                  >
-                    <span class="material-symbols-outlined text-lg">description</span>
-                    Create Contract
-                  </router-link>
+                      <span class="material-symbols-outlined text-lg">visibility</span>
+                      View Job
+                    </router-link>
+                    <button
+                      type="button"
+                      class="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                      :disabled="messageLoading === app.id"
+                      @click="startConversation(app); openDropdownId = null"
+                    >
+                      <span v-if="messageLoading === app.id" class="material-symbols-outlined text-lg animate-spin">refresh</span>
+                      <span v-else class="material-symbols-outlined text-lg">chat</span>
+                      Message
+                    </button>
+                    <router-link
+                      v-if="authStore.isClient && app.status === 'PENDING' && getAppJobId(app) && getAppProviderId(app)"
+                      :to="{ path: '/contracts/create', query: { job: getAppJobId(app), application: app.id, provider: getAppProviderId(app) } }"
+                      class="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50"
+                      @click="openDropdownId = null"
+                    >
+                      <span class="material-symbols-outlined text-lg">description</span>
+                      Create Contract
+                    </router-link>
+                  </div>
                 </div>
               </div>
             </div>
@@ -126,6 +209,7 @@ const jobsStore = useJobsStore()
 const messagingStore = useMessagingStore()
 const messageLoading = ref<string | null>(null)
 const openDropdownId = ref<string | null>(null)
+const expandedId = ref<string | null>(null)
 
 const vClickOutside = {
   mounted(el: HTMLElement, binding: { value: () => void }) {
@@ -133,7 +217,6 @@ const vClickOutside = {
       if (el && !el.contains(e.target as Node)) binding.value()
     }
     ;(el as any)._clickOutside = handler
-    // Defer so the click that opened the dropdown doesn't immediately trigger close
     setTimeout(() => document.addEventListener('click', handler), 0)
   },
   unmounted(el: HTMLElement) {
@@ -147,6 +230,11 @@ const validApplications = computed(() => {
   return list.filter((app): app is NonNullable<typeof app> => app != null && app.id != null)
 })
 
+function toggleExpanded(id: string) {
+  expandedId.value = expandedId.value === id ? null : id
+  openDropdownId.value = null
+}
+
 async function startConversation(app: JobApplication) {
   if (!app.job) return
   const otherId = authStore.isClient ? app.provider : (app as { job_client?: string }).job_client
@@ -155,13 +243,12 @@ async function startConversation(app: JobApplication) {
   try {
     const conv = await messagingStore.createConversation({
       participant2_id: otherId,
-      job_id: app.job,
+      job_id: typeof app.job === 'string' ? app.job : (app.job as { id: string }).id,
       initial_message: '',
     })
     if (conv?.id && conv.id !== 'undefined') {
       router.push(`/messages/${conv.id}`)
     } else {
-      console.log('Conversation created but could not open it.', conv)
       toast.error('Conversation created but could not open it.')
     }
   } catch (err: any) {

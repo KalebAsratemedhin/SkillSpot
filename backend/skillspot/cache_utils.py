@@ -7,7 +7,8 @@ from urllib.parse import urlencode
 
 # TTLs in seconds
 TAGS_LIST_TIMEOUT = 300   # 5 min – tags change rarely
-JOB_LIST_TIMEOUT = 90    # 1.5 min – browse list changes more often
+JOB_LIST_TIMEOUT = 90     # 1.5 min – browse list changes more often
+PROVIDER_LIST_TIMEOUT = 90   # 1.5 min – public provider directory
 
 
 def _sorted_query_dict(request):
@@ -19,10 +20,26 @@ def _sorted_query_dict(request):
 
 
 def job_list_cache_key(request):
-    """Cache key for paginated job list (browse, not my_jobs)."""
+    """Cache key for paginated public job list (not my_jobs).
+
+    Anonymous: job_list:anon:{query_hash}
+    Authenticated: job_list:{user_id}:{query_hash} (my_application is per-user)
+    """
     q = _sorted_query_dict(request)
     h = hashlib.md5(q.encode(), usedforsecurity=False).hexdigest()
-    return f"job_list:{h}"
+    user = getattr(request, 'user', None)
+    if user is not None and getattr(user, 'is_authenticated', False):
+        user_id = getattr(user, 'id', None) or 'auth'
+    else:
+        user_id = 'anon'
+    return f"job_list:{user_id}:{h}"
+
+
+def provider_list_cache_key(request):
+    """Cache key for public provider directory list (anonymous-safe)."""
+    q = _sorted_query_dict(request)
+    h = hashlib.md5(q.encode(), usedforsecurity=False).hexdigest()
+    return f"provider_list:{h}"
 
 
 def tags_list_cache_key(category=None):

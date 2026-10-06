@@ -10,10 +10,6 @@
             <div class="grid grid-cols-1 gap-16 lg:grid-cols-12 lg:items-center">
               <div class="lg:col-span-6 flex flex-col gap-10">
                 <div class="flex flex-col gap-6">
-                  <span class="inline-flex w-fit items-center gap-2 rounded-full border border-white/20 bg-white/5 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-amber">
-                    <span class="size-2 rounded-full bg-amber animate-pulse"></span>
-                    Top Rated Professionals On-Demand
-                  </span>
                   <h1 class="text-5xl font-extrabold leading-[1.1] tracking-tight text-white md:text-6xl lg:text-7xl">
                     Precision Skill <br/> <span class="text-amber">Personalized</span> Care
                   </h1>
@@ -22,14 +18,14 @@
                   </p>
                 </div>
                 <div class="flex flex-wrap gap-5">
-                  <router-link to="/register">
+                  <router-link to="/browse">
                     <Button variant="default" size="lg" class="h-16 min-w-[200px] rounded-full px-8 text-lg">
-                      Hire a Professional
+                      Browse
                     </Button>
                   </router-link>
-                  <router-link to="/register">
+                  <router-link to="/jobs/create">
                     <Button variant="outline" size="lg" class="h-16 min-w-[200px] rounded-full px-8 text-lg border-2 border-white/20">
-                      Become a Provider
+                      Post a Job
                     </Button>
                   </router-link>
                 </div>

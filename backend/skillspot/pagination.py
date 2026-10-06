@@ -1,11 +1,11 @@
 """
 Custom pagination that allows the client to request page_size via query param.
-Allowed values: 5, 10, 15, 20. Default: 10.
+Allowed values: 5, 10, 15, 20, 50. Default: 10. Cap: 50.
 """
 from rest_framework.pagination import PageNumberPagination
 
 
-PAGE_SIZE_CHOICES = (5, 10, 15, 20)
+PAGE_SIZE_CHOICES = (5, 10, 15, 20, 50)
 DEFAULT_PAGE_SIZE = 10
 
 
@@ -21,7 +21,7 @@ class OptionalPageSizePagination(PageNumberPagination):
             size = self.page_size
         if size in PAGE_SIZE_CHOICES:
             return size
+        # Allow any size up to max_page_size for flexibility
+        if 1 <= size <= self.max_page_size:
+            return size
         return self.page_size
-
-
-

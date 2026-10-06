@@ -8,6 +8,12 @@
     <router-link :to="`/jobs/${job.id}`" class="flex-1 min-w-0 no-underline text-inherit">
       <div class="flex flex-wrap items-center gap-2 mb-1">
         <span v-if="badge" :class="badgeClassString">{{ badge }}</span>
+        <span
+          v-if="job.my_application"
+          class="px-2 py-0.5 text-[10px] font-black uppercase tracking-wider rounded-full bg-emerald-500/10 text-emerald-700 border border-emerald-500/20"
+        >
+          Applied
+        </span>
       </div>
       <h3
         class="text-lg font-bold mb-2 group-hover:text-amber transition-colors line-clamp-1"
@@ -23,7 +29,7 @@
           <span class="material-symbols-outlined text-amber text-base">payments</span>
           {{ formatBudget }}
         </span>
-        <span class="flex items-center gap-1">
+        <span v-if="job.location" class="flex items-center gap-1">
           <span class="material-symbols-outlined text-amber text-base">location_on</span>
           {{ job.location }}
         </span>
@@ -47,7 +53,7 @@
       </div>
     </router-link>
     <router-link
-      v-if="showApply"
+      v-if="showApply && !job.my_application"
       :to="`/jobs/${job.id}`"
       class="flex-shrink-0 inline-flex items-center justify-center rounded-lg text-xs font-semibold bg-midnight hover:bg-midnight-light text-white h-8 px-3 py-1.5 sm:self-center"
       @click.prevent.stop="$router.push(`/jobs/${job.id}`)"

@@ -24,20 +24,20 @@
                   <div class="flex items-center gap-2 md:gap-3 flex-wrap">
                     <span class="px-2 md:px-3 py-1 bg-amber/10 text-amber text-[9px] md:text-[10px] font-black uppercase tracking-widest rounded-full">Urgent Hire</span>
                     <span class="text-gray-400 text-xs md:text-sm">Posted {{ formatDate(jobsStore.currentJob.created_at) }}</span>
-                    <div v-if="isJobOwner" class="flex items-center gap-2 md:gap-3 flex-wrap ml-auto">
-                      <span class="text-sm text-gray-500 font-medium">Status:</span>
+                    <div v-if="isJobOwner" class="flex flex-col gap-1.5 ml-auto items-end">
+                      <span class="text-xs font-bold uppercase tracking-wider text-slate-400 self-start sm:self-end">Status</span>
                       <Select v-model="jobStatusValue">
                         <SelectTrigger
                           class="!h-10 !w-auto min-w-[10rem] !border-slate-200 !bg-white !text-midnight !placeholder:text-slate-500 focus:!ring-amber/20"
                         >
-                          <SelectValue placeholder="Select status" />
+                          <SelectValue placeholder="Choose status" />
                         </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="DRAFT">Draft</SelectItem>
-                          <SelectItem value="OPEN">Open</SelectItem>
-                          <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
-                          <SelectItem value="COMPLETED">Completed</SelectItem>
-                          <SelectItem value="CANCELLED">Cancelled</SelectItem>
+                        <SelectContent class="rounded-xl border border-slate-200 bg-white text-slate-900">
+                          <SelectItem value="DRAFT" class="focus:bg-slate-100 focus:text-slate-900 data-[highlighted]:bg-slate-100 data-[highlighted]:text-slate-900">Draft</SelectItem>
+                          <SelectItem value="OPEN" class="focus:bg-slate-100 focus:text-slate-900 data-[highlighted]:bg-slate-100 data-[highlighted]:text-slate-900">Open</SelectItem>
+                          <SelectItem value="IN_PROGRESS" class="focus:bg-slate-100 focus:text-slate-900 data-[highlighted]:bg-slate-100 data-[highlighted]:text-slate-900">In Progress</SelectItem>
+                          <SelectItem value="COMPLETED" class="focus:bg-slate-100 focus:text-slate-900 data-[highlighted]:bg-slate-100 data-[highlighted]:text-slate-900">Completed</SelectItem>
+                          <SelectItem value="CANCELLED" class="focus:bg-slate-100 focus:text-slate-900 data-[highlighted]:bg-slate-100 data-[highlighted]:text-slate-900">Cancelled</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -46,17 +46,25 @@
                     {{ jobsStore.currentJob.title }}
                   </h1>
                   <div class="flex flex-wrap gap-6 pt-2">
-                    <div class="flex items-center gap-2 text-gray-600">
+                    <div v-if="jobsStore.currentJob.location" class="flex items-center gap-2 text-gray-600">
                       <span class="material-symbols-outlined text-amber text-xl">location_on</span>
-                      <span class="text-sm font-medium">{{ jobsStore.currentJob.location }} (On-Site)</span>
+                      <span class="text-sm font-medium">{{ jobsStore.currentJob.location }}</span>
                     </div>
                     <div class="flex items-center gap-2 text-gray-600">
                       <span class="material-symbols-outlined text-amber text-xl">payments</span>
                       <span class="text-sm font-medium">{{ jobBudgetLabel }}</span>
                     </div>
                   </div>
-                  <div v-if="hasJobLocation" class="job-detail-map-wrapper relative z-0 mt-6 rounded-xl overflow-hidden border border-gray-200 bg-gray-100" style="min-height: 240px;">
-                    <div ref="jobDetailMapContainer" class="w-full min-h-[240px] bg-slate-200" style="height: 240px; width: 100%;"></div>
+                  <div v-if="hasJobLocation" class="mt-6 relative h-[240px] w-full rounded-xl overflow-hidden border border-gray-200">
+                    <LocationMap
+                      :key="`job-map-${jobMapLat}-${jobMapLng}`"
+                      :lat="jobMapLat"
+                      :lng="jobMapLng"
+                      :pinned="true"
+                      :interactive="false"
+                      :zoom="14"
+                      :tooltip="jobMapTooltip"
+                    />
                   </div>
                 </div>
                 <div class="mt-12 space-y-8">
@@ -85,16 +93,85 @@
               </CardContent>
             </Card>
 
-            <Card v-if="isJobOwner && applicationsForThisJob.length" class="bg-white rounded-2xl p-10 shadow-sm border border-gray-100">
-              <CardHeader>
-                <CardTitle class="text-lg font-bold text-midnight">Applications ({{ applicationsForThisJob.length }})</CardTitle>
-              </CardHeader>
-              <CardContent class="p-0">
-                <ul class="divide-y divide-gray-100">
+            <Card v-if="isJobOwner" class="bg-white rounded-2xl p-6 md:p-10 shadow-sm border border-gray-100">
+              <div class="flex gap-6 border-b border-slate-200 mb-6">
+                <button
+                  type="button"
+                  class="relative pb-3 text-sm font-bold transition-colors"
+                  :class="ownerPanelTab === 'applications' ? 'text-amber' : 'text-slate-500 hover:text-midnight'"
+                  @click="ownerPanelTab = 'applications'"
+                >
+                  Applications
+                  <span
+                    v-if="applicationsForThisJob.length"
+                    class="ml-1.5 text-xs font-semibold text-slate-400"
+                  >({{ applicationsForThisJob.length }})</span>
+                  <span
+                    v-if="ownerPanelTab === 'applications'"
+                    class="absolute bottom-0 left-0 h-1 w-full bg-amber rounded-t-full"
+                  />
+                </button>
+                <button
+                  type="button"
+                  class="relative pb-3 text-sm font-bold transition-colors"
+                  :class="ownerPanelTab === 'invitations' ? 'text-amber' : 'text-slate-500 hover:text-midnight'"
+                  @click="ownerPanelTab = 'invitations'"
+                >
+                  Invitations
+                  <span
+                    v-if="invitationsForThisJob.length"
+                    class="ml-1.5 text-xs font-semibold text-slate-400"
+                  >({{ invitationsForThisJob.length }})</span>
+                  <span
+                    v-if="ownerPanelTab === 'invitations'"
+                    class="absolute bottom-0 left-0 h-1 w-full bg-amber rounded-t-full"
+                  />
+                </button>
+              </div>
+
+              <!-- Applications tab -->
+              <div v-if="ownerPanelTab === 'applications'">
+                <ul v-if="applicationsForThisJob.length" class="divide-y divide-gray-100">
                   <li v-for="app in applicationsForThisJob" :key="app.id" class="py-6 first:pt-0">
-                    <div class="flex flex-col gap-2">
-                      <div class="flex items-center justify-between flex-wrap gap-2">
-                        <span class="font-semibold text-midnight">{{ (app as any).provider_name ?? app.provider }}</span>
+                    <div class="flex flex-col gap-3">
+                      <div class="flex items-start justify-between flex-wrap gap-3">
+                        <div class="flex items-center gap-3 min-w-0">
+                          <div
+                            v-if="app.provider_summary?.avatar"
+                            class="size-11 rounded-xl bg-cover bg-center shrink-0 ring-2 ring-slate-100"
+                            :style="{ backgroundImage: `url(${app.provider_summary.avatar})` }"
+                          />
+                          <div
+                            v-else
+                            class="size-11 rounded-xl bg-slate-100 text-amber font-black flex items-center justify-center shrink-0"
+                          >
+                            {{ providerInitials(app) }}
+                          </div>
+                          <div class="min-w-0">
+                            <router-link
+                              v-if="providerProfileId(app)"
+                              :to="`/providers/${providerProfileId(app)}`"
+                              class="font-semibold text-midnight hover:text-amber transition-colors"
+                            >
+                              {{ app.provider_summary?.full_name || app.provider_name || 'Provider' }}
+                            </router-link>
+                            <span v-else class="font-semibold text-midnight">{{ app.provider_name || 'Provider' }}</span>
+                            <div class="flex flex-wrap items-center gap-2 mt-0.5 text-xs text-slate-500">
+                              <span
+                                v-if="app.provider_summary?.is_verified"
+                                class="inline-flex items-center gap-0.5 text-amber font-bold"
+                              >
+                                <span class="material-symbols-outlined text-sm">verified</span>
+                                Verified
+                              </span>
+                              <span v-if="app.provider_summary?.location">{{ app.provider_summary.location }}</span>
+                              <span v-if="app.provider_summary?.rating?.count">
+                                ★ {{ Number(app.provider_summary.rating.average).toFixed(1) }}
+                                ({{ app.provider_summary.rating.count }})
+                              </span>
+                            </div>
+                          </div>
+                        </div>
                         <span
                           class="text-xs font-medium px-2 py-1 rounded-full"
                           :class="app.status === 'ACCEPTED' ? 'bg-green-100 text-green-800' : app.status === 'REJECTED' ? 'bg-red-100 text-red-800' : 'bg-slate-100 text-slate-700'"
@@ -102,9 +179,17 @@
                           {{ app.status }}
                         </span>
                       </div>
-                      <p v-if="app.cover_letter" class="text-gray-600 text-sm">{{ app.cover_letter }}</p>
-                      <p v-if="app.proposed_rate != null" class="text-sm text-gray-500">Proposed rate: Br {{ Number(app.proposed_rate).toLocaleString() }}/hr</p>
-                      <div class="flex gap-2 mt-2 flex-wrap">
+
+                      <div class="flex flex-wrap gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          class="border-slate-200 text-slate-700"
+                          @click="toggleProposal(app.id)"
+                        >
+                          <span class="material-symbols-outlined text-sm">{{ expandedProposalId === app.id ? 'expand_less' : 'description' }}</span>
+                          {{ expandedProposalId === app.id ? 'Hide proposal' : 'View proposal' }}
+                        </Button>
                         <Button v-if="app.status === 'PENDING'" size="sm" @click="handleApplicationStatus(app.id, 'ACCEPTED')">Accept</Button>
                         <Button v-if="app.status === 'PENDING'" size="sm" variant="outline" @click="handleApplicationStatus(app.id, 'REJECTED')">Reject</Button>
                         <Button size="sm" variant="outline" :disabled="messageLoading === app.id" @click="startConversation(app)">
@@ -118,62 +203,226 @@
                           Create Contract
                         </Button>
                       </div>
+
+                      <div
+                        v-if="expandedProposalId === app.id"
+                        class="rounded-xl border border-slate-100 bg-slate-50 p-4 space-y-3"
+                      >
+                        <div v-if="app.proposed_rate != null">
+                          <p class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Proposed rate</p>
+                          <p class="text-midnight font-semibold">Br {{ Number(app.proposed_rate).toLocaleString() }}/hr</p>
+                        </div>
+                        <div>
+                          <p class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Cover letter</p>
+                          <p v-if="app.cover_letter" class="text-slate-700 text-sm whitespace-pre-wrap leading-relaxed">{{ app.cover_letter }}</p>
+                          <p v-else class="text-slate-400 text-sm italic">No message provided.</p>
+                        </div>
+                        <p v-if="app.applied_at" class="text-xs text-slate-400">Submitted {{ formatAppliedAt(app.applied_at) }}</p>
+                      </div>
                     </div>
                   </li>
                 </ul>
-              </CardContent>
-            </Card>
-            <Card v-else-if="isJobOwner && !applicationsForThisJob.length" class="bg-white rounded-2xl p-10 shadow-sm border border-gray-100">
-              <CardHeader>
-                <CardTitle class="text-lg font-bold text-midnight">Applications</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p class="text-gray-500 text-sm">No applications yet.</p>
-              </CardContent>
-            </Card>
+                <p v-else class="text-gray-500 text-sm py-6">No applications yet.</p>
+              </div>
 
-            <Card v-if="isJobOwner" class="bg-white rounded-2xl p-10 shadow-sm border border-gray-100">
-              <CardHeader>
-                <CardTitle class="text-lg font-bold text-midnight flex items-center gap-2">
-                  <span class="material-symbols-outlined text-amber text-xl">mail</span>
-                  Invite providers
-                </CardTitle>
-                <p class="text-gray-500 text-sm mt-1">Send an invitation to a provider by email. They can view the job and accept or decline.</p>
-              </CardHeader>
-              <CardContent class="space-y-6">
-                <form @submit.prevent="handleInviteProvider" class="space-y-4">
-                  <FormField :error="inviteError">
-                    <Label>Provider email</Label>
-                    <Input
-                      v-model="inviteForm.provider_email"
-                      type="email"
-                      placeholder="provider@example.com"
-                      class="w-full"
-                      :disabled="inviteLoading"
-                    />
-                  </FormField>
-                  <FormField>
-                    <Label>Message (optional)</Label>
-                    <textarea
-                      v-model="inviteForm.message"
-                      class="w-full rounded-xl border border-slate-200 bg-white text-midnight focus:ring-2 focus:ring-amber/20 focus:border-amber p-4 min-h-[80px]"
-                      placeholder="Add a personal message to the invitation..."
-                      :disabled="inviteLoading"
-                    ></textarea>
-                  </FormField>
-                  <Button
-                    type="submit"
-                    :loading="inviteLoading"
-                    variant="default"
-                    size="default"
-                    class="bg-amber text-midnight hover:bg-amber-dark"
+              <!-- Invitations tab -->
+              <div v-else class="space-y-5">
+                <p class="text-gray-500 text-sm">
+                  Browse providers below, optionally filter by this job’s skills, then invite.
+                </p>
+                <div class="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    class="px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors"
+                    :class="inviteSkillFilter === '__all__'
+                      ? 'bg-amber/15 border-amber/40 text-amber'
+                      : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'"
+                    @click="setInviteSkillFilter('__all__')"
                   >
-                    <span v-if="!inviteLoading" class="material-symbols-outlined mr-2 text-lg">send</span>
-                    Send invitation
+                    All providers
+                  </button>
+                  <button
+                    v-if="jobSkillOptions.length"
+                    type="button"
+                    class="px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors"
+                    :class="inviteSkillFilter === '__job__'
+                      ? 'bg-amber/15 border-amber/40 text-amber'
+                      : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'"
+                    @click="setInviteSkillFilter('__job__')"
+                  >
+                    Match job skills
+                  </button>
+                  <button
+                    v-for="s in jobSkillOptions"
+                    :key="s.id"
+                    type="button"
+                    class="px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors"
+                    :class="inviteSkillFilter === s.id
+                      ? 'bg-amber/15 border-amber/40 text-amber'
+                      : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'"
+                    @click="setInviteSkillFilter(s.id)"
+                  >
+                    {{ s.name }}
+                  </button>
+                </div>
+
+                <div class="flex flex-col lg:flex-row gap-3 lg:items-end">
+                  <div class="flex-1 space-y-1.5">
+                    <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Search</span>
+                    <div class="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200">
+                      <span class="material-symbols-outlined text-amber text-xl">search</span>
+                      <input
+                        v-model="inviteQuery"
+                        type="search"
+                        class="w-full bg-transparent outline-none text-sm text-midnight placeholder:text-slate-400"
+                        placeholder="Name, skill, or location…"
+                        @keydown.enter.prevent="runInviteSearch"
+                      />
+                    </div>
+                  </div>
+                  <div class="sm:w-48 space-y-1.5">
+                    <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Sort</span>
+                    <Select :model-value="inviteOrdering" @update:model-value="onInviteOrderingChange">
+                      <SelectTrigger class="!h-11 !w-full !rounded-xl !border-slate-200 !bg-white !text-slate-900 focus:!ring-amber/20">
+                        <SelectValue placeholder="Top rated" />
+                      </SelectTrigger>
+                      <SelectContent class="rounded-xl border border-slate-200 bg-white text-slate-900">
+                        <SelectItem value="-rating" class="focus:bg-slate-100 focus:text-slate-900 data-[highlighted]:bg-slate-100 data-[highlighted]:text-slate-900">Top rated</SelectItem>
+                        <SelectItem value="hourly_rate" class="focus:bg-slate-100 focus:text-slate-900 data-[highlighted]:bg-slate-100 data-[highlighted]:text-slate-900">Low to high</SelectItem>
+                        <SelectItem value="-hourly_rate" class="focus:bg-slate-100 focus:text-slate-900 data-[highlighted]:bg-slate-100 data-[highlighted]:text-slate-900">High to low</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    class="bg-midnight text-white hover:bg-slate-800 h-11 px-5"
+                    :disabled="inviteProvidersLoading"
+                    @click="runInviteSearch"
+                  >
+                    Search
                   </Button>
-                </form>
+                </div>
+
+                <FormField>
+                  <Label>Message (optional)</Label>
+                  <textarea
+                    v-model="inviteMessage"
+                    class="w-full rounded-xl border border-slate-200 bg-white text-midnight focus:ring-2 focus:ring-amber/20 focus:border-amber p-4 min-h-[72px] text-sm"
+                    placeholder="Add a personal note to invitations…"
+                    :disabled="!!inviteLoadingId"
+                  />
+                </FormField>
+                <p v-if="inviteError" class="text-sm text-red-600">{{ inviteError }}</p>
+
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-sm text-slate-500">
+                    <span v-if="inviteProvidersLoading">Loading providers…</span>
+                    <span v-else>{{ inviteProvidersTotal }} provider{{ inviteProvidersTotal === 1 ? '' : 's' }}</span>
+                  </p>
+                </div>
+
+                <div v-if="inviteProvidersLoading && !inviteProviders.length" class="flex justify-center py-10">
+                  <span class="material-symbols-outlined animate-spin text-3xl text-amber">refresh</span>
+                </div>
+                <div
+                  v-else-if="!inviteProviders.length"
+                  class="text-center py-10 rounded-xl border border-dashed border-slate-200 bg-slate-50"
+                >
+                  <p class="text-slate-500 text-sm">No providers found. Try clearing search or skill filters.</p>
+                </div>
+                <ul v-else class="divide-y divide-slate-100 rounded-xl border border-slate-200 overflow-hidden" :class="inviteProvidersLoading ? 'opacity-60' : ''">
+                  <li
+                    v-for="p in inviteProviders"
+                    :key="p.user_id"
+                    class="flex flex-col sm:flex-row sm:items-center gap-3 p-4 bg-white hover:bg-slate-50/80"
+                  >
+                    <div class="flex items-center gap-3 min-w-0 flex-1">
+                      <div
+                        v-if="p.avatar"
+                        class="size-11 rounded-xl bg-cover bg-center shrink-0 ring-2 ring-slate-100"
+                        :style="{ backgroundImage: `url(${p.avatar})` }"
+                      />
+                      <div
+                        v-else
+                        class="size-11 rounded-xl bg-slate-100 text-amber font-black flex items-center justify-center shrink-0"
+                      >
+                        {{ inviteProviderInitials(p.full_name) }}
+                      </div>
+                      <div class="min-w-0">
+                        <div class="flex items-center gap-1.5 flex-wrap">
+                          <router-link
+                            :to="`/providers/${p.user_id}`"
+                            class="font-semibold text-midnight hover:text-amber truncate"
+                          >
+                            {{ p.full_name || 'Provider' }}
+                          </router-link>
+                          <span
+                            v-if="p.is_verified"
+                            class="material-symbols-outlined text-amber text-base"
+                            title="Verified"
+                          >verified</span>
+                        </div>
+                        <p v-if="p.location" class="text-xs text-slate-500 truncate">{{ p.location }}</p>
+                        <div v-if="p.headline_skills?.length" class="flex flex-wrap gap-1 mt-1">
+                          <span
+                            v-for="s in p.headline_skills.slice(0, 3)"
+                            :key="s.id"
+                            class="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-amber/10 text-amber"
+                          >
+                            {{ s.name }}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="flex items-center gap-3 shrink-0 sm:ml-auto">
+                      <div class="text-right text-xs text-slate-500 hidden sm:block">
+                        <p v-if="p.hourly_rate" class="font-bold text-midnight text-sm">
+                          Br {{ Number(p.hourly_rate).toLocaleString() }}/hr
+                        </p>
+                        <p v-if="p.rating?.count > 0">
+                          ★ {{ Number(p.rating.average).toFixed(1) }} ({{ p.rating.count }})
+                        </p>
+                      </div>
+                      <span
+                        v-if="isProviderInvited(p.user_id)"
+                        class="text-xs font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-600"
+                      >
+                        Invited
+                      </span>
+                      <span
+                        v-else-if="isProviderApplied(p.user_id)"
+                        class="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700"
+                      >
+                        Applied
+                      </span>
+                      <Button
+                        v-else
+                        size="sm"
+                        class="bg-amber text-midnight hover:bg-amber-dark"
+                        :loading="inviteLoadingId === p.user_id"
+                        :disabled="!!inviteLoadingId"
+                        @click="inviteProviderById(p.user_id)"
+                      >
+                        <span class="material-symbols-outlined text-sm">send</span>
+                        Invite
+                      </Button>
+                    </div>
+                  </li>
+                </ul>
+
+                <PaginationBar
+                  :current-page="invitePage"
+                  :total-pages="inviteTotalPages"
+                  :total-count="inviteProvidersTotal"
+                  :page-size="invitePageSize"
+                  :loading="inviteProvidersLoading"
+                  @go-to-page="goInvitePage"
+                  @update-page-size="onInvitePageSizeChange"
+                />
+
                 <div v-if="invitationsForThisJob.length" class="pt-4 border-t border-gray-100">
-                  <h4 class="text-sm font-bold text-midnight mb-3">Invitations sent for this job</h4>
+                  <h4 class="text-sm font-bold text-midnight mb-3">Invitations sent</h4>
                   <ul class="space-y-2">
                     <li
                       v-for="inv in invitationsForThisJob"
@@ -202,7 +451,7 @@
                     </li>
                   </ul>
                 </div>
-              </CardContent>
+              </div>
             </Card>
 
             <Card v-if="authStore.isProvider && !isJobOwner && providerHasInvitationForThisJob" class="bg-white rounded-2xl p-10 shadow-sm border border-gray-100 border-amber/30 bg-amber/5">
@@ -228,7 +477,38 @@
                 </router-link>
               </CardContent>
             </Card>
-            <Card v-else-if="authStore.isProvider && !isJobOwner" class="bg-white rounded-2xl p-10 shadow-sm border border-gray-100">
+            <Card
+              v-else-if="authStore.isProvider && !isJobOwner && myApplication"
+              class="bg-white rounded-2xl p-10 shadow-sm border border-gray-100"
+            >
+              <CardHeader>
+                <CardTitle class="text-lg font-bold text-midnight flex items-center gap-2">
+                  <span class="material-symbols-outlined text-amber text-xl">assignment_turned_in</span>
+                  Your application
+                </CardTitle>
+              </CardHeader>
+              <CardContent class="space-y-4">
+                <div class="flex flex-wrap items-center gap-2">
+                  <span class="text-sm text-slate-500">Status</span>
+                  <span
+                    class="text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wide"
+                    :class="applicationStatusClass(myApplication.status)"
+                  >
+                    {{ formatApplicationStatus(myApplication.status) }}
+                  </span>
+                </div>
+                <p v-if="myApplication.cover_letter" class="text-slate-600 text-sm whitespace-pre-wrap">{{ myApplication.cover_letter }}</p>
+                <p v-if="myApplication.proposed_rate != null && myApplication.proposed_rate !== ''" class="text-sm text-slate-500">
+                  Proposed rate: Br {{ Number(myApplication.proposed_rate).toLocaleString() }}/hr
+                </p>
+                <p class="text-xs text-slate-400">Submitted {{ formatAppliedAt(myApplication.applied_at) }}</p>
+              </CardContent>
+            </Card>
+            <Card
+              v-else-if="providerCanApply"
+              id="apply-form"
+              class="bg-white rounded-2xl p-10 shadow-sm border border-gray-100"
+            >
               <CardHeader>
                 <CardTitle class="text-lg font-bold text-midnight mb-8">Apply for this Job</CardTitle>
               </CardHeader>
@@ -239,17 +519,24 @@
                     <textarea
                       v-model="applicationForm.message"
                       class="w-full rounded-xl border border-slate-200 bg-white text-midnight focus:ring-2 focus:ring-amber/20 focus:border-amber p-4 min-h-[120px]"
+                      :class="applicationErrors.message ? 'border-red-500' : ''"
                       placeholder="Tell the client why you're the right fit..."
                     ></textarea>
                   </FormField>
                   <FormField :error="applicationErrors.proposed_rate">
-                    <Label>Proposed Rate (optional)</Label>
+                    <Label>Proposed Rate (Br/hr)</Label>
                     <Input
                       v-model="applicationForm.proposed_rate"
                       type="number"
+                      step="0.01"
+                      min="0"
+                      :max="jobBudgetCeiling ?? undefined"
                       placeholder="Your rate"
                       :error="applicationErrors.proposed_rate"
                     />
+                    <p v-if="jobBudgetCeiling != null" class="text-xs text-slate-500 mt-1">
+                      Client budget ceiling: Br {{ jobBudgetCeiling.toLocaleString() }}{{ isHourlyJob ? '/hr' : '' }}
+                    </p>
                   </FormField>
                   <Button type="submit" :loading="jobsStore.loading" variant="default" size="lg" class="w-full">
                     Submit Application
@@ -257,43 +544,57 @@
                 </form>
               </CardContent>
             </Card>
-            <Card v-if="(clientName || clientEmail) && !isJobOwner" class="bg-white rounded-2xl p-10 shadow-sm border border-gray-100">
+            <Card
+              v-else-if="!authStore.isAuthenticated && !isJobOwner"
+              class="bg-white rounded-2xl p-10 shadow-sm border border-gray-100"
+            >
+              <CardHeader>
+                <CardTitle class="text-lg font-bold text-midnight mb-2">Want to apply?</CardTitle>
+              </CardHeader>
+              <CardContent class="space-y-4">
+                <p class="text-slate-600 text-sm">Sign in as a service provider to submit a proposal for this job.</p>
+                <router-link :to="{ name: 'login', query: { redirect: route.fullPath } }">
+                  <Button variant="default" size="lg" class="w-full">Sign in to apply</Button>
+                </router-link>
+              </CardContent>
+            </Card>
+            <Card v-if="showClientProfileCard" class="bg-white rounded-2xl p-10 shadow-sm border border-gray-100">
               <CardHeader>
                 <CardTitle class="text-lg font-bold text-midnight mb-8">Client Profile</CardTitle>
               </CardHeader>
               <CardContent class="p-0">
                 <div class="flex flex-col md:flex-row items-start gap-8">
-                  <div class="relative">
-                    <div class="bg-center bg-no-repeat aspect-square bg-cover rounded-2xl size-24 ring-4 ring-gray-50 shadow-inner bg-slate-300"></div>
-                    <div class="absolute -bottom-2 -right-2 bg-white rounded-full p-1 shadow-md">
-                      <span class="material-symbols-outlined text-amber text-xl">verified</span>
+                  <div class="relative shrink-0">
+                    <div
+                      v-if="clientAvatarUrl"
+                      class="bg-center bg-no-repeat aspect-square bg-cover rounded-2xl size-24 ring-4 ring-gray-50 shadow-inner"
+                      :style="{ backgroundImage: `url(${clientAvatarUrl})` }"
+                    />
+                    <div
+                      v-else
+                      class="flex items-center justify-center aspect-square rounded-2xl size-24 ring-4 ring-gray-50 shadow-inner bg-slate-100 text-amber text-2xl font-black"
+                    >
+                      {{ clientInitials }}
                     </div>
                   </div>
-                  <div class="flex-1">
-                    <div class="flex items-center gap-3 mb-1">
-                      <h4 class="text-xl font-extrabold text-midnight">{{ clientName || clientEmail }}</h4>
-                      <span class="text-xs font-bold text-amber bg-amber/10 px-2 py-0.5 rounded uppercase tracking-tighter">Gold Client</span>
-                    </div>
-                    <p class="text-gray-500 font-medium mb-6">Residential Homeowner • Member since {{ formatYear(jobsStore.currentJob.created_at) }}</p>
-                    <div class="grid grid-cols-2 lg:grid-cols-4 gap-6">
+                  <div class="flex-1 min-w-0">
+                    <h4 class="text-xl font-extrabold text-midnight mb-1">{{ clientDisplayName }}</h4>
+                    <p v-if="clientMemberSinceLabel" class="text-gray-500 font-medium mb-4">
+                      Member since {{ clientMemberSinceLabel }}
+                    </p>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                      <div v-if="clientProfileLocation" class="space-y-1">
+                        <p class="text-xs text-gray-400 font-bold uppercase tracking-wider">Location</p>
+                        <p class="text-midnight font-bold">{{ clientProfileLocation }}</p>
+                      </div>
                       <div class="space-y-1">
                         <p class="text-xs text-gray-400 font-bold uppercase tracking-wider">Rating</p>
-                        <div class="flex items-center gap-1">
-                          <span class="text-midnight font-bold">5.0</span>
+                        <div v-if="clientRatingDisplay" class="flex items-center gap-1">
+                          <span class="text-midnight font-bold">{{ clientRatingDisplay.average }}</span>
                           <span class="material-symbols-outlined text-amber text-sm fill-1">star</span>
+                          <span class="text-slate-500 text-sm">({{ clientRatingDisplay.count }} reviews)</span>
                         </div>
-                      </div>
-                      <div class="space-y-1">
-                        <p class="text-xs text-gray-400 font-bold uppercase tracking-wider">Total Spend</p>
-                        <p class="text-midnight font-bold">$45,000+</p>
-                      </div>
-                      <div class="space-y-1">
-                        <p class="text-xs text-gray-400 font-bold uppercase tracking-wider">Hires</p>
-                        <p class="text-midnight font-bold">4 Projects</p>
-                      </div>
-                      <div class="space-y-1">
-                        <p class="text-xs text-gray-400 font-bold uppercase tracking-wider">Location</p>
-                        <p class="text-midnight font-bold">{{ jobsStore.currentJob.location }}</p>
+                        <p v-else class="text-slate-500 text-sm">No reviews yet</p>
                       </div>
                     </div>
                   </div>
@@ -314,14 +615,36 @@
                 </div>
                 <div class="space-y-4">
                   <Button
-                    v-if="authStore.isProvider && !isJobOwner && !providerHasInvitationForThisJob"
+                    v-if="providerCanApply"
                     variant="default"
                     size="lg"
-                    @click="handleApply"
+                    type="button"
                     class="w-full h-16 bg-amber text-midnight text-lg font-black shadow-lg shadow-amber/30 hover:shadow-amber/40 hover:scale-[1.02] transition-all"
+                    @click="scrollToApplyForm"
                   >
                     Apply Now
                   </Button>
+                  <router-link
+                    v-else-if="!authStore.isAuthenticated && !isJobOwner"
+                    :to="{ name: 'login', query: { redirect: route.fullPath } }"
+                    class="block"
+                  >
+                    <Button
+                      variant="default"
+                      size="lg"
+                      type="button"
+                      class="w-full h-16 bg-amber text-midnight text-lg font-black shadow-lg shadow-amber/30"
+                    >
+                      Sign in to apply
+                    </Button>
+                  </router-link>
+                  <div
+                    v-else-if="authStore.isProvider && !isJobOwner && myApplication"
+                    class="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-center"
+                  >
+                    <p class="text-amber text-xs font-black uppercase tracking-widest mb-1">Already applied</p>
+                    <p class="text-white font-bold">{{ formatApplicationStatus(myApplication.status) }}</p>
+                  </div>
                   <Button variant="outline" size="lg" class="w-full h-14 border-2 border-midnight-light bg-midnight-light/50 text-white hover:bg-midnight-light">
                     <span class="material-symbols-outlined text-xl">bookmark</span>
                     Save Project
@@ -353,6 +676,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useJobsStore } from '@/stores/jobs'
 import { useMessagingStore } from '@/stores/messaging'
 import AppLayout from '@/components/AppLayout.vue'
+import LocationMap from '@/components/LocationMap.vue'
 import Card from '@/components/ui/Card.vue'
 import CardHeader from '@/components/ui/CardHeader.vue'
 import CardTitle from '@/components/ui/CardTitle.vue'
@@ -361,8 +685,10 @@ import Button from '@/components/ui/Button.vue'
 import Input from '@/components/ui/Input.vue'
 import Label from '@/components/ui/Label.vue'
 import FormField from '@/components/ui/FormField.vue'
+import PaginationBar from '@/components/PaginationBar.vue'
 import { toast } from 'vue-sonner'
 import type { JobApplication } from '@/services/jobs'
+import { profilesService, type PublicProvider } from '@/services/profiles'
 
 import {
   Select,
@@ -397,6 +723,13 @@ const applicationErrors = ref({
   proposed_rate: '',
 })
 
+watch(() => applicationForm.value.message, () => {
+  applicationErrors.value.message = ''
+})
+watch(() => applicationForm.value.proposed_rate, () => {
+  applicationErrors.value.proposed_rate = ''
+})
+
 const jobTags = computed(() => {
   const job = jobsStore.currentJob
   if (!job) return []
@@ -408,6 +741,15 @@ const jobTags = computed(() => {
 const isHourlyJob = computed(() => {
   const job = jobsStore.currentJob
   return job?.payment_schedule === 'HOURLY' || job?.budget_type === 'hourly'
+})
+
+/** Max amount/rate the client set — providers must not propose above this. */
+const jobBudgetCeiling = computed(() => {
+  const job = jobsStore.currentJob
+  if (!job) return null
+  const max = job.budget_max ?? job.budget_min
+  if (max == null || Number.isNaN(Number(max))) return null
+  return Number(max)
 })
 
 const jobBudgetLabel = computed(() => {
@@ -424,8 +766,86 @@ const jobBudgetLabel = computed(() => {
   return `Br ${min.toLocaleString()} – ${max.toLocaleString()}`
 })
 
-const clientName = computed(() => jobsStore.currentJob?.client_name || null)
-const clientEmail = computed(() => jobsStore.currentJob?.client_email || null)
+const myApplication = computed(() => jobsStore.currentJob?.my_application ?? null)
+
+const providerCanApply = computed(() => {
+  return (
+    authStore.isAuthenticated &&
+    authStore.isProvider &&
+    !isJobOwner.value &&
+    !providerHasInvitationForThisJob.value &&
+    !myApplication.value
+  )
+})
+
+const expandedProposalId = ref<string | null>(null)
+const ownerPanelTab = ref<'applications' | 'invitations'>('applications')
+
+function toggleProposal(id: string) {
+  expandedProposalId.value = expandedProposalId.value === id ? null : id
+}
+
+function providerProfileId(app: JobApplication): string | null {
+  return app.provider_summary?.user_id || (typeof app.provider === 'string' ? app.provider : null) || null
+}
+
+function providerInitials(app: JobApplication): string {
+  const name = app.provider_summary?.full_name || app.provider_name || 'P'
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase()
+  return name.charAt(0).toUpperCase()
+}
+
+const clientProfile = computed(() => jobsStore.currentJob?.client_profile ?? null)
+
+const clientDisplayName = computed(() => {
+  const job = jobsStore.currentJob
+  return (
+    clientProfile.value?.full_name ||
+    job?.client_name ||
+    clientProfile.value?.email ||
+    job?.client_email ||
+    'Client'
+  )
+})
+
+const clientAvatarUrl = computed(() => clientProfile.value?.avatar ?? null)
+
+const clientInitials = computed(() => {
+  const name = clientDisplayName.value
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  if (parts.length >= 2) {
+    return `${parts[0][0]}${parts[1][0]}`.toUpperCase()
+  }
+  return name.charAt(0).toUpperCase() || 'C'
+})
+
+const clientProfileLocation = computed(() => {
+  const loc = clientProfile.value?.location?.trim()
+  return loc || null
+})
+
+const clientMemberSinceLabel = computed(() => {
+  const raw = clientProfile.value?.member_since
+  if (!raw) return null
+  return new Date(raw).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+})
+
+const clientRatingDisplay = computed(() => {
+  const rating = jobsStore.currentJob?.client_rating
+  if (!rating || rating.count <= 0 || rating.average == null) return null
+  return {
+    average: Number(rating.average).toFixed(1),
+    count: rating.count,
+  }
+})
+
+const showClientProfileCard = computed(() => {
+  if (isJobOwner.value) return false
+  const job = jobsStore.currentJob
+  return !!(job?.client_profile || job?.client_name || job?.client_email)
+})
+
 const isJobOwner = computed(() => {
   const job = jobsStore.currentJob
   const user = authStore.user
@@ -452,45 +872,22 @@ const hasJobLocation = computed(() => {
   return job != null && job.latitude != null && job.longitude != null
 })
 
-const jobDetailMapContainer = ref<HTMLElement | null>(null)
-let jobDetailMapInstance: import('leaflet').Map | null = null
+const jobMapLat = computed(() => {
+  const job = jobsStore.currentJob as { latitude?: number | string | null } | null
+  const n = job?.latitude != null ? Number(job.latitude) : NaN
+  return Number.isFinite(n) ? n : null
+})
 
-function initJobDetailMap() {
-  const job = jobsStore.currentJob as { latitude?: number | string; longitude?: number | string } | null
-  const container = jobDetailMapContainer.value
-  if (!container || !job?.latitude || !job?.longitude) return
-  const lat = Number(job.latitude)
-  const lng = Number(job.longitude)
-  if (Number.isNaN(lat) || Number.isNaN(lng)) return
+const jobMapLng = computed(() => {
+  const job = jobsStore.currentJob as { longitude?: number | string | null } | null
+  const n = job?.longitude != null ? Number(job.longitude) : NaN
+  return Number.isFinite(n) ? n : null
+})
 
-  if (jobDetailMapInstance) {
-    jobDetailMapInstance.remove()
-    jobDetailMapInstance = null
-  }
-
-  import('leaflet').then((L) => {
-    if (!container.isConnected) return
-    const map = L.map(container, { zoomControl: false }).setView([lat, lng], 14)
-    L.control.zoom({ position: 'topright' }).addTo(map)
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map)
-    const jobForTooltip = jobsStore.currentJob as { location?: string; address?: string } | null
-    const tooltipText = jobForTooltip?.location || jobForTooltip?.address || 'Job location'
-    const marker = L.circleMarker([lat, lng], { radius: 10, fillColor: '#f59e0b', color: '#b45309', weight: 2, fillOpacity: 0.9 }).addTo(map)
-    marker.bindTooltip(tooltipText, {
-      permanent: false,
-      direction: 'top',
-      opacity: 0.95,
-      className: 'job-detail-map-tooltip',
-    })
-    jobDetailMapInstance = map
-    const refreshSize = () => {
-      map.invalidateSize()
-    }
-    requestAnimationFrame(refreshSize)
-    setTimeout(refreshSize, 100)
-    setTimeout(refreshSize, 400)
-  })
-}
+const jobMapTooltip = computed(() => {
+  const job = jobsStore.currentJob as { location?: string; address?: string } | null
+  return job?.location || job?.address || 'Job location'
+})
 
 const invitationsForThisJob = computed(() => {
   const jobId = jobsStore.currentJob?.id
@@ -505,9 +902,135 @@ const invitationsForThisJob = computed(() => {
 /** True when current user (provider) has received an invitation for this job — they should not apply. */
 const providerHasInvitationForThisJob = computed(() => invitationsForThisJob.value.length > 0)
 
-const inviteForm = ref({ provider_email: '', message: '' })
-const inviteLoading = ref(false)
+const jobSkillOptions = computed(() => {
+  const skills = jobsStore.currentJob?.required_skills || []
+  return skills.filter((s): s is { id: string; name: string } => !!s?.id && !!s?.name)
+})
+
+const inviteQuery = ref('')
+const inviteOrdering = ref('-rating')
+/** __all__ = no skill filter; __job__ = any of job skills; else a skill id */
+const inviteSkillFilter = ref<string>('__all__')
+const inviteMessage = ref('')
 const inviteError = ref('')
+const inviteLoadingId = ref<string | null>(null)
+const inviteProvidersLoading = ref(false)
+const inviteProviders = ref<PublicProvider[]>([])
+const inviteProvidersTotal = ref(0)
+const invitePage = ref(1)
+const invitePageSize = ref(10)
+
+const inviteTotalPages = computed(() =>
+  Math.max(1, Math.ceil(inviteProvidersTotal.value / invitePageSize.value))
+)
+
+const invitedProviderIds = computed(() => {
+  const ids = new Set<string>()
+  for (const inv of invitationsForThisJob.value) {
+    const p = (inv as { provider?: string | { id?: string } }).provider
+    if (typeof p === 'string' && p) ids.add(p)
+    else if (p && typeof p === 'object' && p.id) ids.add(p.id)
+  }
+  return ids
+})
+
+const appliedProviderIds = computed(() => {
+  const ids = new Set<string>()
+  for (const app of applicationsForThisJob.value) {
+    const id = providerProfileId(app)
+    if (id) ids.add(id)
+  }
+  return ids
+})
+
+function isProviderInvited(userId: string) {
+  return invitedProviderIds.value.has(userId)
+}
+
+function isProviderApplied(userId: string) {
+  return appliedProviderIds.value.has(userId)
+}
+
+function inviteProviderInitials(name: string) {
+  const parts = (name || '').trim().split(/\s+/).filter(Boolean)
+  if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase()
+  return (name.charAt(0) || 'P').toUpperCase()
+}
+
+function inviteSkillsParam(): string[] | undefined {
+  if (inviteSkillFilter.value === '__all__') return undefined
+  if (inviteSkillFilter.value === '__job__') {
+    const ids = jobSkillOptions.value.map((s) => s.id)
+    return ids.length ? ids : undefined
+  }
+  return [inviteSkillFilter.value]
+}
+
+function setInviteSkillFilter(id: string) {
+  if (inviteSkillFilter.value === id) return
+  inviteSkillFilter.value = id
+  invitePage.value = 1
+  void fetchInviteProviders()
+}
+
+function runInviteSearch() {
+  invitePage.value = 1
+  void fetchInviteProviders()
+}
+
+function onInviteOrderingChange(value: string) {
+  if (!value || value === inviteOrdering.value) return
+  inviteOrdering.value = value
+  invitePage.value = 1
+  void fetchInviteProviders()
+}
+
+function goInvitePage(page: number) {
+  invitePage.value = page
+  void fetchInviteProviders()
+}
+
+function onInvitePageSizeChange(size: number) {
+  invitePageSize.value = size
+  invitePage.value = 1
+  void fetchInviteProviders()
+}
+
+async function fetchInviteProviders() {
+  if (!isJobOwner.value || !jobsStore.currentJob) {
+    inviteProviders.value = []
+    inviteProvidersTotal.value = 0
+    return
+  }
+  inviteProvidersLoading.value = true
+  inviteError.value = ''
+  try {
+    const q = inviteQuery.value.trim() || undefined
+    const res = await profilesService.listPublicProviders({
+      q,
+      search: q,
+      skills: inviteSkillsParam(),
+      ordering: inviteOrdering.value,
+      page: invitePage.value,
+      page_size: invitePageSize.value,
+    })
+    const data = res.data
+    if (Array.isArray(data)) {
+      inviteProviders.value = data
+      inviteProvidersTotal.value = data.length
+    } else {
+      inviteProviders.value = data.results || []
+      inviteProvidersTotal.value = data.count ?? inviteProviders.value.length
+    }
+  } catch (err: any) {
+    console.error('Invite provider search failed', err)
+    inviteProviders.value = []
+    inviteProvidersTotal.value = 0
+    inviteError.value = err.response?.data?.detail || 'Failed to load providers.'
+  } finally {
+    inviteProvidersLoading.value = false
+  }
+}
 
 function getInvitationProviderDisplay(inv: { provider_name?: string; provider_email?: string; provider?: string }) {
   if (inv.provider_name) return inv.provider_name
@@ -526,8 +1049,29 @@ function formatDate(dateString: string) {
   return `${days} day${days > 1 ? 's' : ''} ago`
 }
 
-function formatYear(dateString: string) {
-  return new Date(dateString).getFullYear()
+function formatApplicationStatus(status: string) {
+  const normalized = status.replace(/_/g, ' ').toLowerCase()
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1)
+}
+
+function applicationStatusClass(status: string) {
+  if (status === 'ACCEPTED') return 'bg-emerald-500/10 text-emerald-700'
+  if (status === 'REJECTED') return 'bg-red-500/10 text-red-700'
+  if (status === 'WITHDRAWN') return 'bg-slate-100 text-slate-600'
+  return 'bg-amber/10 text-amber'
+}
+
+function formatAppliedAt(dateString: string) {
+  if (!dateString) return ''
+  return new Date(dateString).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}
+
+function scrollToApplyForm() {
+  document.getElementById('apply-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
 function formatBudgetMax(max?: number) {
@@ -540,18 +1084,62 @@ function formatBudgetMax(max?: number) {
 
 async function handleApply() {
   if (!jobsStore.currentJob) return
-  const rawRate = applicationForm.value.proposed_rate
-  const proposedRate =
-    rawRate !== '' && rawRate != null ? parseFloat(String(rawRate).trim()) : undefined
+
+  applicationErrors.value.message = ''
+  applicationErrors.value.proposed_rate = ''
+
+  const message = (applicationForm.value.message ?? '').trim()
+  const rawRate = String(applicationForm.value.proposed_rate ?? '').trim()
+  let valid = true
+
+  if (!message) {
+    applicationErrors.value.message = 'Message is required'
+    valid = false
+  }
+
+  if (!rawRate) {
+    applicationErrors.value.proposed_rate = 'Proposed rate is required'
+    valid = false
+  } else {
+    const proposedRate = parseFloat(rawRate)
+    if (!Number.isFinite(proposedRate) || proposedRate < 0) {
+      applicationErrors.value.proposed_rate = 'Enter a valid proposed rate'
+      valid = false
+    } else if (jobBudgetCeiling.value != null && proposedRate > jobBudgetCeiling.value) {
+      applicationErrors.value.proposed_rate = `Rate cannot exceed the client budget of Br ${jobBudgetCeiling.value.toLocaleString()}${isHourlyJob.value ? '/hr' : ''}`
+      valid = false
+    }
+  }
+
+  if (!valid) return
+
+  const proposedRate = parseFloat(rawRate)
   try {
-    await jobsStore.createApplication(jobsStore.currentJob.id, {
-      cover_letter: (applicationForm.value.message ?? '').trim(),
-      proposed_rate: proposedRate != null && !Number.isNaN(proposedRate) && proposedRate >= 0 ? proposedRate : undefined,
+    const jobId = jobsStore.currentJob.id
+    await jobsStore.createApplication(jobId, {
+      cover_letter: message,
+      proposed_rate: proposedRate,
     })
-    router.push('/applications')
+    await jobsStore.fetchJob(jobId)
+    toast.success('Application submitted.')
+    applicationForm.value = { message: '', proposed_rate: '' }
   } catch (err: any) {
-    const message = err.response?.data.error || 'Failed to apply for this job. Please try again.'
-    toast.error(message)
+    const data = err.response?.data
+    if (data && typeof data === 'object') {
+      if (data.cover_letter || data.message) {
+        const val = data.cover_letter ?? data.message
+        applicationErrors.value.message = Array.isArray(val) ? val[0] : String(val)
+      }
+      if (data.proposed_rate) {
+        const val = data.proposed_rate
+        applicationErrors.value.proposed_rate = Array.isArray(val) ? val[0] : String(val)
+      }
+      if (!applicationErrors.value.message && !applicationErrors.value.proposed_rate) {
+        toast.error(data.error || 'Failed to apply for this job. Please try again.')
+      }
+    } else {
+      toast.error('Failed to apply for this job. Please try again.')
+    }
   }
 }
 
@@ -623,29 +1211,28 @@ function createContractFromInvitation(inv: { id?: string; provider?: string }) {
   contractLoading.value = null
 }
 
-async function handleInviteProvider() {
+async function inviteProviderById(providerUserId: string) {
   if (!jobsStore.currentJob) return
-  const email = (inviteForm.value.provider_email || '').trim()
-  if (!email) {
-    inviteError.value = 'Provider email is required.'
-    return
-  }
   inviteError.value = ''
-  inviteLoading.value = true
+  inviteLoadingId.value = providerUserId
   try {
     await jobsStore.createInvitation({
       job: jobsStore.currentJob.id,
-      provider_email: email,
-      message: (inviteForm.value.message || '').trim() || undefined,
+      provider: providerUserId,
+      message: inviteMessage.value.trim() || undefined,
     })
-    inviteForm.value = { provider_email: '', message: '' }
     toast.success('Invitation sent successfully.')
     await jobsStore.fetchInvitations()
   } catch (err: any) {
-    inviteError.value = jobsStore.error || err.response?.data?.provider_email?.[0] || err.response?.data?.detail || 'Failed to send invitation.'
+    inviteError.value =
+      jobsStore.error ||
+      err.response?.data?.provider?.[0] ||
+      err.response?.data?.provider_email?.[0] ||
+      err.response?.data?.detail ||
+      'Failed to send invitation.'
     toast.error(inviteError.value)
   } finally {
-    inviteLoading.value = false
+    inviteLoadingId.value = null
   }
 }
 
@@ -653,18 +1240,17 @@ async function loadJob() {
   const jobId = route.params.id as string
   if (!jobId) return
   jobsStore.currentJob = null
+  inviteProviders.value = []
+  inviteProvidersTotal.value = 0
+  inviteSkillFilter.value = '__all__'
+  inviteQuery.value = ''
+  invitePage.value = 1
+  ownerPanelTab.value = 'applications'
   await jobsStore.fetchJob(jobId)
-  const job = jobsStore.currentJob as typeof jobsStore.currentJob
-  console.log('[Job Detail] After fetch – API response:', {
-    jobId,
-    hasJob: !!job,
-    latitude: job != null ? (job as Record<string, unknown>).latitude : undefined,
-    longitude: job != null ? (job as Record<string, unknown>).longitude : undefined,
-    fullJob: job != null ? { ...(job as object) } : null,
-  })
   if (isJobOwner.value) {
     await jobsStore.fetchApplications(jobId)
     await jobsStore.fetchInvitations()
+    await fetchInviteProviders()
   } else if (authStore.isProvider) {
     await jobsStore.fetchInvitations()
   }
@@ -675,70 +1261,4 @@ onMounted(loadJob)
 watch(() => route.params.id, () => {
   if (route.name === 'job-detail') loadJob()
 })
-
-function scheduleMapInit() {
-  if (!hasJobLocation.value) return
-  import('vue').then(({ nextTick }) => {
-    nextTick()
-      .then(() => nextTick())
-      .then(() => setTimeout(initJobDetailMap, 250))
-  })
-}
-
-watch(
-  () => jobsStore.currentJob,
-  (job) => {
-    if (job == null) {
-      return
-    }
-    const j = job as Record<string, unknown>
-    const latRaw = j.latitude
-    const lngRaw = j.longitude
-    const lat = latRaw != null ? Number(latRaw) : undefined
-    const lng = lngRaw != null ? Number(lngRaw) : undefined
-    const hasCoords = lat != null && lng != null && !Number.isNaN(lat) && !Number.isNaN(lng)
-
-    if (!hasCoords) {
-      if (jobDetailMapInstance) {
-        jobDetailMapInstance.remove()
-        jobDetailMapInstance = null
-      }
-      return
-    }
-    scheduleMapInit()
-  },
-  { immediate: true }
-)
-
-watch(jobDetailMapContainer, (el) => {
-  if (el && hasJobLocation.value && !jobDetailMapInstance) {
-    setTimeout(initJobDetailMap, 150)
-  }
-})
 </script>
-
-<style scoped>
-.job-detail-map-wrapper :deep(.leaflet-pane),
-.job-detail-map-wrapper :deep(.leaflet-control) {
-  z-index: 1 !important;
-}
-</style>
-<style>
-/* Global so Leaflet tooltip (rendered in map pane) gets styles in production (e.g. Vercel) */
-.job-detail-map-tooltip.leaflet-tooltip {
-  background: #1f2937;
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  padding: 6px 10px;
-  font-size: 13px;
-  font-weight: 500;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-}
-.job-detail-map-tooltip.leaflet-tooltip-left::before,
-.job-detail-map-tooltip.leaflet-tooltip-right::before,
-.job-detail-map-tooltip.leaflet-tooltip-top::before,
-.job-detail-map-tooltip.leaflet-tooltip-bottom::before {
-  border-color: #1f2937 transparent transparent transparent;
-}
-</style>

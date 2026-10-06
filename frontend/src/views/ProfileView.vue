@@ -1,21 +1,20 @@
 <template>
   <AppLayout>
-    <div class="flex-1 bg-midnight">
-      <main class="flex-1">
-      <section class="bg-midnight pt-8 md:pt-12 pb-12 md:pb-16">
+    <div class="flex-1">
+      <section class="pt-8 md:pt-12 pb-8 md:pb-10 border-b border-slate-200/80">
         <div class="mx-auto max-w-[1400px] px-4 md:px-6 lg:px-10">
           <div v-if="profilesStore.loading" class="flex justify-center py-12">
             <span class="material-symbols-outlined animate-spin text-4xl text-amber">refresh</span>
           </div>
           <div v-else class="flex flex-col md:flex-row items-center gap-10">
             <div class="relative group">
-              <div class="h-40 w-40 md:h-52 md:w-52 rounded-2xl ring-4 ring-amber/20 overflow-hidden shadow-2xl shadow-amber/5 relative">
+              <div class="h-40 w-40 md:h-52 md:w-52 rounded-2xl ring-4 ring-amber/20 overflow-hidden shadow-lg relative bg-white border border-gray-100">
                 <div
                   class="h-full w-full bg-cover bg-center transition-transform duration-500 group-hover:scale-110"
                   :style="{
                     backgroundImage: profilePictureUrl
                       ? `url(${profilePictureUrl})`
-                      : 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
+                      : 'linear-gradient(135deg, #e2e8f0 0%, #f8fafc 100%)',
                   }"
                 >
                   <div v-if="!profilePictureUrl" class="h-full w-full flex items-center justify-center text-amber text-6xl font-black">
@@ -50,7 +49,7 @@
             </div>
             <div class="flex-1 text-center md:text-left">
               <div class="flex flex-col md:flex-row md:items-center gap-3 md:gap-4">
-                <h1 class="text-3xl md:text-4xl lg:text-5xl font-extrabold tracking-tight text-white">
+                <h1 class="text-3xl md:text-4xl lg:text-5xl font-extrabold tracking-tight text-midnight">
                   {{ fullName }}
                 </h1>
                 <div class="flex items-center justify-center md:justify-start gap-2 flex-wrap">
@@ -60,17 +59,8 @@
                   >
                     ELITE PRO
                   </span>
-                  <span
-                    v-if="primarySkill"
-                    class="inline-flex items-center rounded-lg bg-white/5 px-3 py-1 text-sm font-bold text-slate-400"
-                  >
-                    {{ primarySkill }}
-                  </span>
                 </div>
               </div>
-              <p v-if="profilesStore.profile?.bio" class="mt-3 md:mt-4 text-base md:text-lg lg:text-xl text-slate-400 max-w-2xl font-medium">
-                {{ profilesStore.profile.bio }}
-              </p>
               <div class="mt-4 md:mt-6 flex flex-wrap items-center justify-center md:justify-start gap-4 md:gap-6">
                 <div v-if="ratingStats && (ratingStats.average_rating != null || ratingStats.total_ratings != null)" class="flex items-center gap-3">
                   <div class="flex text-amber">
@@ -78,23 +68,23 @@
                       v-for="i in 5"
                       :key="i"
                       class="material-symbols-outlined filled text-2xl"
-                      :class="i <= Math.round(ratingStats.average_rating ?? 0) ? 'text-amber' : 'text-slate-600'"
+                      :class="i <= Math.round(ratingStats.average_rating ?? 0) ? 'text-amber' : 'text-slate-300'"
                     >
                       star
                     </span>
                   </div>
                   <div class="flex items-baseline gap-1">
-                    <span class="text-2xl font-black text-white">{{ (ratingStats.average_rating ?? 0).toFixed(1) }}</span>
-                    <span class="text-sm text-slate-400 font-semibold">({{ ratingStats.total_ratings ?? 0 }} Reviews)</span>
+                    <span class="text-2xl font-black text-midnight">{{ (ratingStats.average_rating ?? 0).toFixed(1) }}</span>
+                    <span class="text-sm text-slate-500 font-semibold">({{ ratingStats.total_ratings ?? 0 }} Reviews)</span>
                   </div>
                 </div>
-                <div v-if="ratingStats && (ratingStats.average_rating != null || ratingStats.total_ratings != null)" class="h-6 w-px bg-white/10"></div>
-                <div v-if="location" class="flex items-center gap-2 text-slate-400">
+                <div v-if="ratingStats && (ratingStats.average_rating != null || ratingStats.total_ratings != null)" class="h-6 w-px bg-slate-200"></div>
+                <div v-if="location" class="flex items-center gap-2 text-slate-500">
                   <span class="material-symbols-outlined text-amber">location_on</span>
                   <span class="font-semibold text-sm tracking-wide uppercase">{{ location }}</span>
                 </div>
-                <div v-if="profilesStore.providerProfile?.years_of_experience" class="h-6 w-px bg-white/10"></div>
-                <div v-if="profilesStore.providerProfile?.years_of_experience" class="flex items-center gap-2 text-slate-400">
+                <div v-if="profilesStore.providerProfile?.years_of_experience" class="h-6 w-px bg-slate-200"></div>
+                <div v-if="profilesStore.providerProfile?.years_of_experience" class="flex items-center gap-2 text-slate-500">
                   <span class="material-symbols-outlined text-amber">workspace_premium</span>
                   <span class="font-semibold text-sm tracking-wide">{{ profilesStore.providerProfile.years_of_experience }}+ YEARS EXP</span>
                 </div>
@@ -131,14 +121,6 @@
                         <Label class="text-slate-300">Location</Label>
                         <Input v-model="editForm.location" class="bg-white/5 border-white/10 text-white" />
                       </FormField>
-                      <FormField :error="editErrors.bio">
-                        <Label class="text-slate-300">Bio</Label>
-                        <textarea
-                          v-model="editForm.bio"
-                          class="w-full rounded-xl border border-white/10 bg-white/5 text-white p-4 min-h-[100px] focus:ring-2 focus:ring-amber/40"
-                          placeholder="Tell clients about yourself..."
-                        ></textarea>
-                      </FormField>
                     </form>
                     <DialogFooter>
                       <DialogClose as-child>
@@ -158,7 +140,7 @@
       <div class="mx-auto max-w-[1400px] px-4 md:px-6 lg:px-10 py-8 md:py-12">
         <div class="flex flex-col lg:flex-row gap-8 md:gap-12">
           <div class="flex-1">
-            <div class="mb-6 md:mb-10 border-b border-white/5">
+            <div class="mb-6 md:mb-10 border-b border-slate-200">
               <nav class="flex gap-6 md:gap-10 overflow-x-auto">
                 <template v-if="authStore.isProvider">
                   <button
@@ -166,7 +148,7 @@
                     :key="tab"
                     :class="[
                       'relative pb-3 md:pb-4 text-sm md:text-base font-semibold transition-colors whitespace-nowrap capitalize',
-                      activeTab === tab ? 'text-amber' : 'text-slate-400 hover:text-white',
+                      activeTab === tab ? 'text-amber' : 'text-slate-500 hover:text-midnight',
                     ]"
                     @click="onTabClick(tab)"
                   >
@@ -181,7 +163,7 @@
                   <button
                     :class="[
                       'relative pb-3 md:pb-4 text-sm md:text-base font-semibold transition-colors whitespace-nowrap',
-                      activeTab === 'jobs' ? 'text-amber' : 'text-slate-400 hover:text-white',
+                      activeTab === 'jobs' ? 'text-amber' : 'text-slate-500 hover:text-midnight',
                     ]"
                     @click="onTabClick('jobs')"
                   >
@@ -196,10 +178,10 @@
             </div>
             <!-- Provider: Portfolio (experiences) -->
             <section v-if="authStore.isProvider && activeTab === 'portfolio'">
-              <Card class="bg-midnight-light border-white/10">
+              <Card class="bg-white border border-gray-100 shadow-sm rounded-2xl">
                 <CardContent class="p-8">
                   <div class="flex items-center justify-between mb-4">
-                    <h3 class="text-xl font-bold text-white">Portfolio</h3>
+                    <h3 class="text-xl font-bold text-midnight">Portfolio</h3>
                     <Dialog v-model:open="showAddExperience" @update:open="(v: boolean) => !v && resetExpForm()">
                       <DialogTrigger as-child>
                         <Button variant="outline" size="default" class="border-amber/30 text-amber">
@@ -259,11 +241,11 @@
                     >
                       <div>
                         <div class="flex items-baseline gap-2 mb-1">
-                          <h5 class="font-bold text-white">{{ exp.title }}</h5>
-                          <span v-if="exp.company_name" class="text-slate-400 text-sm">{{ exp.company_name }}</span>
+                          <h5 class="font-bold text-midnight">{{ exp.title }}</h5>
+                          <span v-if="exp.company_name" class="text-slate-500 text-sm">{{ exp.company_name }}</span>
                         </div>
-                        <p v-if="exp.description" class="text-slate-400 text-sm">{{ exp.description }}</p>
-                        <p class="text-slate-500 text-xs mt-1">
+                        <p v-if="exp.description" class="text-slate-500 text-sm">{{ exp.description }}</p>
+                        <p class="text-slate-400 text-xs mt-1">
                           {{ formatDate(exp.start_date) }} - {{ exp.is_current ? 'Present' : formatDate(exp.end_date || '') }}
                         </p>
                       </div>
@@ -271,22 +253,22 @@
                         v-if="exp.id"
                         variant="ghost"
                         size="sm"
-                        class="text-red-400/80 hover:text-red-400 hover:bg-red-500/10 flex-shrink-0"
+                        class="text-red-500/80 hover:text-red-600 hover:bg-red-50 flex-shrink-0"
                         @click="deleteExperience(exp.id)"
                       >
                         <span class="material-symbols-outlined text-sm">delete</span>
                       </Button>
                     </div>
                   </div>
-                  <p v-else class="text-slate-400">No portfolio items yet. Add your experience above.</p>
+                  <p v-else class="text-slate-500">No portfolio items yet. Add your experience above.</p>
                 </CardContent>
               </Card>
             </section>
             <!-- Provider: Services (skills) -->
             <section v-if="authStore.isProvider && activeTab === 'services'">
-              <Card class="bg-midnight-light border-white/10">
+              <Card class="bg-white border border-gray-100 shadow-sm rounded-2xl">
                 <CardContent class="p-8">
-                  <h3 class="text-xl font-bold text-white mb-4">Services</h3>
+                  <h3 class="text-xl font-bold text-midnight mb-4">Services</h3>
                   <div v-if="providerSkills.length > 0" class="flex flex-wrap gap-2.5 mb-4">
                     <span
                       v-for="tag in providerSkills"
@@ -296,7 +278,7 @@
                       {{ tag.name }}
                       <button
                         type="button"
-                        class="ml-1 text-slate-400 hover:text-red-400"
+                        class="ml-1 text-slate-400 hover:text-red-500"
                         aria-label="Remove skill"
                         @click="removeSkill(tag.id)"
                       >
@@ -306,9 +288,9 @@
                   </div>
                   <div class="flex flex-wrap items-end gap-2 mb-4">
                     <div class="min-w-[200px]">
-                      <Label class="text-slate-300 block mb-2">Add skill from list</Label>
+                      <Label class="text-slate-700 block mb-2">Add skill from list</Label>
                       <Select v-model="selectedSkillId">
-                        <SelectTrigger class="w-full bg-white/5 border-white/10 text-white">
+                        <SelectTrigger class="w-full bg-white border-slate-200 text-midnight">
                           <SelectValue placeholder="Select a skill..." />
                         </SelectTrigger>
                         <SelectContent>
@@ -329,11 +311,11 @@
                   </div>
                   <div class="flex flex-wrap items-end gap-2">
                     <div>
-                      <Label class="text-slate-300 block mb-2">Or create new skill</Label>
+                      <Label class="text-slate-700 block mb-2">Or create new skill</Label>
                       <Input
                         v-model="newSkillName"
                         placeholder="e.g. Plumbing, Electrical"
-                        class="bg-white/5 border-white/10 text-white min-w-[200px]"
+                        class="bg-white border-slate-200 text-midnight min-w-[200px]"
                         @keydown.enter.prevent="addNewSkill()"
                       />
                     </div>
@@ -341,7 +323,7 @@
                       Create &amp; Add
                     </Button>
                   </div>
-                  <p v-if="providerSkills.length === 0" class="text-slate-400 mt-4">Add skills above to show your services.</p>
+                  <p v-if="providerSkills.length === 0" class="text-slate-500 mt-4">Add skills above to show your services.</p>
                 </CardContent>
               </Card>
             </section>
@@ -350,8 +332,8 @@
               <div v-if="profileContractsLoading" class="flex justify-center py-12">
                 <span class="material-symbols-outlined animate-spin text-4xl text-amber">refresh</span>
               </div>
-              <div v-else-if="profileContractsList.length === 0" class="text-center py-12 rounded-2xl border border-white/10 bg-midnight-light">
-                <p class="text-slate-400 mb-4">{{ authStore.isClient ? 'No jobs with contracts yet' : 'No hired jobs yet' }}</p>
+              <div v-else-if="profileContractsList.length === 0" class="text-center py-12 rounded-2xl border border-gray-100 bg-white shadow-sm">
+                <p class="text-slate-500 mb-4">{{ authStore.isClient ? 'No jobs with contracts yet' : 'No hired jobs yet' }}</p>
                 <router-link v-if="authStore.isClient" to="/jobs/create">
                   <Button variant="outline" class="border-amber/30 text-amber">Post a job</Button>
                 </router-link>
@@ -360,44 +342,44 @@
                 <Card
                   v-for="c in profileContractsList"
                   :key="c.id"
-                  class="bg-midnight-light border-white/10"
+                  class="bg-white border border-gray-100 shadow-sm rounded-2xl"
                 >
                   <CardContent class="p-6">
                     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                       <div class="min-w-0">
-                        <router-link :to="c.job ? `/jobs/${c.job}` : '#'" class="text-lg font-bold text-white hover:text-amber transition-colors line-clamp-1">
+                        <router-link :to="c.job ? `/jobs/${c.job}` : '#'" class="text-lg font-bold text-midnight hover:text-amber transition-colors line-clamp-1">
                           {{ c.job_title || 'Job' }}
                         </router-link>
                         <span
                           :class="[
                             'inline-block mt-2 text-[10px] font-bold px-2 py-0.5 rounded uppercase',
-                            c.status === 'ACTIVE' ? 'bg-amber/20 text-amber' : c.status === 'COMPLETED' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-500/20 text-slate-400',
+                            c.status === 'ACTIVE' ? 'bg-amber/20 text-amber' : c.status === 'COMPLETED' ? 'bg-emerald-500/10 text-emerald-700' : 'bg-slate-100 text-slate-600',
                           ]"
                         >
                           {{ c.status === 'ACTIVE' ? 'Active' : c.status === 'COMPLETED' ? 'Completed' : c.status.replace(/_/g, ' ') }}
                         </span>
                       </div>
                       <router-link v-if="c.job" :to="`/contracts/${c.id}`">
-                        <Button variant="outline" size="sm" class="border-white/20 text-slate-300 hover:text-white">
+                        <Button variant="outline" size="sm" class="border-slate-200 text-slate-600 hover:text-midnight">
                           View contract
                         </Button>
                       </router-link>
                     </div>
-                    <div v-if="c.status === 'COMPLETED' && contractReviewByContractId[c.id]" class="mt-4 pt-4 border-t border-white/10">
+                    <div v-if="c.status === 'COMPLETED' && contractReviewByContractId[c.id]" class="mt-4 pt-4 border-t border-slate-100">
                       <div class="flex items-center gap-2 mb-2">
                         <div class="flex text-amber">
                           <span
                             v-for="i in 5"
                             :key="i"
                             class="material-symbols-outlined filled text-lg"
-                            :class="i <= (contractReviewByContractId[c.id].score ?? 0) ? 'text-amber' : 'text-slate-600'"
+                            :class="i <= (contractReviewByContractId[c.id].score ?? 0) ? 'text-amber' : 'text-slate-300'"
                           >
                             star
                           </span>
                         </div>
-                        <span class="text-slate-400 text-sm">{{ formatDate(contractReviewByContractId[c.id].created_at) }}</span>
+                        <span class="text-slate-500 text-sm">{{ formatDate(contractReviewByContractId[c.id].created_at) }}</span>
                       </div>
-                      <p v-if="contractReviewByContractId[c.id].comment" class="text-slate-300 text-sm">{{ contractReviewByContractId[c.id].comment }}</p>
+                      <p v-if="contractReviewByContractId[c.id].comment" class="text-slate-600 text-sm">{{ contractReviewByContractId[c.id].comment }}</p>
                     </div>
                   </CardContent>
                 </Card>
@@ -406,26 +388,9 @@
           </div>
           <aside class="w-full lg:w-[380px]">
             <div class="lg:sticky lg:top-28 space-y-6 md:space-y-8">
-              <Card v-if="(profilesStore.providerProfile?.skills && profilesStore.providerProfile.skills.length > 0) || skillTags.length > 0" class="bg-midnight-light border-white/10">
-                <CardContent class="p-8">
-                  <h3 class="text-sm font-black uppercase tracking-widest text-slate-400 mb-6 flex items-center gap-2">
-                    <span class="w-8 h-px bg-white/10"></span>
-                    Core Expertise
-                  </h3>
-                  <div class="flex flex-wrap gap-2.5">
-                    <span
-                      v-for="tag in (profilesStore.providerProfile?.skills || skillTags).slice(0, 6)"
-                      :key="tag.id"
-                      class="rounded-xl bg-amber/10 border border-amber/20 px-4 py-2 text-sm font-bold text-amber"
-                    >
-                      {{ tag.name }}
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
               <Card
                 v-if="profilesStore.providerProfile?.hourly_rate"
-                class="bg-gradient-to-br from-amber to-amber-soft p-8 shadow-2xl shadow-amber/20 text-midnight"
+                class="bg-gradient-to-br from-amber to-amber-soft p-8 shadow-lg shadow-amber/20 text-midnight rounded-2xl"
               >
                 <div class="flex items-baseline justify-between mb-6">
                   <span class="text-sm font-bold uppercase tracking-widest opacity-70">Premium Rate</span>
@@ -448,23 +413,23 @@
                   Secure Booking
                 </Button>
               </Card>
-              <Card class="bg-midnight-light border-white/10">
+              <Card class="bg-white border border-gray-100 shadow-sm rounded-2xl">
                 <CardContent class="p-8">
-                  <h3 class="text-sm font-black uppercase tracking-widest text-slate-400 mb-6 flex items-center gap-2">
+                  <h3 class="text-sm font-black uppercase tracking-widest text-slate-500 mb-6 flex items-center gap-2">
                     <span class="material-symbols-outlined text-amber text-lg">account_balance_wallet</span>
                     Payments &amp; Payouts
                   </h3>
                   <div v-if="authStore.isProvider || authStore.user?.user_type === 'BOTH'" class="space-y-4">
-                    <div v-if="stripeConnectLoading" class="flex items-center gap-2 text-slate-400">
+                    <div v-if="stripeConnectLoading" class="flex items-center gap-2 text-slate-500">
                       <span class="material-symbols-outlined animate-spin">refresh</span>
                       <span class="text-sm">Loading...</span>
                     </div>
                     <template v-else-if="stripeConnectStatus?.has_account">
-                      <div class="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/10">
-                        <span class="material-symbols-outlined text-emerald-500 text-2xl">check_circle</span>
+                      <div class="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200">
+                        <span class="material-symbols-outlined text-emerald-600 text-2xl">check_circle</span>
                         <div>
-                          <p class="font-bold text-white">Stripe connected</p>
-                          <p class="text-xs text-slate-400">
+                          <p class="font-bold text-midnight">Stripe connected</p>
+                          <p class="text-xs text-slate-500">
                             {{ stripeConnectStatus.enabled ? 'Ready to receive payments' : 'Complete onboarding to receive payments' }}
                           </p>
                         </div>
@@ -473,7 +438,7 @@
                         <Button
                           variant="outline"
                           size="sm"
-                          class="w-full border-white/20 text-slate-300 hover:text-white"
+                          class="w-full border-slate-200 text-slate-600 hover:text-midnight"
                           :disabled="stripeDashboardLoading"
                           @click="openStripeDashboard"
                         >
@@ -483,7 +448,7 @@
                       </div>
                     </template>
                     <template v-else>
-                      <p class="text-slate-400 text-sm">Connect your Stripe account to receive payments from clients securely.</p>
+                      <p class="text-slate-500 text-sm">Connect your Stripe account to receive payments from clients securely.</p>
                       <Button
                         variant="default"
                         size="default"
@@ -498,9 +463,9 @@
                     </template>
                   </div>
                   <div v-else class="space-y-2">
-                    <p class="text-slate-400 text-sm">Payment is collected securely at checkout when you pay for contract milestones.</p>
+                    <p class="text-slate-500 text-sm">Payment is collected securely at checkout when you pay for contract milestones.</p>
                     <router-link to="/payments">
-                      <Button variant="outline" size="sm" class="w-full border-white/20 text-slate-300 hover:text-white">
+                      <Button variant="outline" size="sm" class="w-full border-slate-200 text-slate-600 hover:text-midnight">
                         <span class="material-symbols-outlined mr-2 text-lg">receipt_long</span>
                         View payment history
                       </Button>
@@ -508,30 +473,30 @@
                   </div>
                 </CardContent>
               </Card>
-              <Card class="bg-midnight-light border-white/10">
+              <Card class="bg-white border border-gray-100 shadow-sm rounded-2xl">
                 <CardContent class="p-8">
-                  <h3 class="text-sm font-black uppercase tracking-widest text-slate-400 mb-6">Verified Credentials</h3>
+                  <h3 class="text-sm font-black uppercase tracking-widest text-slate-500 mb-6">Verified Credentials</h3>
                   <div class="space-y-6">
                     <div v-if="profilesStore.providerProfile?.certifications && profilesStore.providerProfile.certifications.length > 0" class="flex gap-4">
-                      <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white/5 text-amber">
+                      <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-amber/10 text-amber">
                         <span class="material-symbols-outlined">badge</span>
                       </div>
                       <div>
-                        <p class="font-bold text-white">{{ profilesStore.providerProfile.certifications.length }} Certification(s)</p>
-                        <p class="text-xs text-slate-400 mt-0.5">Verified Professional</p>
+                        <p class="font-bold text-midnight">{{ profilesStore.providerProfile.certifications.length }} Certification(s)</p>
+                        <p class="text-xs text-slate-500 mt-0.5">Verified Professional</p>
                       </div>
                     </div>
                     <div v-if="profilesStore.profile?.is_verified" class="flex gap-4">
-                      <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white/5 text-amber">
+                      <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-amber/10 text-amber">
                         <span class="material-symbols-outlined">shield_moon</span>
                       </div>
                       <div>
-                        <p class="font-bold text-white">Verified Profile</p>
-                        <p class="text-xs text-slate-400 mt-0.5">Identity Verified</p>
+                        <p class="font-bold text-midnight">Verified Profile</p>
+                        <p class="text-xs text-slate-500 mt-0.5">Identity Verified</p>
                       </div>
                     </div>
                     <div v-if="!profilesStore.providerProfile?.certifications?.length && !profilesStore.profile?.is_verified" class="text-center py-4">
-                      <p class="text-slate-400 text-sm">No verified credentials yet</p>
+                      <p class="text-slate-500 text-sm">No verified credentials yet</p>
                     </div>
                   </div>
                 </CardContent>
@@ -540,11 +505,9 @@
           </aside>
         </div>
       </div>
-      </main>
     </div>
   </AppLayout>
 </template>
-
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
@@ -585,7 +548,6 @@ const editForm = ref({
   last_name: '',
   phone_number: '',
   location: '',
-  bio: '',
 })
 const editErrors = ref<Record<string, string>>({})
 const expForm = ref({
@@ -643,11 +605,6 @@ const profilePictureUrl = computed(() => {
 
 const location = computed(() => {
   return profilesStore.profile?.location?.toUpperCase() || null
-})
-
-const primarySkill = computed(() => {
-  const skills = skillTags.value
-  return skills.length > 0 ? skills[0].name : null
 })
 
 const skillTags = computed(() => {
@@ -808,7 +765,6 @@ function initEditForm() {
       last_name: p.last_name || '',
       phone_number: p.phone_number || '',
       location: p.location || '',
-      bio: p.bio || '',
     }
     editErrors.value = {}
   }

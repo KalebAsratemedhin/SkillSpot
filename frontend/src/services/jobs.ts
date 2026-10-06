@@ -1,6 +1,29 @@
 import api from './api'
 import { AxiosResponse } from 'axios'
 
+export interface JobClientProfile {
+  id: string
+  full_name: string
+  email: string
+  avatar: string | null
+  location: string
+  member_since: string
+}
+
+export interface JobClientRating {
+  average: number | null
+  count: number
+}
+
+/** Current user's application to this job (providers only; null if none). */
+export interface JobMyApplication {
+  id: string
+  status: string
+  cover_letter: string
+  proposed_rate: string | number
+  applied_at: string
+}
+
 export interface Job {
   id: string
   title: string
@@ -15,6 +38,9 @@ export interface Job {
   client: string
   client_name?: string
   client_email?: string
+  client_profile?: JobClientProfile | null
+  client_rating?: JobClientRating | null
+  my_application?: JobMyApplication | null
   created_at: string
   updated_at: string
   tags?: string[]
@@ -33,12 +59,22 @@ export interface JobApplication {
   provider: string
   provider_name?: string
   provider_email?: string
+  provider_summary?: {
+    user_id: string
+    full_name: string
+    avatar: string | null
+    location: string
+    hourly_rate: string | null
+    is_verified: boolean
+    rating: { average: number | null; count: number }
+  } | null
   message?: string
   cover_letter?: string
   proposed_rate?: number
   status: string
   created_at: string
   applied_at?: string
+  reviewed_at?: string
 }
 
 export interface JobInvitation {
@@ -57,12 +93,16 @@ export interface JobListParams {
   category?: string
   location?: string
   status?: string
+  /** Preferred search param (backend also accepts `search`) */
+  q?: string
   search?: string
   page?: number
   page_size?: number
   skill?: string
+  skills?: string
   budget_min?: number
   budget_max?: number
+  payment_schedule?: 'HOURLY' | 'FIXED' | string
   ordering?: string
   /** When true (and user is client), returns only the current user's jobs including completed/cancelled */
   my_jobs?: boolean
@@ -70,9 +110,11 @@ export interface JobListParams {
 
 export const jobsService = {
   list(params?: JobListParams): Promise<AxiosResponse<{ results: Job[], count: number, next?: string, previous?: string }>> {
-    const { my_jobs, ...rest } = params ?? {}
+    const { my_jobs, q, search, ...rest } = params ?? {}
     const requestParams = { ...rest } as Record<string, string | number | undefined>
     if (my_jobs === true) requestParams.my_jobs = 'true'
+    const query = (q || search || '').trim()
+    if (query) requestParams.q = query
     return api.get('/jobs/', { params: requestParams })
   },
   get(id: string): Promise<AxiosResponse<Job>> {

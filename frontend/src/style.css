@@ -69,3 +69,58 @@
   display: inline-block;
   vertical-align: middle;
 }
+
+/* Leaflet — keep under app chrome; parent uses `isolate` so pane z-indexes stay local. */
+.leaflet-container {
+  z-index: 0;
+  height: 100%;
+  width: 100%;
+  min-height: 12rem;
+  font: inherit;
+  background: #e2e8f0;
+}
+
+.ss-map-pin {
+  background: transparent !important;
+  border: none !important;
+}
+
+.ss-map-pin-inner {
+  display: block;
+  position: relative;
+  width: 22px;
+  height: 22px;
+  margin: 4px auto 0;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  background: #f59e0b;
+  box-shadow:
+    0 0 0 3px rgba(245, 158, 11, 0.35),
+    0 10px 24px rgba(15, 23, 42, 0.25);
+}
+
+.ss-map-pin-inner::after {
+  content: '';
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #0f172a;
+}
+
+.ss-map-tooltip.leaflet-tooltip {
+  background: #1f2937;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.ss-map-tooltip.leaflet-tooltip-top::before {
+  border-top-color: #1f2937;
+}
