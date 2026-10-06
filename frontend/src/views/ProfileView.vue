@@ -147,12 +147,12 @@
                     v-for="tab in profileTabs"
                     :key="tab"
                     :class="[
-                      'relative pb-3 md:pb-4 text-sm md:text-base font-semibold transition-colors whitespace-nowrap capitalize',
+                      'relative pb-3 md:pb-4 text-sm md:text-base font-semibold transition-colors whitespace-nowrap',
                       activeTab === tab ? 'text-amber' : 'text-slate-500 hover:text-midnight',
                     ]"
                     @click="onTabClick(tab)"
                   >
-                    {{ tab }}
+                    {{ profileTabLabel(tab) }}
                     <span
                       v-if="activeTab === tab"
                       class="absolute bottom-0 left-0 h-1 w-full bg-amber rounded-t-full"
@@ -176,17 +176,22 @@
                 </template>
               </nav>
             </div>
-            <!-- Provider: Portfolio (experiences) -->
+            <!-- Provider: Experience -->
             <section v-if="authStore.isProvider && activeTab === 'portfolio'">
               <Card class="bg-white border border-gray-100 shadow-sm rounded-2xl">
-                <CardContent class="p-8">
-                  <div class="flex items-center justify-between mb-4">
-                    <h3 class="text-xl font-bold text-midnight">Portfolio</h3>
+                <CardContent class="p-6 md:p-8">
+                  <div class="flex items-center justify-between gap-3 mb-6">
+                    <div>
+                      <h3 class="text-lg md:text-xl font-bold text-midnight">Experience</h3>
+                      <p class="text-sm text-slate-500 mt-0.5">
+                        {{ experienceList.length ? `${experienceList.length} role${experienceList.length === 1 ? '' : 's'}` : 'Roles and projects you have worked on' }}
+                      </p>
+                    </div>
                     <Dialog v-model:open="showAddExperience" @update:open="(v: boolean) => !v && resetExpForm()">
                       <DialogTrigger as-child>
-                        <Button variant="outline" size="default" class="border-amber/30 text-amber">
-                          <span class="material-symbols-outlined text-lg mr-1">add</span>
-                          Add experience
+                        <Button variant="outline" size="sm" class="border-slate-200 text-midnight shrink-0">
+                          <span class="material-symbols-outlined text-base mr-1">add</span>
+                          Add
                         </Button>
                       </DialogTrigger>
                       <DialogContent class="sm:max-w-[480px]">
@@ -233,97 +238,156 @@
                       </DialogContent>
                     </Dialog>
                   </div>
-                  <div v-if="(profilesStore.providerProfile?.experiences || profilesStore.experiences).length > 0" class="space-y-4">
+
+                  <div v-if="experienceList.length" class="relative space-y-0">
                     <div
-                      v-for="exp in (profilesStore.providerProfile?.experiences || profilesStore.experiences)"
+                      v-for="(exp, index) in experienceList"
                       :key="exp.id"
-                      class="border-l-2 border-amber/30 pl-4 py-2 flex items-start justify-between gap-4"
+                      class="relative flex gap-4 pb-6 last:pb-0"
                     >
-                      <div>
-                        <div class="flex items-baseline gap-2 mb-1">
-                          <h5 class="font-bold text-midnight">{{ exp.title }}</h5>
-                          <span v-if="exp.company_name" class="text-slate-500 text-sm">{{ exp.company_name }}</span>
-                        </div>
-                        <p v-if="exp.description" class="text-slate-500 text-sm">{{ exp.description }}</p>
-                        <p class="text-slate-400 text-xs mt-1">
-                          {{ formatDate(exp.start_date) }} - {{ exp.is_current ? 'Present' : formatDate(exp.end_date || '') }}
-                        </p>
+                      <div class="flex flex-col items-center pt-1.5">
+                        <span
+                          class="size-2.5 rounded-full shrink-0"
+                          :class="exp.is_current ? 'bg-amber' : 'bg-slate-300'"
+                        />
+                        <span
+                          v-if="index < experienceList.length - 1"
+                          class="w-px flex-1 mt-1 bg-slate-200"
+                        />
                       </div>
-                      <Button
-                        v-if="exp.id"
-                        variant="ghost"
-                        size="sm"
-                        class="text-red-500/80 hover:text-red-600 hover:bg-red-50 flex-shrink-0"
-                        @click="deleteExperience(exp.id)"
-                      >
-                        <span class="material-symbols-outlined text-sm">delete</span>
-                      </Button>
+                      <div class="flex-1 min-w-0 group rounded-xl border border-transparent hover:border-slate-100 hover:bg-slate-50/80 -mt-1 px-3 py-2 transition-colors">
+                        <div class="flex items-start justify-between gap-3">
+                          <div class="min-w-0">
+                            <h5 class="font-semibold text-midnight leading-snug">{{ exp.title }}</h5>
+                            <p v-if="exp.company_name" class="text-sm text-slate-600 mt-0.5">{{ exp.company_name }}</p>
+                            <p class="text-xs text-slate-400 mt-1.5">
+                              {{ formatDate(exp.start_date) }}
+                              –
+                              {{ exp.is_current ? 'Present' : formatDate(exp.end_date || '') }}
+                              <span
+                                v-if="exp.is_current"
+                                class="ml-2 inline-flex items-center rounded-md bg-amber/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber"
+                              >Current</span>
+                            </p>
+                            <p v-if="exp.description" class="text-sm text-slate-500 mt-2 leading-relaxed">{{ exp.description }}</p>
+                          </div>
+                          <button
+                            v-if="exp.id"
+                            type="button"
+                            class="size-8 grid place-items-center rounded-lg text-slate-400 opacity-0 group-hover:opacity-100 hover:bg-red-50 hover:text-red-600 transition-all shrink-0"
+                            aria-label="Remove experience"
+                            @click="deleteExperience(exp.id)"
+                          >
+                            <span class="material-symbols-outlined text-lg">delete</span>
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                  <p v-else class="text-slate-500">No portfolio items yet. Add your experience above.</p>
+
+                  <div v-else class="rounded-xl border border-dashed border-slate-200 bg-slate-50/50 px-6 py-10 text-center">
+                    <span class="material-symbols-outlined text-3xl text-slate-300 mb-2">work_history</span>
+                    <p class="text-sm font-medium text-slate-600">No experience added yet</p>
+                    <p class="text-xs text-slate-400 mt-1">Add past roles so clients can see your background.</p>
+                  </div>
                 </CardContent>
               </Card>
             </section>
+
             <!-- Provider: Services (skills) -->
             <section v-if="authStore.isProvider && activeTab === 'services'">
               <Card class="bg-white border border-gray-100 shadow-sm rounded-2xl">
-                <CardContent class="p-8">
-                  <h3 class="text-xl font-bold text-midnight mb-4">Services</h3>
-                  <div v-if="providerSkills.length > 0" class="flex flex-wrap gap-2.5 mb-4">
+                <CardContent class="p-6 md:p-8">
+                  <div class="mb-6">
+                    <h3 class="text-lg md:text-xl font-bold text-midnight">Services</h3>
+                    <p class="text-sm text-slate-500 mt-0.5">
+                      {{ providerSkills.length ? `${providerSkills.length} skill${providerSkills.length === 1 ? '' : 's'} listed` : 'Skills clients can hire you for' }}
+                    </p>
+                  </div>
+
+                  <div v-if="providerSkills.length > 0" class="flex flex-wrap gap-2 mb-6">
                     <span
                       v-for="tag in providerSkills"
                       :key="tag.id"
-                      class="inline-flex items-center gap-1 rounded-xl bg-amber/10 border border-amber/20 px-4 py-2 text-sm font-bold text-amber"
+                      class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 pl-3 pr-1.5 py-1.5 text-sm font-medium text-midnight"
                     >
                       {{ tag.name }}
                       <button
                         type="button"
-                        class="ml-1 text-slate-400 hover:text-red-500"
+                        class="size-6 grid place-items-center rounded-md text-slate-400 hover:bg-white hover:text-red-600 transition-colors"
                         aria-label="Remove skill"
                         @click="removeSkill(tag.id)"
                       >
-                        <span class="material-symbols-outlined text-sm">close</span>
+                        <span class="material-symbols-outlined text-base">close</span>
                       </button>
                     </span>
                   </div>
-                  <div class="flex flex-wrap items-end gap-2 mb-4">
-                    <div class="min-w-[200px]">
-                      <Label class="text-slate-700 block mb-2">Add skill from list</Label>
-                      <Select v-model="selectedSkillId">
-                        <SelectTrigger class="w-full bg-white border-slate-200 text-midnight">
-                          <SelectValue placeholder="Select a skill..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem
-                            v-for="tag in availableSkillsToAdd"
-                            :key="tag.id"
-                            :value="tag.id"
-                            class="rounded-lg focus:bg-slate-100 focus:text-slate-900"
-                          >
-                            {{ tag.name }}
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <Button type="button" variant="default" size="default" class="bg-amber text-midnight" :disabled="!selectedSkillId" @click="addSkill()">
-                      Add
-                    </Button>
+
+                  <div v-else class="rounded-xl border border-dashed border-slate-200 bg-slate-50/50 px-6 py-8 text-center mb-6">
+                    <span class="material-symbols-outlined text-3xl text-slate-300 mb-2">handyman</span>
+                    <p class="text-sm font-medium text-slate-600">No services listed</p>
+                    <p class="text-xs text-slate-400 mt-1">Add skills so your profile shows up in the right searches.</p>
                   </div>
-                  <div class="flex flex-wrap items-end gap-2">
-                    <div>
-                      <Label class="text-slate-700 block mb-2">Or create new skill</Label>
-                      <Input
-                        v-model="newSkillName"
-                        placeholder="e.g. Plumbing, Electrical"
-                        class="bg-white border-slate-200 text-midnight min-w-[200px]"
-                        @keydown.enter.prevent="addNewSkill()"
-                      />
+
+                  <div class="rounded-xl border border-slate-200 bg-slate-50/40 p-4 space-y-4">
+                    <div class="flex flex-col sm:flex-row sm:items-end gap-2">
+                      <div class="flex-1 min-w-0">
+                        <Label class="text-slate-700 text-sm mb-1.5 block">Add from list</Label>
+                        <Select v-model="selectedSkillId">
+                          <SelectTrigger class="w-full bg-white border-slate-200 text-midnight">
+                            <SelectValue placeholder="Select a skill…" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem
+                              v-for="tag in availableSkillsToAdd"
+                              :key="tag.id"
+                              :value="tag.id"
+                              class="rounded-lg focus:bg-slate-100 focus:text-slate-900"
+                            >
+                              {{ tag.name }}
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="default"
+                        size="default"
+                        class="bg-amber text-midnight shrink-0"
+                        :disabled="!selectedSkillId"
+                        @click="addSkill()"
+                      >
+                        Add
+                      </Button>
                     </div>
-                    <Button type="button" variant="default" size="default" class="bg-amber text-midnight" :disabled="!newSkillName.trim()" :loading="addingNewSkill" @click="addNewSkill()">
-                      Create &amp; Add
-                    </Button>
+                    <div class="flex items-center gap-3 text-xs text-slate-400">
+                      <span class="h-px flex-1 bg-slate-200" />
+                      or create new
+                      <span class="h-px flex-1 bg-slate-200" />
+                    </div>
+                    <div class="flex flex-col sm:flex-row sm:items-end gap-2">
+                      <div class="flex-1 min-w-0">
+                        <Label class="text-slate-700 text-sm mb-1.5 block">New skill name</Label>
+                        <Input
+                          v-model="newSkillName"
+                          placeholder="e.g. Plumbing"
+                          class="bg-white border-slate-200 text-midnight"
+                          @keydown.enter.prevent="addNewSkill()"
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="default"
+                        class="border-slate-200 text-midnight shrink-0"
+                        :disabled="!newSkillName.trim()"
+                        :loading="addingNewSkill"
+                        @click="addNewSkill()"
+                      >
+                        Create &amp; add
+                      </Button>
+                    </div>
                   </div>
-                  <p v-if="providerSkills.length === 0" class="text-slate-500 mt-4">Add skills above to show your services.</p>
                 </CardContent>
               </Card>
             </section>
@@ -568,11 +632,21 @@ const profileContractsList = computed(() => Array.isArray(profileContracts.value
 const profileContractsLoading = ref(false)
 const contractReviewByContractId = ref<Record<string, Rating>>({})
 const providerSkills = computed(() => profilesStore.providerProfile?.skills || [])
+const experienceList = computed(() => {
+  const fromProfile = profilesStore.providerProfile?.experiences
+  if (fromProfile?.length) return fromProfile
+  return profilesStore.experiences || []
+})
 const availableSkillsToAdd = computed(() => {
   const currentIds = new Set(providerSkills.value.map((s: { id: string }) => s.id))
   return skillTags.value.filter(tag => !currentIds.has(tag.id))
 })
 
+function profileTabLabel(tab: (typeof profileTabs)[number]) {
+  if (tab === 'portfolio') return 'Experience'
+  if (tab === 'services') return 'Services'
+  return 'Jobs'
+}
 const stripeConnectStatus = ref<StripeConnectStatus | null>(null)
 const stripeConnectLoading = ref(false)
 const stripeOnboardLoading = ref(false)
@@ -730,7 +804,7 @@ async function addNewSkill() {
       tagId = created.id
     } catch (err: any) {
       if (err.response?.status === 400) {
-        await profilesStore.fetchTags()
+        await profilesStore.fetchTags({ category: 'SKILL' })
         const existing = (profilesStore.tags || []).find((t: { name: string }) => t.name.toLowerCase() === name.toLowerCase())
         if (existing) tagId = existing.id
         else throw err
@@ -743,7 +817,7 @@ async function addNewSkill() {
     }
     toast.success('Skill added')
     newSkillName.value = ''
-    await profilesStore.fetchTags()
+    await profilesStore.fetchTags({ category: 'SKILL' })
   } catch (err: any) {
     toast.error(err.response?.data?.name?.[0] || err.response?.data?.detail || 'Failed to add skill')
   } finally {

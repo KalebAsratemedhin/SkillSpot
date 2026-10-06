@@ -87,7 +87,8 @@ class JobListCreateView(generics.ListCreateAPIView):
 
         location = self.request.query_params.get('location')
         if location:
-            queryset = queryset.filter(location__icontains=location)
+            # Text address filter (coordinates are nested under location in the API)
+            queryset = queryset.filter(address__icontains=location)
 
         skill_ids = _parse_skill_ids(self.request)
         if skill_ids:
@@ -110,7 +111,7 @@ class JobListCreateView(generics.ListCreateAPIView):
             queryset = queryset.filter(
                 Q(title__icontains=q)
                 | Q(description__icontains=q)
-                | Q(location__icontains=q)
+                | Q(address__icontains=q)
                 | Q(required_skills__name__icontains=q)
             )
             # Simple relevance: title hits first, then skill name, then other text
@@ -118,7 +119,7 @@ class JobListCreateView(generics.ListCreateAPIView):
                 _relevance=Case(
                     When(title__icontains=q, then=Value(3)),
                     When(required_skills__name__icontains=q, then=Value(2)),
-                    When(Q(description__icontains=q) | Q(location__icontains=q), then=Value(1)),
+                    When(Q(description__icontains=q) | Q(address__icontains=q), then=Value(1)),
                     default=Value(0),
                     output_field=IntegerField(),
                 )
@@ -423,22 +424,7 @@ class JobInvitationListCreateView(generics.ListCreateAPIView):
             link=f'/jobs/{invitation.job_id}/',
             actor_id=str(self.request.user.id),
         )
-        from messaging.models import Conversation
-        client = self.request.user
-        provider = invitation.provider
-        job = invitation.job
-        if job and client and provider:
-            if client.id > provider.id:
-                p1, p2 = provider, client
-            else:
-                p1, p2 = client, provider
-            Conversation.objects.get_or_create(
-                participant1=p1,
-                participant2=p2,
-                job=job,
-                defaults={}
-            )
-
+        # Do not auto-create a chat room on invite — messaging is explicit / per user pair.
 
 class JobInvitationDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = JobInvitationSerializer

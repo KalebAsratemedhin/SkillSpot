@@ -50,6 +50,15 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function logout() {
     try {
+      // Tear down messaging sockets before clearing tokens.
+      try {
+        const { useMessagingStore } = await import('@/stores/messaging')
+        const messaging = useMessagingStore()
+        messaging.disconnectInbox()
+        messaging.disconnectChat()
+      } catch {
+        // Pinia / store may be unavailable during teardown
+      }
       await authService.logout()
     } catch (err) {
       console.error('Logout error:', err)

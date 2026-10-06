@@ -24,7 +24,15 @@
             </div>
           </div>
         </div>
-        <router-link to="/messages" class="text-sm font-semibold hover:text-amber transition-colors">Messages</router-link>
+        <router-link to="/messages" class="relative text-sm font-semibold hover:text-amber transition-colors">
+          Messages
+          <span
+            v-if="messagingStore.unreadCount > 0"
+            class="absolute -top-2 -right-4 min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-amber text-midnight text-[9px] font-black flex items-center justify-center"
+          >
+            {{ messagingStore.unreadCount > 99 ? '99+' : messagingStore.unreadCount }}
+          </span>
+        </router-link>
         <div class="relative group">
           <button type="button" class="text-sm font-semibold hover:text-amber transition-colors flex items-center gap-1">
             Contracts & Payments
@@ -106,9 +114,11 @@ import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { onClickOutside } from '@vueuse/core'
 import { useAuthStore } from '@/stores/auth'
+import { useMessagingStore } from '@/stores/messaging'
 import Button from './ui/Button.vue'
 
 const authStore = useAuthStore()
+const messagingStore = useMessagingStore()
 const router = useRouter()
 const avatarMenuOpen = ref(false)
 const avatarMenuRef = ref<HTMLElement | null>(null)

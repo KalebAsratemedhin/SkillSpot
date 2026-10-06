@@ -46,6 +46,11 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    # Same message for unknown email, wrong password, or inactive account —
+    # do not reveal which case failed.
+    default_error_messages = {
+        'no_active_account': 'Invalid email or password.',
+    }
 
     @classmethod
     def get_token(cls, user):

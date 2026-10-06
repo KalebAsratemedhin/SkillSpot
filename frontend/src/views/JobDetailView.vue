@@ -42,13 +42,57 @@
                       </Select>
                     </div>
                   </div>
-                  <h1 class="text-midnight text-4xl font-extrabold leading-tight tracking-tight">
-                    {{ jobsStore.currentJob.title }}
-                  </h1>
+                  <div class="flex items-start gap-3">
+                    <h1 class="text-midnight text-3xl sm:text-4xl font-extrabold leading-tight tracking-tight flex-1 min-w-0">
+                      {{ jobsStore.currentJob.title }}
+                    </h1>
+                    <div
+                      v-if="isJobOwner"
+                      ref="ownerMenuRef"
+                      class="relative shrink-0"
+                    >
+                      <button
+                        type="button"
+                        class="grid size-9 place-items-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-midnight transition-colors"
+                        :class="ownerMenuOpen ? 'bg-slate-100 text-midnight' : ''"
+                        :aria-expanded="ownerMenuOpen"
+                        aria-haspopup="menu"
+                        aria-label="Job actions"
+                        @click="ownerMenuOpen = !ownerMenuOpen"
+                      >
+                        <span class="material-symbols-outlined text-xl">more_vert</span>
+                      </button>
+
+                      <div
+                        v-if="ownerMenuOpen"
+                        role="menu"
+                        class="absolute right-0 top-full mt-1 z-30 min-w-[10rem] rounded-lg border border-slate-200 bg-white py-1 shadow-md"
+                      >
+                        <button
+                          type="button"
+                          role="menuitem"
+                          class="flex w-full items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                          @click="goEditJob"
+                        >
+                          <span class="material-symbols-outlined text-lg">edit</span>
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          class="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+                          @click="openDeleteFromMenu"
+                        >
+                          <span class="material-symbols-outlined text-lg">delete</span>
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                   <div class="flex flex-wrap gap-6 pt-2">
-                    <div v-if="jobsStore.currentJob.location" class="flex items-center gap-2 text-gray-600">
+                    <div v-if="jobAddressDisplay" class="flex items-center gap-2 text-gray-600">
                       <span class="material-symbols-outlined text-amber text-xl">location_on</span>
-                      <span class="text-sm font-medium">{{ jobsStore.currentJob.location }}</span>
+                      <span class="text-sm font-medium">{{ jobAddressDisplay }}</span>
                     </div>
                     <div class="flex items-center gap-2 text-gray-600">
                       <span class="material-symbols-outlined text-amber text-xl">payments</span>
@@ -524,18 +568,19 @@
                     ></textarea>
                   </FormField>
                   <FormField :error="applicationErrors.proposed_rate">
-                    <Label>Proposed Rate (Br/hr)</Label>
+                    <Label>{{ isHourlyJob ? 'Proposed Rate (Br/hr)' : 'Proposed Price (Br)' }}</Label>
                     <Input
                       v-model="applicationForm.proposed_rate"
                       type="number"
                       step="0.01"
                       min="0"
                       :max="jobBudgetCeiling ?? undefined"
-                      placeholder="Your rate"
+                      :placeholder="isHourlyJob ? 'Your hourly rate' : 'Your total price'"
                       :error="applicationErrors.proposed_rate"
+                      @blur="validateProposedRateField"
                     />
                     <p v-if="jobBudgetCeiling != null" class="text-xs text-slate-500 mt-1">
-                      Client budget ceiling: Br {{ jobBudgetCeiling.toLocaleString() }}{{ isHourlyJob ? '/hr' : '' }}
+                      Must be Br {{ jobBudgetCeiling.toLocaleString() }}{{ isHourlyJob ? '/hr' : '' }} or less
                     </p>
                   </FormField>
                   <Button type="submit" :loading="jobsStore.loading" variant="default" size="lg" class="w-full">
@@ -549,10 +594,10 @@
               class="bg-white rounded-2xl p-10 shadow-sm border border-gray-100"
             >
               <CardHeader>
-                <CardTitle class="text-lg font-bold text-midnight mb-2">Want to apply?</CardTitle>
+                <CardTitle class="text-lg font-bold text-midnight">Want to apply?</CardTitle>
               </CardHeader>
               <CardContent class="space-y-4">
-                <p class="text-slate-600 text-sm">Sign in as a service provider to submit a proposal for this job.</p>
+                <p class="text-slate-600 text-sm mb-4">Sign in as a service provider to submit a proposal for this job.</p>
                 <router-link :to="{ name: 'login', query: { redirect: route.fullPath } }">
                   <Button variant="default" size="lg" class="w-full">Sign in to apply</Button>
                 </router-link>
@@ -667,11 +712,37 @@
         </div>
       </div>
     </div>
+
+    <Dialog v-model:open="showDeleteConfirm">
+      <DialogContent class="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>Delete job post</DialogTitle>
+          <DialogDescription>
+            Are you sure you want to delete this job? This cannot be undone.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <DialogClose as-child>
+            <Button type="button" variant="outline">Cancel</Button>
+          </DialogClose>
+          <Button
+            type="button"
+            variant="default"
+            class="bg-red-600 hover:bg-red-700 text-white"
+            :loading="deleteLoading"
+            @click="confirmDeleteJob"
+          >
+            Delete
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </AppLayout>
 </template>
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { onClickOutside } from '@vueuse/core'
 import { useAuthStore } from '@/stores/auth'
 import { useJobsStore } from '@/stores/jobs'
 import { useMessagingStore } from '@/stores/messaging'
@@ -686,8 +757,18 @@ import Input from '@/components/ui/Input.vue'
 import Label from '@/components/ui/Label.vue'
 import FormField from '@/components/ui/FormField.vue'
 import PaginationBar from '@/components/PaginationBar.vue'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogClose,
+} from '@/components/ui/dialog'
 import { toast } from 'vue-sonner'
 import type { JobApplication } from '@/services/jobs'
+import { jobAddressText, jobCoordinates } from '@/services/jobs'
 import { profilesService, type PublicProvider } from '@/services/profiles'
 
 import {
@@ -705,6 +786,25 @@ const jobsStore = useJobsStore()
 const messagingStore = useMessagingStore()
 const messageLoading = ref<string | null>(null)
 const contractLoading = ref<string | null>(null)
+const showDeleteConfirm = ref(false)
+const deleteLoading = ref(false)
+const ownerMenuOpen = ref(false)
+const ownerMenuRef = ref<HTMLElement | null>(null)
+
+onClickOutside(ownerMenuRef, () => {
+  ownerMenuOpen.value = false
+})
+
+function goEditJob() {
+  ownerMenuOpen.value = false
+  const id = jobsStore.currentJob?.id
+  if (id) void router.push(`/jobs/${id}/edit`)
+}
+
+function openDeleteFromMenu() {
+  ownerMenuOpen.value = false
+  showDeleteConfirm.value = true
+}
 
 const jobStatusValue = computed({
   get: () => jobsStore.currentJob?.status ?? '',
@@ -738,6 +838,8 @@ const jobTags = computed(() => {
   return []
 })
 
+const jobAddressDisplay = computed(() => jobAddressText(jobsStore.currentJob))
+
 const isHourlyJob = computed(() => {
   const job = jobsStore.currentJob
   return job?.payment_schedule === 'HOURLY' || job?.budget_type === 'hourly'
@@ -747,11 +849,31 @@ const isHourlyJob = computed(() => {
 const jobBudgetCeiling = computed(() => {
   const job = jobsStore.currentJob
   if (!job) return null
-  const max = job.budget_max ?? job.budget_min
-  if (max == null || Number.isNaN(Number(max))) return null
-  return Number(max)
+  const raw = job.budget_max ?? job.budget_min
+  if (raw == null) return null
+  const max = Number(raw)
+  if (!Number.isFinite(max)) return null
+  return max
 })
 
+function proposedRateError(raw: string): string {
+  const trimmed = String(raw ?? '').trim()
+  if (!trimmed) return 'Proposed rate is required'
+  const proposedRate = Number(trimmed)
+  if (!Number.isFinite(proposedRate) || proposedRate < 0) {
+    return 'Enter a valid proposed rate'
+  }
+  const ceiling = jobBudgetCeiling.value
+  if (ceiling != null && proposedRate > ceiling) {
+    const unit = isHourlyJob.value ? '/hr' : ''
+    return `Must be Br ${ceiling.toLocaleString()}${unit} or less`
+  }
+  return ''
+}
+
+function validateProposedRateField() {
+  applicationErrors.value.proposed_rate = proposedRateError(applicationForm.value.proposed_rate)
+}
 const jobBudgetLabel = computed(() => {
   const job = jobsStore.currentJob
   if (!job) return ''
@@ -867,27 +989,15 @@ const applicationsCountForJob = computed(() => {
   return applicationsForThisJob.value.length
 })
 
-const hasJobLocation = computed(() => {
-  const job = jobsStore.currentJob as { latitude?: number | null; longitude?: number | null } | undefined
-  return job != null && job.latitude != null && job.longitude != null
-})
+const jobCoords = computed(() => jobCoordinates(jobsStore.currentJob))
 
-const jobMapLat = computed(() => {
-  const job = jobsStore.currentJob as { latitude?: number | string | null } | null
-  const n = job?.latitude != null ? Number(job.latitude) : NaN
-  return Number.isFinite(n) ? n : null
-})
+const hasJobLocation = computed(() => jobCoords.value != null)
 
-const jobMapLng = computed(() => {
-  const job = jobsStore.currentJob as { longitude?: number | string | null } | null
-  const n = job?.longitude != null ? Number(job.longitude) : NaN
-  return Number.isFinite(n) ? n : null
-})
+const jobMapLat = computed(() => jobCoords.value?.lat ?? null)
 
-const jobMapTooltip = computed(() => {
-  const job = jobsStore.currentJob as { location?: string; address?: string } | null
-  return job?.location || job?.address || 'Job location'
-})
+const jobMapLng = computed(() => jobCoords.value?.lng ?? null)
+
+const jobMapTooltip = computed(() => jobAddressText(jobsStore.currentJob) || 'Job location')
 
 const invitationsForThisJob = computed(() => {
   const jobId = jobsStore.currentJob?.id
@@ -1101,19 +1211,16 @@ async function handleApply() {
     applicationErrors.value.proposed_rate = 'Proposed rate is required'
     valid = false
   } else {
-    const proposedRate = parseFloat(rawRate)
-    if (!Number.isFinite(proposedRate) || proposedRate < 0) {
-      applicationErrors.value.proposed_rate = 'Enter a valid proposed rate'
-      valid = false
-    } else if (jobBudgetCeiling.value != null && proposedRate > jobBudgetCeiling.value) {
-      applicationErrors.value.proposed_rate = `Rate cannot exceed the client budget of Br ${jobBudgetCeiling.value.toLocaleString()}${isHourlyJob.value ? '/hr' : ''}`
+    const rateErr = proposedRateError(rawRate)
+    if (rateErr) {
+      applicationErrors.value.proposed_rate = rateErr
       valid = false
     }
   }
 
   if (!valid) return
 
-  const proposedRate = parseFloat(rawRate)
+  const proposedRate = Number(rawRate)
   try {
     const jobId = jobsStore.currentJob.id
     await jobsStore.createApplication(jobId, {
@@ -1154,6 +1261,26 @@ async function handleStatusChange(newStatus: string) {
   }
 }
 
+async function confirmDeleteJob() {
+  const job = jobsStore.currentJob
+  if (!job?.id || !isJobOwner.value) return
+  deleteLoading.value = true
+  try {
+    await jobsStore.deleteJob(job.id)
+    showDeleteConfirm.value = false
+    toast.success('Job deleted.')
+    await router.push('/jobs')
+  } catch (err: any) {
+    const msg =
+      err.response?.data?.error ??
+      err.response?.data?.detail ??
+      'Failed to delete job.'
+    toast.error(msg)
+  } finally {
+    deleteLoading.value = false
+  }
+}
+
 async function handleApplicationStatus(applicationId: string, newStatus: 'ACCEPTED' | 'REJECTED') {
   if (!jobsStore.currentJob) return
   try {
@@ -1174,7 +1301,6 @@ async function startConversation(app: JobApplication) {
   try {
     const conv = await messagingStore.createConversation({
       participant2_id: otherId,
-      job_id: app.job,
       initial_message: '',
     })
     if (conv?.id && conv.id !== 'undefined') {

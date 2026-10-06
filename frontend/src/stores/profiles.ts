@@ -84,10 +84,10 @@ export const useProfilesStore = defineStore('profiles', () => {
     try {
       loading.value = true
       error.value = null
-      const response = await profilesService.listTags(params)
-      const data = response.data
-      const dataTyped = data as Tag[] | { results?: Tag[] }
-      tags.value = Array.isArray(dataTyped) ? dataTyped : (dataTyped?.results ?? [])
+      tags.value = await profilesService.listAllTags({
+        category: params?.category,
+        page_size: 50,
+      })
     } catch (err: any) {
       error.value = err.response?.data?.detail || 'Failed to fetch tags'
       throw err
@@ -101,8 +101,19 @@ export const useProfilesStore = defineStore('profiles', () => {
       loading.value = true
       error.value = null
       const response = await profilesService.createTag(data)
-      tags.value.push(response.data)
-      return response.data
+      const created = response.data
+      // Reload full skill catalog so pickers see the new global tag (and any other pages).
+      if (data.category) {
+        tags.value = await profilesService.listAllTags({
+          category: data.category,
+          page_size: 50,
+        })
+      } else {
+        const idx = tags.value.findIndex((t) => t.id === created.id)
+        if (idx === -1) tags.value.push(created)
+        else tags.value[idx] = created
+      }
+      return created
     } catch (err: any) {
       error.value = err.response?.data?.detail || 'Failed to create tag'
       throw err

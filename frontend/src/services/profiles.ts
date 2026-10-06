@@ -27,6 +27,21 @@ export interface Tag {
   description?: string
 }
 
+export type TagPageSize = 5 | 10 | 15 | 20 | 50
+
+export interface TagListParams {
+  category?: string
+  page?: number
+  page_size?: TagPageSize
+}
+
+export interface PaginatedTags {
+  count: number
+  next: string | null
+  previous: string | null
+  results: Tag[]
+}
+
 export interface Experience {
   id: string
   title: string
@@ -140,9 +155,42 @@ export const profilesService = {
   updateProviderProfile(data: Partial<ServiceProviderProfile> & { skill_ids?: string[] }): Promise<AxiosResponse<ServiceProviderProfile>> {
     return api.patch('/profiles/provider/', data)
   },
-  listTags(params?: { category?: string }): Promise<AxiosResponse<Tag[]>> {
+  listTags(params?: TagListParams): Promise<AxiosResponse<PaginatedTags | Tag[]>> {
     return api.get('/profiles/tags/', { params })
   },
+
+  /**
+   * Load every tag page (page_size up to 50). Pickers should use this so newer
+   * seeded skills are not stuck behind default page_size=10.
+   */
+  async listAllTags(params?: { category?: string; page_size?: TagPageSize }): Promise<Tag[]> {
+    const page_size = params?.page_size ?? 50
+    const all: Tag[] = []
+    let page = 1
+
+    for (;;) {
+      const response = await profilesService.listTags({
+        category: params?.category,
+        page,
+        page_size,
+      })
+      const data = response.data
+
+      if (Array.isArray(data)) {
+        return data
+      }
+
+      const pageRows = data.results ?? []
+      all.push(...pageRows)
+
+      if (!data.next || pageRows.length === 0) break
+      page += 1
+      if (page > 100) break
+    }
+
+    return all
+  },
+
   createTag(data: Partial<Tag>): Promise<AxiosResponse<Tag>> {
     return api.post('/profiles/tags/', data)
   },

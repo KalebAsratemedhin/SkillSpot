@@ -4,13 +4,15 @@ export const jobCreateSchema = z
   .object({
     title: z.string().trim().min(1, 'Job title is required'),
     description: z.string().trim().min(1, 'Description is required'),
-    location: z.string().trim().optional().default(''),
+    /** Street / area text — required. */
+    address: z.string().trim().min(1, 'Address is required'),
     budget_type: z.enum(['hourly', 'fixed'], {
       required_error: 'Select a payment schedule',
     }),
     rate_hourly: z.string().optional().default(''),
     price_fixed: z.string().optional().default(''),
     skill_ids: z.array(z.string()).default([]),
+    /** Map pin — optional. */
     latitude: z.number().nullable().optional(),
     longitude: z.number().nullable().optional(),
   })

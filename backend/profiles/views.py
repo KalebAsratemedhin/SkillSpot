@@ -196,8 +196,7 @@ class TagListCreateView(generics.ListCreateAPIView):
     def list(self, request, *args, **kwargs):
         if request.method != 'GET':
             return super().list(request, *args, **kwargs)
-        category = request.query_params.get('category')
-        key = tags_list_cache_key(category.upper() if category else None)
+        key = tags_list_cache_key(request)
         data = cache.get(key)
         if data is not None:
             return Response(data)

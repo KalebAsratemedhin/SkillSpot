@@ -8,6 +8,15 @@ export interface PaginatedResponse<T> {
   results: T[]
 }
 
+export interface MessageAttachment {
+  id: string
+  file: string | null
+  file_name: string
+  file_size: number
+  file_type?: string
+  created_at?: string
+}
+
 export interface Conversation {
   id: string
   participant1?: string
@@ -26,9 +35,10 @@ export interface Conversation {
   last_message_at?: string
 }
 
-/** Payload for creating a conversation (backend: participant2_id, job_id?, initial_message?) */
+/** Payload for creating a conversation — one thread per user pair (no per-job rooms). */
 export interface CreateConversationPayload {
   participant2_id: string
+  /** @deprecated Ignored — rooms are per pair only. Kept optional for older callers. */
   job_id?: string
   initial_message?: string
 }
@@ -40,6 +50,9 @@ export interface Message {
   content: string
   is_read: boolean
   created_at: string
+  sender_name?: string
+  sender_email?: string
+  attachments?: MessageAttachment[]
 }
 
 export const messagingService = {
@@ -57,6 +70,19 @@ export const messagingService = {
   },
   sendMessage(conversationId: string, data: { content: string }): Promise<AxiosResponse<Message>> {
     return api.post(`/messaging/conversations/${conversationId}/messages/`, data)
+  },
+  sendMessageWithFiles(
+    conversationId: string,
+    data: { content?: string; files?: File[] }
+  ): Promise<AxiosResponse<Message>> {
+    const form = new FormData()
+    const text = (data.content ?? '').trim()
+    if (text) form.append('content', text)
+    else form.append('content', '')
+    for (const file of data.files ?? []) {
+      form.append('files', file)
+    }
+    return api.post(`/messaging/conversations/${conversationId}/messages/`, form)
   },
   getMessage(id: string): Promise<AxiosResponse<Message>> {
     return api.get(`/messaging/messages/${id}/`)

@@ -80,6 +80,13 @@
   background: #e2e8f0;
 }
 
+/* Tailwind Preflight sets img { max-width: 100%; height: auto } which collapses OSM tiles to white. */
+.leaflet-container img,
+.leaflet-tile-container img,
+.leaflet-tile {
+  max-width: none !important;
+}
+
 .ss-map-pin {
   background: transparent !important;
   border: none !important;

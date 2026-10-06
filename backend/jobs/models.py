@@ -53,26 +53,24 @@ class Job(models.Model):
         help_text=_('FIXED = one total price; HOURLY = rate per hour, provider logs hours')
     )
     currency = models.CharField(max_length=3, default='ETB')
-    location = models.CharField(
-        max_length=200,
+    address = models.TextField(
         blank=True,
         default='',
-        help_text=_('Optional text location (city, area, address)'),
+        help_text=_('Optional textual address (city, area, street)'),
     )
-    address = models.TextField(blank=True)
     latitude = models.DecimalField(
         max_digits=9,
         decimal_places=6,
         null=True,
         blank=True,
-        help_text=_('Latitude for map display')
+        help_text=_('Latitude (part of map location)')
     )
     longitude = models.DecimalField(
         max_digits=9,
         decimal_places=6,
         null=True,
         blank=True,
-        help_text=_('Longitude for map display')
+        help_text=_('Longitude (part of map location)')
     )
     is_remote = models.BooleanField(default=False)
     status = models.CharField(
@@ -95,12 +93,13 @@ class Job(models.Model):
         ordering = ['-created_at']
         indexes = [
             models.Index(fields=['status', '-created_at']),
-            models.Index(fields=['location']),
+            models.Index(fields=['address']),
             models.Index(fields=['client', '-created_at']),
             models.Index(fields=['payment_schedule']),
             models.Index(fields=['budget_min']),
             models.Index(fields=['budget_max']),
             models.Index(fields=['status', 'payment_schedule', '-created_at']),
+            models.Index(fields=['latitude', 'longitude']),
         ]
 
     def __str__(self):

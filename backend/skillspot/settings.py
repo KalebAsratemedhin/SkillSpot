@@ -318,14 +318,27 @@ def _celery_redis_url(url: str) -> str:
 
 
 def _channel_layer_hosts(url: str):
-    """Hosts config for channels_redis; dict form required for TLS (Upstash)."""
-    if url.startswith('rediss://'):
-        address = url.split('?', 1)[0]
-        return [{
-            'address': address,
-            'ssl_cert_reqs': None,  # Upstash presents a valid cert; None avoids CERT_* enum issues
-        }]
-    return [url]
+    """
+    Hosts config for channels_redis.
+
+    Always use the dict form so we can set socket_timeout=None. redis-py's
+    default ~5s socket timeout kills idle channel-layer BRPOP/pubsub reads,
+    which disconnects every open WebSocket in a reconnect loop.
+    Dict form is also required for TLS (Upstash rediss://).
+    """
+    address = (url or '').split('?', 1)[0]
+    host = {
+        'address': address,
+        # Pub/sub / BRPOP must wait indefinitely for the next group message.
+        'socket_timeout': None,
+        'socket_connect_timeout': 5,
+        'retry_on_timeout': True,
+        'health_check_interval': 30,
+    }
+    if address.startswith('rediss://'):
+        # Upstash presents a valid cert; None avoids CERT_* enum issues in some stacks.
+        host['ssl_cert_reqs'] = None
+    return [host]
 
 
 if REDIS_URL.startswith('redis://') or REDIS_URL.startswith('rediss://'):
@@ -376,6 +389,9 @@ CHANNEL_LAYERS = {
         'CONFIG': {
             'hosts': _channel_layer_hosts(REDIS_URL),
             'symmetric_encryption_keys': [SECRET_KEY],
+            # Keep capacity modest; defaults are fine for chat fan-out.
+            'capacity': 100,
+            'expiry': 60,
         },
     },
 }

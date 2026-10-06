@@ -42,16 +42,26 @@ def provider_list_cache_key(request):
     return f"provider_list:{h}"
 
 
-def tags_list_cache_key(category=None):
-    """Cache key for tags list, optionally filtered by category."""
-    return f"tags_list:{category or 'all'}"
+def _tags_list_generation():
+    from django.core.cache import cache
+    gen = cache.get('tags_list_gen')
+    if gen is None:
+        cache.set('tags_list_gen', 1, timeout=None)
+        return 1
+    return int(gen)
+
+
+def tags_list_cache_key(request):
+    """Cache key for paginated tags list (category + page/page_size in query)."""
+    q = _sorted_query_dict(request)
+    h = hashlib.md5(q.encode(), usedforsecurity=False).hexdigest() if q else 'default'
+    return f"tags_list:g{_tags_list_generation()}:{h}"
 
 
 def invalidate_tags_list():
-    """Clear all tags list cache variants (call when tags are created/updated/deleted)."""
+    """Invalidate all tags list pages by bumping generation."""
     from django.core.cache import cache
-    for cat in (None, "SKILL", "CERTIFICATION", "LANGUAGE"):
-        cache.delete(tags_list_cache_key(cat))
-
-
-
+    try:
+        cache.incr('tags_list_gen')
+    except ValueError:
+        cache.set('tags_list_gen', 1, timeout=None)

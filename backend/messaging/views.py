@@ -1,10 +1,9 @@
 from rest_framework import generics, permissions, status, filters
+from rest_framework.exceptions import NotFound
 from rest_framework.response import Response
-from rest_framework.decorators import action
 from django.contrib.auth import get_user_model
 from django.db.models import Q
-from django.utils import timezone
-from .models import Conversation, Message, MessageAttachment
+from .models import Conversation, Message
 from .serializers import (
     ConversationSerializer,
     ConversationCreateSerializer,
@@ -12,6 +11,8 @@ from .serializers import (
     MessageCreateSerializer,
     MessageMarkReadSerializer,
 )
+from .realtime import total_unread_for_user
+from .services import mark_conversation_read
 
 User = get_user_model()
 
@@ -25,17 +26,21 @@ class ConversationListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        # Get all conversations where user is a participant
         queryset = Conversation.objects.filter(
             Q(participant1=user) | Q(participant2=user)
+        ).select_related(
+            'participant1',
+            'participant2',
+            'participant1__profile',
+            'participant2__profile',
+            'job',
+            'last_message_sender',
         )
 
-        # Filter by job if provided
         job_id = self.request.query_params.get('job', None)
         if job_id:
             queryset = queryset.filter(job_id=job_id)
 
-        # Filter by other participant
         participant_id = self.request.query_params.get('participant', None)
         if participant_id:
             queryset = queryset.filter(
@@ -79,6 +84,13 @@ class ConversationDetailView(generics.RetrieveAPIView):
         user = self.request.user
         return Conversation.objects.filter(
             Q(participant1=user) | Q(participant2=user)
+        ).select_related(
+            'participant1',
+            'participant2',
+            'participant1__profile',
+            'participant2__profile',
+            'job',
+            'last_message_sender',
         )
 
     def get_serializer_context(self):
@@ -95,7 +107,6 @@ class MessageListCreateView(generics.ListCreateAPIView):
         conversation_id = self.kwargs.get('conversation_id')
         user = self.request.user
 
-        # Verify user is a participant
         try:
             conversation = Conversation.objects.get(id=conversation_id)
             if user not in [conversation.participant1, conversation.participant2]:
@@ -103,18 +114,13 @@ class MessageListCreateView(generics.ListCreateAPIView):
         except Conversation.DoesNotExist:
             return Message.objects.none()
 
-        queryset = Message.objects.filter(conversation_id=conversation_id)
+        queryset = Message.objects.filter(conversation_id=conversation_id).select_related(
+            'sender', 'sender__profile'
+        ).prefetch_related('attachments')
 
-        # Mark messages as read when viewing (optional - can be done via separate endpoint)
         mark_read = self.request.query_params.get('mark_read', 'false').lower() == 'true'
         if mark_read:
-            # Mark all unread messages from the other participant as read
-            other_participant = conversation.get_other_participant(user)
-            Message.objects.filter(
-                conversation=conversation,
-                sender=other_participant,
-                is_read=False
-            ).update(is_read=True, read_at=timezone.now())
+            mark_conversation_read(conversation=conversation, user=user)
 
         return queryset
 
@@ -135,11 +141,20 @@ class MessageListCreateView(generics.ListCreateAPIView):
         return context
 
     def create(self, request, *args, **kwargs):
+        files = []
+        if hasattr(request, 'FILES'):
+            files = list(request.FILES.getlist('files')) or list(request.FILES.getlist('file'))
         serializer = self.get_serializer(data=request.data)
+        # Attach files for validate/create (not model fields).
+        serializer.context['files'] = files
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
 
-        message = serializer.instance
+        message = (
+            Message.objects.select_related('sender', 'sender__profile')
+            .prefetch_related('attachments')
+            .get(pk=serializer.instance.pk)
+        )
         response_serializer = MessageSerializer(message, context=self.get_serializer_context())
         return Response(response_serializer.data, status=status.HTTP_201_CREATED)
 
@@ -147,17 +162,13 @@ class MessageListCreateView(generics.ListCreateAPIView):
         conversation_id = self.kwargs.get('conversation_id')
         try:
             conversation = Conversation.objects.get(id=conversation_id)
-            # Verify user is a participant
             if self.request.user not in [conversation.participant1, conversation.participant2]:
                 raise permissions.PermissionDenied(
                     'You are not a participant in this conversation.'
                 )
             serializer.save()
         except Conversation.DoesNotExist:
-            return Response(
-                {'error': 'Conversation not found.'},
-                status=status.HTTP_404_NOT_FOUND
-            )
+            raise NotFound('Conversation not found.')
 
 
 class MessageDetailView(generics.RetrieveAPIView):
@@ -167,16 +178,39 @@ class MessageDetailView(generics.RetrieveAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        # Only show messages from conversations where user is a participant
         return Message.objects.filter(
             Q(conversation__participant1=user) | Q(conversation__participant2=user)
-        )
+        ).select_related('sender', 'conversation')
 
     def retrieve(self, request, *args, **kwargs):
         message = self.get_object()
-        # Mark as read if the current user is the recipient
-        if message.sender != request.user:
-            message.mark_as_read()
+        if message.sender_id != request.user.id and not message.is_read:
+            from django.utils import timezone
+            from .models import Conversation
+            from .realtime import broadcast_inbox_update
+
+            message.is_read = True
+            message.read_at = timezone.now()
+            message.save(update_fields=['is_read', 'read_at'])
+
+            conversation = message.conversation
+            remaining = (
+                Message.objects.filter(conversation=conversation, is_read=False)
+                .exclude(sender=request.user)
+                .count()
+            )
+            if request.user.id == conversation.participant1_id:
+                Conversation.objects.filter(pk=conversation.pk).update(
+                    participant1_unread=remaining
+                )
+            else:
+                Conversation.objects.filter(pk=conversation.pk).update(
+                    participant2_unread=remaining
+                )
+            conversation.refresh_from_db()
+            broadcast_inbox_update(
+                request.user.id, conversation, event='conversation_read'
+            )
         return super().retrieve(request, *args, **kwargs)
 
 
@@ -189,7 +223,6 @@ class MessageMarkReadView(generics.GenericAPIView):
             conversation = None
             if conversation_id:
                 conversation = Conversation.objects.get(id=conversation_id)
-                # Verify user is a participant
                 if request.user not in [conversation.participant1, conversation.participant2]:
                     return Response(
                         {'error': 'You are not a participant in this conversation.'},
@@ -214,7 +247,8 @@ class MessageMarkReadView(generics.GenericAPIView):
             return Response(
                 {
                     'message': f'{updated_count} message(s) marked as read.',
-                    'updated_count': updated_count
+                    'updated_count': updated_count,
+                    'total_unread': total_unread_for_user(request.user),
                 },
                 status=status.HTTP_200_OK
             )
@@ -226,14 +260,6 @@ class ConversationUnreadCountView(generics.GenericAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        user = request.user
-        # Count unread messages where user is a participant but not the sender
-        total_unread = Message.objects.filter(
-            Q(conversation__participant1=user) | Q(conversation__participant2=user),
-            ~Q(sender=user),
-            is_read=False
-        ).count()
-
         return Response({
-            'total_unread': total_unread
+            'total_unread': total_unread_for_user(request.user)
         }, status=status.HTTP_200_OK)

@@ -9,8 +9,8 @@ User = get_user_model()
 
 class Conversation(models.Model):
     """
-    Represents a conversation thread between two users (client and provider).
-    Can be optionally linked to a job for job-related conversations.
+    One conversation thread per pair of users (order-normalized participant1/participant2).
+    Optional job is metadata only and must not create a separate room.
     """
     id = models.UUIDField(
         primary_key=True,
@@ -23,19 +23,19 @@ class Conversation(models.Model):
         related_name='conversations',
         null=True,
         blank=True,
-        help_text=_('Optional: Link to a job for job-related conversations')
+        help_text=_('Optional context only; rooms are per user pair, not per job')
     )
     participant1 = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
         related_name='conversations_as_participant1',
-        help_text=_('First participant in the conversation')
+        help_text=_('First participant (lower UUID)')
     )
     participant2 = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
         related_name='conversations_as_participant2',
-        help_text=_('Second participant in the conversation')
+        help_text=_('Second participant (higher UUID)')
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -44,17 +44,42 @@ class Conversation(models.Model):
         blank=True,
         help_text=_('Timestamp of the last message in this conversation')
     )
+    # Denormalized — avoid COUNT(*) on every inbox list / badge read.
+    participant1_unread = models.PositiveIntegerField(
+        default=0,
+        help_text=_('Unread messages for participant1'),
+    )
+    participant2_unread = models.PositiveIntegerField(
+        default=0,
+        help_text=_('Unread messages for participant2'),
+    )
+    last_message_preview = models.CharField(
+        max_length=100,
+        blank=True,
+        default='',
+        help_text=_('Truncated preview of the latest message'),
+    )
+    last_message_sender = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='+',
+        help_text=_('Sender of the latest message'),
+    )
 
     class Meta:
         ordering = ['-last_message_at', '-updated_at']
         indexes = [
             models.Index(fields=['participant1', '-last_message_at']),
             models.Index(fields=['participant2', '-last_message_at']),
-            models.Index(fields=['job', '-last_message_at']),
         ]
-        # Note: unique_together with NULL values requires careful handling
-        # The serializer/view will ensure proper uniqueness logic
-        unique_together = [['participant1', 'participant2', 'job']]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['participant1', 'participant2'],
+                name='messaging_conversation_unique_pair',
+            ),
+        ]
 
     def __str__(self):
         job_info = f" - {self.job.title}" if self.job else ""
@@ -66,8 +91,16 @@ class Conversation(models.Model):
             return self.participant2
         return self.participant1
 
+    def unread_for(self, user):
+        if user.id == self.participant1_id:
+            return self.participant1_unread
+        if user.id == self.participant2_id:
+            return self.participant2_unread
+        return 0
+
     def get_unread_count(self, user):
-        return self.messages.exclude(sender=user).filter(is_read=False).count()
+        """Backward-compatible alias — uses denormalized counters."""
+        return self.unread_for(user)
 
 
 class Message(models.Model):

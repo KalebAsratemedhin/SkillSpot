@@ -1,17 +1,16 @@
 <template>
   <div class="ss-location-map relative isolate h-full min-h-0 w-full overflow-hidden bg-slate-100">
-    <div ref="containerEl" class="absolute inset-0 h-full w-full" />
+    <div ref="containerEl" class="absolute inset-0 z-0 h-full w-full" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
-import type { Map as LeafletMap, Marker as LeafletMarker } from 'leaflet'
+import L, { type Map as LeafletMap, type Marker as LeafletMarker } from 'leaflet'
 import {
+  addBasemapTiles,
   createMapPinIcon,
   DEFAULT_MAP_CENTER,
-  OSM_ATTRIBUTION,
-  OSM_TILE_URL,
 } from '@/lib/mapPin'
 
 const props = withDefaults(
@@ -46,7 +45,10 @@ const containerEl = ref<HTMLElement | null>(null)
 let map: LeafletMap | null = null
 let marker: LeafletMarker | null = null
 let resizeObserver: ResizeObserver | null = null
+let resizeDebounceTimer: number | null = null
 const refreshTimers: number[] = []
+/** Coords we just emitted from a click — watcher should only sync the pin, not re-pan. */
+let lastPicked: { lat: number; lng: number } | null = null
 
 function hasValidCoords(lat: unknown, lng: unknown): lat is number {
   return (
@@ -63,6 +65,14 @@ function shouldShowPin(): boolean {
   return true
 }
 
+function samePick(lat: number, lng: number) {
+  return (
+    lastPicked != null &&
+    Math.abs(lastPicked.lat - lat) < 1e-7 &&
+    Math.abs(lastPicked.lng - lng) < 1e-7
+  )
+}
+
 function clearRefreshTimers() {
   while (refreshTimers.length) {
     window.clearTimeout(refreshTimers.pop())
@@ -71,8 +81,15 @@ function clearRefreshTimers() {
 
 function refreshSize() {
   if (!map) return
+  const container = map.getContainer()
+  if (
+    container.classList.contains('leaflet-dragging') ||
+    container.classList.contains('leaflet-zoom-anim')
+  ) {
+    return
+  }
   try {
-    map.invalidateSize({ pan: false })
+    map.invalidateSize({ pan: false, debounceMoveend: true })
   } catch {
     /* map not ready */
   }
@@ -80,13 +97,19 @@ function refreshSize() {
 
 function scheduleSizeRefresh() {
   clearRefreshTimers()
-  refreshSize()
-  refreshTimers.push(window.setTimeout(refreshSize, 50))
-  refreshTimers.push(window.setTimeout(refreshSize, 250))
-  refreshTimers.push(window.setTimeout(refreshSize, 600))
+  refreshTimers.push(window.setTimeout(refreshSize, 100))
+  refreshTimers.push(window.setTimeout(refreshSize, 400))
 }
 
-function syncMarker(L: typeof import('leaflet')) {
+function onResizeObserved() {
+  if (resizeDebounceTimer != null) window.clearTimeout(resizeDebounceTimer)
+  resizeDebounceTimer = window.setTimeout(() => {
+    resizeDebounceTimer = null
+    refreshSize()
+  }, 150)
+}
+
+function syncMarker() {
   if (!map) return
 
   if (!shouldShowPin()) {
@@ -125,9 +148,11 @@ async function initMap() {
   await nextTick()
   const el = containerEl.value
   if (!el || map) return
+  if (!el.isConnected) return
 
-  const L = await import('leaflet')
-  if (!containerEl.value || !containerEl.value.isConnected) return
+  if (el.clientWidth === 0 || el.clientHeight === 0) {
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+  }
 
   const startLat = shouldShowPin() ? (props.lat as number) : props.centerLat
   const startLng = shouldShowPin() ? (props.lng as number) : props.centerLng
@@ -137,53 +162,59 @@ async function initMap() {
     zoomControl: false,
     scrollWheelZoom: true,
     attributionControl: true,
-  })
+    wheelPxPerZoomLevel: 120,
+    wheelDebounceTime: 40,
+    // Integer zoom — raster tiles are most reliable at whole levels
+    zoomSnap: 1,
+    zoomDelta: 1,
+    fadeAnimation: true,
+    zoomAnimation: true,
+    markerZoomAnimation: true,
+    inertia: true,
+  }).setView([startLat, startLng], startZoom)
 
   L.control.zoom({ position: 'bottomleft' }).addTo(map)
 
-  L.tileLayer(OSM_TILE_URL, {
-    attribution: OSM_ATTRIBUTION,
-    maxZoom: 19,
-  }).addTo(map)
+  addBasemapTiles(map, L)
 
   if (props.interactive) {
-    map.on('click', (e: { latlng: { lat: number; lng: number } }) => {
+    map.on('click', (e) => {
       const { lat, lng } = e.latlng
       const roundedLat = Math.round(lat * 1e6) / 1e6
       const roundedLng = Math.round(lng * 1e6) / 1e6
-      const currentZoom = map!.getZoom()
-      const targetZoom = Number.isFinite(currentZoom) ? Math.max(currentZoom, 15) : 15
-      try {
-        map!.flyTo([lat, lng], targetZoom, { duration: 0.5 })
-      } catch {
-        map!.setView([lat, lng], targetZoom)
+      lastPicked = { lat: roundedLat, lng: roundedLng }
+      // Pin only — do not setView/zoom here (parent will update lat/lng; watcher syncs marker).
+      if (marker) {
+        marker.setLatLng([roundedLat, roundedLng])
+      } else {
+        marker = L.marker([roundedLat, roundedLng], {
+          icon: createMapPinIcon(L),
+          zIndexOffset: 1000,
+        }).addTo(map!)
       }
       emit('pick', roundedLat, roundedLng)
     })
   }
 
-  map.whenReady(() => {
-    try {
-      map!.setView([startLat, startLng], startZoom, { animate: false })
-    } catch {
-      /* ignore */
-    }
-    syncMarker(L)
-    scheduleSizeRefresh()
-  })
+  syncMarker()
+  scheduleSizeRefresh()
 
-  resizeObserver = new ResizeObserver(() => refreshSize())
+  resizeObserver = new ResizeObserver(onResizeObserved)
   resizeObserver.observe(el)
-  // Also observe the outer wrapper — height often settles after the inner div mounts.
   const wrapper = el.parentElement
   if (wrapper) resizeObserver.observe(wrapper)
 }
 
 function destroyMap() {
   clearRefreshTimers()
+  if (resizeDebounceTimer != null) {
+    window.clearTimeout(resizeDebounceTimer)
+    resizeDebounceTimer = null
+  }
   resizeObserver?.disconnect()
   resizeObserver = null
   marker = null
+  lastPicked = null
   if (map) {
     map.remove()
     map = null
@@ -199,23 +230,16 @@ onUnmounted(() => {
 })
 
 watch(
-  () => [props.lat, props.lng, props.pinned, props.tooltip, props.zoom] as const,
-  async () => {
+  () => [props.lat, props.lng, props.pinned, props.tooltip] as const,
+  () => {
     if (!map) return
-    const L = await import('leaflet')
-    syncMarker(L)
-    if (shouldShowPin() && props.lat != null && props.lng != null) {
-      const rawZoom = map.getZoom()
-      const zoom = Number.isFinite(rawZoom)
-        ? Math.max(rawZoom, props.zoom >= 14 ? props.zoom : 14)
-        : Math.max(props.zoom, 14)
-      try {
-        map.setView([props.lat, props.lng], zoom, { animate: false })
-      } catch {
-        /* ignore */
-      }
-    }
-    scheduleSizeRefresh()
+    syncMarker()
+    if (!shouldShowPin() || props.lat == null || props.lng == null) return
+    // Skip re-pan when this update came from our own click.
+    if (samePick(props.lat, props.lng)) return
+    lastPicked = null
+    // External coord change (e.g. load existing job) — gentle recenter, no zoom fight.
+    map.panTo([props.lat, props.lng], { animate: true, duration: 0.2 })
   }
 )
 </script>

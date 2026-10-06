@@ -243,7 +243,6 @@ async function startConversation(app: JobApplication) {
   try {
     const conv = await messagingStore.createConversation({
       participant2_id: otherId,
-      job_id: typeof app.job === 'string' ? app.job : (app.job as { id: string }).id,
       initial_message: '',
     })
     if (conv?.id && conv.id !== 'undefined') {

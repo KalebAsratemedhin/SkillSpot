@@ -24,12 +24,24 @@ export interface JobMyApplication {
   applied_at: string
 }
 
+/** Nested map pin from the jobs API (`null` when unset). */
+export interface JobLocationCoords {
+  latitude: number | string
+  longitude: number | string
+}
+
 export interface Job {
   id: string
   title: string
   description: string
   category?: string
-  location: string
+  /** Street / area text. */
+  address?: string
+  /**
+   * Map coordinates `{ latitude, longitude }`, or `null`.
+   * Legacy APIs may return a plain string here — treat as address text only.
+   */
+  location?: JobLocationCoords | string | null
   budget_min?: number
   budget_max?: number
   budget_type?: 'hourly' | 'fixed' | 'range'
@@ -47,8 +59,76 @@ export interface Job {
   required_skills?: { id: string; name: string; category?: string }[]
   applications_count?: number
   accepted_applications_count?: number
+  /** @deprecated Prefer nested `location` — kept for older API responses. */
   latitude?: number | null
   longitude?: number | null
+}
+
+/** Textual address for display (never uses nested coordinate `location`). */
+export function jobAddressText(job: {
+  address?: string | null
+  location?: JobLocationCoords | string | null
+} | null | undefined): string {
+  if (!job) return ''
+  const a = job.address?.trim()
+  if (a) return a
+  if (typeof job.location === 'string') return job.location.trim()
+  return ''
+}
+
+/** Map pin coords from nested `location` or legacy flat fields. */
+export function jobCoordinates(job: {
+  location?: JobLocationCoords | string | null
+  latitude?: number | string | null
+  longitude?: number | string | null
+} | null | undefined): { lat: number; lng: number } | null {
+  if (!job) return null
+  const nested = job.location
+  if (nested && typeof nested === 'object') {
+    const lat = Number(nested.latitude)
+    const lng = Number(nested.longitude)
+    if (Number.isFinite(lat) && Number.isFinite(lng)) return { lat, lng }
+  }
+  if (job.latitude != null && job.longitude != null) {
+    const lat = Number(job.latitude)
+    const lng = Number(job.longitude)
+    if (Number.isFinite(lat) && Number.isFinite(lng)) return { lat, lng }
+  }
+  return null
+}
+
+/** Backend DecimalField(decimal_places=6). */
+export function roundJobCoord(n: number, places = 6): number {
+  const f = 10 ** places
+  return Math.round(n * f) / f
+}
+
+/** Normalize create/update API payloads that may omit or wrap `id`. */
+export function coerceJob(data: unknown): Job | null {
+  if (data == null) return null
+  if (typeof data === 'string') {
+    try {
+      return coerceJob(JSON.parse(data) as unknown)
+    } catch {
+      return null
+    }
+  }
+  if (typeof data !== 'object' || Array.isArray(data)) return null
+  const obj = data as Record<string, unknown>
+  if (obj.job && typeof obj.job === 'object') return coerceJob(obj.job)
+  if (obj.data && typeof obj.data === 'object' && !Array.isArray(obj.data)) {
+    const inner = obj.data as Record<string, unknown>
+    if ('id' in inner || 'title' in inner) return coerceJob(inner)
+  }
+  const id = obj.id ?? obj.pk
+  if (id == null || String(id).trim() === '') return null
+  return { ...(obj as unknown as Job), id: String(id) }
+}
+
+export function jobIdFromLocationHeader(location: unknown): string | null {
+  if (typeof location !== 'string' || !location.trim()) return null
+  const match = location.match(/\/jobs\/([0-9a-fA-F-]{36})\/?/)
+  return match?.[1] ?? null
 }
 
 export interface JobApplication {
@@ -120,11 +200,14 @@ export const jobsService = {
   get(id: string): Promise<AxiosResponse<Job>> {
     return api.get(`/jobs/${id}/`)
   },
-  create(data: Partial<Job>): Promise<AxiosResponse<Job>> {
+  create(data: Partial<Job> | Record<string, unknown>): Promise<AxiosResponse<Job>> {
     return api.post('/jobs/', data)
   },
-  update(id: string, data: Partial<Job>): Promise<AxiosResponse<Job>> {
+  update(id: string, data: Partial<Job> | Record<string, unknown>): Promise<AxiosResponse<Job>> {
     return api.patch(`/jobs/${id}/`, data)
+  },
+  delete(id: string): Promise<AxiosResponse<void>> {
+    return api.delete(`/jobs/${id}/`)
   },
   close(id: string): Promise<AxiosResponse<Job>> {
     return api.post(`/jobs/${id}/close/`)

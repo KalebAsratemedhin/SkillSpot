@@ -69,6 +69,12 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/jobs/:id/edit',
+      name: 'job-edit',
+      component: () => import('@/views/JobCreateView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/jobs/:id',
       name: 'job-detail',
       component: () => import('@/views/JobDetailView.vue'),

@@ -2,7 +2,7 @@ from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 from .models import Conversation, Message, MessageAttachment
-from jobs.models import Job
+from .services import MAX_MESSAGE_LENGTH, create_and_broadcast_message, mark_conversation_read
 
 User = get_user_model()
 
@@ -40,35 +40,78 @@ class MessageSerializer(serializers.ModelSerializer):
 
 
 class MessageCreateSerializer(serializers.ModelSerializer):
+    content = serializers.CharField(required=False, allow_blank=True, default='')
+
     class Meta:
         model = Message
         fields = ('content',)
 
+    def validate_content(self, value):
+        text = (value or '').strip()
+        if len(text) > MAX_MESSAGE_LENGTH:
+            raise serializers.ValidationError(
+                f'Message exceeds {MAX_MESSAGE_LENGTH} characters.'
+            )
+        return text
+
     def validate(self, attrs):
         conversation = self.context['conversation']
         sender = self.context['sender']
+        files = self.context.get('files') or []
 
-        # Verify sender is a participant in the conversation
         if sender not in [conversation.participant1, conversation.participant2]:
             raise serializers.ValidationError(
                 'You are not a participant in this conversation.'
             )
 
+        text = (attrs.get('content') or '').strip()
+        if not text and not files:
+            raise serializers.ValidationError({
+                'content': 'Message content or a file is required.',
+            })
+
+        attrs['content'] = text
         return attrs
 
     def create(self, validated_data):
+        from .models import MessageAttachment
+
         conversation = self.context['conversation']
         sender = self.context['sender']
+        files = self.context.get('files') or []
+        text = validated_data.get('content') or ''
 
-        message = Message.objects.create(
+        message = create_and_broadcast_message(
             conversation=conversation,
             sender=sender,
-            **validated_data
+            content=text,
+            allow_empty=bool(files),
         )
 
-        # Update conversation's last_message_at
-        conversation.last_message_at = timezone.now()
-        conversation.save(update_fields=['last_message_at'])
+        for uploaded in files:
+            MessageAttachment.objects.create(
+                message=message,
+                file=uploaded,
+                file_name=getattr(uploaded, 'name', 'file')[:255],
+                file_size=int(getattr(uploaded, 'size', 0) or 0),
+                file_type=(getattr(uploaded, 'content_type', None) or '')[:100],
+            )
+
+        if files:
+            from .realtime import broadcast_chat_message, serialize_message_for_ws
+            from .models import Conversation as ConversationModel
+
+            preview = text[:100] if text else (files[0].name[:100] if files else 'Shared a file')
+            ConversationModel.objects.filter(pk=conversation.pk).update(
+                last_message_preview=preview
+            )
+            # Re-broadcast so peers get attachment metadata.
+            message = (
+                Message.objects.select_related('sender')
+                .prefetch_related('attachments')
+                .get(pk=message.pk)
+            )
+            broadcast_chat_message(conversation.id, serialize_message_for_ws(message))
 
         return message
 
@@ -107,20 +150,20 @@ class ConversationSerializer(serializers.ModelSerializer):
         return obj.participant2.email
 
     def get_last_message(self, obj):
-        last_message = obj.messages.last()
-        if last_message:
-            return {
-                'id': str(last_message.id),
-                'content': last_message.content[:100],  # Truncate for preview
-                'sender_email': last_message.sender.email,
-                'created_at': last_message.created_at
-            }
-        return None
+        if not obj.last_message_preview and not obj.last_message_at:
+            return None
+        sender = obj.last_message_sender
+        return {
+            'id': None,
+            'content': obj.last_message_preview,
+            'sender_email': sender.email if sender else None,
+            'created_at': obj.last_message_at,
+        }
 
     def get_unread_count(self, obj):
         request = self.context.get('request')
-        if request and request.user:
-            return obj.get_unread_count(request.user)
+        if request and request.user and request.user.is_authenticated:
+            return obj.unread_for(request.user)
         return 0
 
     def get_other_participant(self, obj):
@@ -137,15 +180,14 @@ class ConversationSerializer(serializers.ModelSerializer):
 
 class ConversationCreateSerializer(serializers.Serializer):
     participant2_id = serializers.UUIDField(required=True)
+    # Deprecated: rooms are per user pair only. Accepted then ignored for API compat.
     job_id = serializers.UUIDField(required=False, allow_null=True)
     initial_message = serializers.CharField(required=False, allow_blank=True)
 
     def validate(self, attrs):
         participant1 = self.context['participant1']
         participant2_id = attrs.get('participant2_id')
-        job_id = attrs.get('job_id')
 
-        # Validate participant2
         try:
             participant2 = User.objects.get(id=participant2_id)
         except User.DoesNotExist:
@@ -158,59 +200,42 @@ class ConversationCreateSerializer(serializers.Serializer):
                 'participant2_id': 'You cannot start a conversation with yourself.'
             })
 
-        # Validate job if provided
-        if job_id:
-            try:
-                job = Job.objects.get(id=job_id)
-                # Verify participant1 is the client
-                if job.client != participant1:
-                    raise serializers.ValidationError({
-                        'job_id': 'You can only create job-related conversations for your own jobs.'
-                    })
-                # Verify participant2 is a provider (could be from an application)
-                if participant2.user_type not in ['PROVIDER', 'BOTH']:
-                    raise serializers.ValidationError({
-                        'participant2_id': 'The other participant must be a service provider for job-related conversations.'
-                    })
-            except Job.DoesNotExist:
-                raise serializers.ValidationError({
-                    'job_id': 'Job not found.'
-                })
-
+        attrs.pop('job_id', None)
+        attrs['participant2'] = participant2
         return attrs
 
     def create(self, validated_data):
-        initiator = self.context['participant1']  # The user creating the conversation
-        participant2_id = validated_data['participant2_id']
-        job_id = validated_data.get('job_id')
-        initial_message = validated_data.get('initial_message', '')
+        initiator = self.context['participant1']
+        participant2 = validated_data['participant2']
+        initial_message = (validated_data.get('initial_message') or '').strip()
 
-        participant2 = User.objects.get(id=participant2_id)
-        job = Job.objects.get(id=job_id) if job_id else None
-
-        # Ensure consistent ordering (smaller UUID first for participant1)
-        # This ensures we can find existing conversations regardless of who initiated
         if initiator.id > participant2.id:
             participant1, participant2 = participant2, initiator
         else:
             participant1, participant2 = initiator, participant2
 
-        conversation, created = Conversation.objects.get_or_create(
-            participant1=participant1,
-            participant2=participant2,
-            job=job,
-            defaults={}
-        )
-
-        # Send initial message if provided
-        if initial_message and created:
-            Message.objects.create(
-                conversation=conversation,
-                sender=initiator,  # Use original initiator, not swapped participant1
-                content=initial_message
+        conversation = (
+            Conversation.objects.filter(
+                participant1=participant1,
+                participant2=participant2,
             )
-            conversation.last_message_at = timezone.now()
-            conversation.save(update_fields=['last_message_at'])
+            .order_by('-last_message_at', '-updated_at')
+            .first()
+        )
+        if conversation is None:
+            conversation = Conversation.objects.create(
+                participant1=participant1,
+                participant2=participant2,
+                job=None,
+            )
+
+        if initial_message:
+            create_and_broadcast_message(
+                conversation=conversation,
+                sender=initiator,
+                content=initial_message,
+            )
+            conversation.refresh_from_db()
 
         return conversation
 
@@ -249,16 +274,34 @@ class MessageMarkReadSerializer(serializers.Serializer):
         user = self.context['user']
         conversation = self.context.get('conversation')
 
-        if message_ids:
-            messages = Message.objects.filter(id__in=message_ids)
-        elif conversation:
-            # Mark all unread messages in this conversation (where user is recipient)
-            messages = Message.objects.filter(
-                conversation=conversation
-            ).exclude(sender=user).filter(is_read=False)
-        else:
-            messages = Message.objects.none()
+        if not conversation:
+            return 0
 
-        now = timezone.now()
-        updated = messages.update(is_read=True, read_at=now)
-        return updated
+        # Partial mark-read: update rows then resync denormalized counter from truth.
+        if message_ids:
+            now = timezone.now()
+            updated = (
+                Message.objects.filter(id__in=message_ids, conversation=conversation)
+                .exclude(sender=user)
+                .filter(is_read=False)
+                .update(is_read=True, read_at=now)
+            )
+            remaining = (
+                Message.objects.filter(conversation=conversation, is_read=False)
+                .exclude(sender=user)
+                .count()
+            )
+            if user.id == conversation.participant1_id:
+                Conversation.objects.filter(pk=conversation.pk).update(
+                    participant1_unread=remaining
+                )
+            else:
+                Conversation.objects.filter(pk=conversation.pk).update(
+                    participant2_unread=remaining
+                )
+            conversation.refresh_from_db()
+            from .realtime import broadcast_inbox_update
+            broadcast_inbox_update(user.id, conversation, event='conversation_read')
+            return updated
+
+        return mark_conversation_read(conversation=conversation, user=user)

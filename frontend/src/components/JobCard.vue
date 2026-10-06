@@ -29,9 +29,9 @@
           <span class="material-symbols-outlined text-amber text-base">payments</span>
           {{ formatBudget }}
         </span>
-        <span v-if="job.location" class="flex items-center gap-1">
+        <span v-if="jobAddress" class="flex items-center gap-1">
           <span class="material-symbols-outlined text-amber text-base">location_on</span>
-          {{ job.location }}
+          {{ jobAddress }}
         </span>
       </div>
       <p
@@ -65,7 +65,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { type Job } from '@/services/jobs'
+import { type Job, jobAddressText } from '@/services/jobs'
 
 interface Props {
   job: Job
@@ -91,6 +91,8 @@ const truncatedDescription = computed(() => {
   if (d.length <= DESCRIPTION_MAX_LENGTH) return d
   return d.slice(0, DESCRIPTION_MAX_LENGTH).trim() + '…'
 })
+
+const jobAddress = computed(() => jobAddressText(props.job))
 
 const jobTags = computed(() => {
   if (props.job.tags && props.job.tags.length) return props.job.tags

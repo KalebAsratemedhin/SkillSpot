@@ -726,7 +726,6 @@ async function openConversation() {
   try {
     const conv = await messagingStore.createConversation({
       participant2_id: otherId,
-      job_id: typeof c.job === 'string' ? c.job : undefined,
       initial_message: '',
     })
     if (conv?.id && conv.id !== 'undefined') {

@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { jobsService, type Job, type JobApplication, type JobInvitation, type JobListParams } from '@/services/jobs'
+import { jobsService, coerceJob, jobIdFromLocationHeader, type Job, type JobApplication, type JobInvitation, type JobListParams } from '@/services/jobs'
 
 export const useJobsStore = defineStore('jobs', () => {
   const jobs = ref<Job[]>([])
@@ -51,13 +51,25 @@ export const useJobsStore = defineStore('jobs', () => {
     }
   }
 
-  async function createJob(data: Partial<Job>) {
+  async function createJob(data: Partial<Job> | Record<string, unknown>) {
     try {
       loading.value = true
       error.value = null
       const response = await jobsService.create(data)
-      jobs.value.unshift(response.data)
-      return response.data
+      let job = coerceJob(response.data)
+      if (!job?.id) {
+        const fromHeader = jobIdFromLocationHeader(
+          response.headers?.location ?? response.headers?.Location
+        )
+        if (fromHeader) {
+          job = { ...(typeof response.data === 'object' && response.data ? response.data as Job : {} as Job), id: fromHeader }
+        }
+      }
+      if (job?.id) {
+        jobs.value.unshift(job)
+        currentJob.value = job
+      }
+      return job
     } catch (err: any) {
       error.value = err.response?.data?.detail || 'Failed to create job'
       throw err
@@ -66,21 +78,42 @@ export const useJobsStore = defineStore('jobs', () => {
     }
   }
 
-  async function updateJob(id: string, data: Partial<Job>) {
+  async function updateJob(id: string, data: Partial<Job> | Record<string, unknown>) {
     try {
       loading.value = true
       error.value = null
       const response = await jobsService.update(id, data)
+      const job = coerceJob(response.data) ?? { ...(response.data as Job), id }
       const index = jobs.value.findIndex(j => j.id === id)
       if (index !== -1) {
-        jobs.value[index] = response.data
+        jobs.value[index] = job
       }
       if (currentJob.value?.id === id) {
-        currentJob.value = response.data
+        currentJob.value = job
       }
-      return response.data
+      return job
     } catch (err: any) {
       error.value = err.response?.data?.error ?? 'Failed to update job'
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function deleteJob(id: string) {
+    try {
+      loading.value = true
+      error.value = null
+      await jobsService.delete(id)
+      jobs.value = jobs.value.filter((j) => j.id !== id)
+      if (currentJob.value?.id === id) {
+        currentJob.value = null
+      }
+    } catch (err: any) {
+      error.value =
+        err.response?.data?.error ??
+        err.response?.data?.detail ??
+        'Failed to delete job'
       throw err
     } finally {
       loading.value = false
@@ -236,6 +269,7 @@ export const useJobsStore = defineStore('jobs', () => {
     fetchJob,
     createJob,
     updateJob,
+    deleteJob,
     closeJob,
     fetchApplications,
     fetchMyApplications,

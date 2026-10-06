@@ -460,9 +460,7 @@ watch([skill, paymentSchedule, ordering, verifiedOnly], () => {
 
 onMounted(async () => {
   try {
-    const res = await profilesService.listTags({ category: 'SKILL' })
-    const data = res.data as Tag[] | { results?: Tag[] }
-    skillTags.value = Array.isArray(data) ? data : (data.results ?? [])
+    skillTags.value = await profilesService.listAllTags({ category: 'SKILL', page_size: 50 })
   } catch {
     skillTags.value = []
   }

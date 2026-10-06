@@ -8,12 +8,61 @@ from ratings.models import Rating
 User = get_user_model()
 
 
+class JobLocationSerializer(serializers.Serializer):
+    """Map coordinates for a job. Null when either coordinate is missing."""
+
+    latitude = serializers.DecimalField(
+        max_digits=9, decimal_places=6, required=False, allow_null=True
+    )
+    longitude = serializers.DecimalField(
+        max_digits=9, decimal_places=6, required=False, allow_null=True
+    )
+
+    def validate(self, attrs):
+        lat = attrs.get('latitude', serializers.empty)
+        lng = attrs.get('longitude', serializers.empty)
+        # Treat partial updates carefully in parent; here require both or neither when provided
+        if lat is serializers.empty and lng is serializers.empty:
+            return attrs
+        has_lat = lat is not serializers.empty and lat is not None
+        has_lng = lng is not serializers.empty and lng is not None
+        if has_lat != has_lng:
+            raise serializers.ValidationError(
+                'location requires both latitude and longitude, or both null.'
+            )
+        return attrs
+
+
+def _job_location_payload(job):
+    if job.latitude is None or job.longitude is None:
+        return None
+    # Strings keep DecimalField precision and stay JSON-safe for clients.
+    return {
+        'latitude': f'{job.latitude:.6f}',
+        'longitude': f'{job.longitude:.6f}',
+    }
+
+
+def _apply_location_attrs(attrs, location_data):
+    """Merge nested location into latitude/longitude model fields."""
+    if location_data is None:
+        attrs['latitude'] = None
+        attrs['longitude'] = None
+        return attrs
+    if 'latitude' in location_data:
+        attrs['latitude'] = location_data.get('latitude')
+    if 'longitude' in location_data:
+        attrs['longitude'] = location_data.get('longitude')
+    return attrs
+
+
 class JobSerializer(serializers.ModelSerializer):
     client_email = serializers.EmailField(source='client.email', read_only=True)
     client_name = serializers.SerializerMethodField()
     client_profile = serializers.SerializerMethodField()
     client_rating = serializers.SerializerMethodField()
     my_application = serializers.SerializerMethodField()
+    location = serializers.SerializerMethodField()
     required_skills = TagSerializer(many=True, read_only=True)
     skill_ids = serializers.PrimaryKeyRelatedField(
         many=True,
@@ -30,16 +79,18 @@ class JobSerializer(serializers.ModelSerializer):
         fields = (
             'id', 'client', 'client_email', 'client_name', 'client_profile',
             'client_rating', 'my_application', 'title', 'description',
-            'budget_min', 'budget_max', 'currency', 'location',
-            'address', 'latitude', 'longitude', 'is_remote', 'status',
-            'payment_schedule', 'required_skills', 'skill_ids',
-            'deadline', 'applications_count', 'accepted_applications_count',
-            'created_at', 'updated_at', 'closed_at'
+            'budget_min', 'budget_max', 'currency', 'address', 'location',
+            'is_remote', 'status', 'payment_schedule', 'required_skills',
+            'skill_ids', 'deadline', 'applications_count',
+            'accepted_applications_count', 'created_at', 'updated_at', 'closed_at'
         )
         read_only_fields = (
             'id', 'client', 'client_profile', 'client_rating', 'my_application',
-            'created_at', 'updated_at', 'closed_at',
+            'location', 'created_at', 'updated_at', 'closed_at',
         )
+
+    def get_location(self, obj):
+        return _job_location_payload(obj)
 
     def get_client_name(self, obj):
         if hasattr(obj.client, 'profile') and obj.client.profile:
@@ -160,21 +211,15 @@ class JobCreateSerializer(serializers.ModelSerializer):
         required=False,
         source='required_skills'
     )
-    location = serializers.CharField(required=False, allow_blank=True, default='')
-    latitude = serializers.DecimalField(
-        max_digits=9, decimal_places=6, required=False, allow_null=True
-    )
-    longitude = serializers.DecimalField(
-        max_digits=9, decimal_places=6, required=False, allow_null=True
-    )
+    address = serializers.CharField(required=False, allow_blank=True, default='')
+    location = JobLocationSerializer(required=False, allow_null=True, write_only=True)
 
     class Meta:
         model = Job
         fields = (
             'id', 'title', 'description', 'budget_min', 'budget_max',
-            'currency', 'location', 'address', 'is_remote', 'status',
+            'currency', 'address', 'location', 'is_remote', 'status',
             'payment_schedule', 'required_skills', 'skill_ids', 'deadline',
-            'latitude', 'longitude',
         )
         read_only_fields = ('id',)
 
@@ -187,7 +232,14 @@ class JobCreateSerializer(serializers.ModelSerializer):
                 'budget_max': 'Maximum budget must be greater than or equal to minimum budget.'
             })
 
+        location = attrs.pop('location', serializers.empty)
+        if location is not serializers.empty:
+            _apply_location_attrs(attrs, location)
+
         return attrs
+
+    def to_representation(self, instance):
+        return JobSerializer(instance, context=self.context).data
 
 
 class JobApplicationSerializer(serializers.ModelSerializer):
@@ -295,6 +347,26 @@ class JobApplicationCreateSerializer(serializers.ModelSerializer):
 
         if job.status != Job.JobStatus.OPEN:
             raise serializers.ValidationError('This job is not open for applications.')
+
+        proposed = attrs.get('proposed_rate')
+        if proposed is None:
+            raise serializers.ValidationError({
+                'proposed_rate': 'Proposed rate is required.',
+            })
+        if proposed < 0:
+            raise serializers.ValidationError({
+                'proposed_rate': 'Proposed rate cannot be negative.',
+            })
+
+        ceiling = job.budget_max if job.budget_max is not None else job.budget_min
+        if ceiling is not None and proposed > ceiling:
+            schedule = getattr(job, 'payment_schedule', None)
+            suffix = '/hr' if schedule == Job.PaymentSchedule.HOURLY else ''
+            raise serializers.ValidationError({
+                'proposed_rate': (
+                    f'Proposed rate cannot exceed the client budget of Br {ceiling}{suffix}.'
+                ),
+            })
 
         return attrs
 
