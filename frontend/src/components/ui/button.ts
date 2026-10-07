@@ -7,7 +7,7 @@ export const buttonVariants = cva(
       variant: {
         default: 'bg-amber text-midnight font-extrabold hover:bg-amber-dark shadow-lg shadow-amber/30 transition-all hover:scale-105',
         secondary: 'bg-midnight text-white hover:bg-midnight-light',
-        outline: 'border-2 border-white/20 bg-transparent text-white hover:bg-white/10',
+        outline: 'border border-slate-200 bg-white text-midnight hover:bg-slate-50 hover:border-slate-300',
         ghost: 'hover:bg-accent hover:text-accent-foreground',
         destructive: 'bg-destructive text-destructive-foreground hover:bg-destructive/90',
       },

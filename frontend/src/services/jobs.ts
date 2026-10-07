@@ -236,8 +236,12 @@ export const jobsService = {
   updateApplication(id: string, data: Partial<JobApplication>): Promise<AxiosResponse<JobApplication>> {
     return api.patch(`/jobs/applications/${id}/`, data)
   },
-  listInvitations(): Promise<AxiosResponse<JobInvitation[]>> {
-    return api.get('/jobs/invitations/')
+  listInvitations(params?: {
+    job?: string
+    page?: number
+    page_size?: number
+  }): Promise<AxiosResponse<JobInvitation[] | { results: JobInvitation[]; count: number }>> {
+    return api.get('/jobs/invitations/', { params })
   },
   getInvitation(id: string): Promise<AxiosResponse<JobInvitation>> {
     return api.get(`/jobs/invitations/${id}/`)

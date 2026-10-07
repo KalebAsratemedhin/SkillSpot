@@ -32,6 +32,11 @@ class Profile(models.Model):
     address = models.TextField(blank=True)
     timezone = models.CharField(max_length=50, default='UTC')
     is_verified = models.BooleanField(default=False)
+    last_seen_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text=_('Last time the user went offline (presence).'),
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

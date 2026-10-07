@@ -24,7 +24,7 @@
                     </Button>
                   </router-link>
                   <router-link to="/jobs/create">
-                    <Button variant="outline" size="lg" class="h-16 min-w-[200px] rounded-full px-8 text-lg border-2 border-white/20">
+                    <Button variant="outline" size="lg" class="h-16 min-w-[200px] rounded-full px-8 text-lg border-2 border-white/30 bg-transparent text-white hover:bg-white/10 hover:text-white">
                       Post a Job
                     </Button>
                   </router-link>

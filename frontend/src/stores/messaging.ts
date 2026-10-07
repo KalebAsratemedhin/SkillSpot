@@ -8,6 +8,8 @@ import {
   type CreateConversationPayload,
 } from '@/services/messaging'
 import { useAuthStore } from '@/stores/auth'
+import { useNotificationsStore } from '@/stores/notifications'
+import type { NotificationInboxFrame } from '@/stores/notifications'
 
 function getWsBaseUrl(): string {
   const api = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1'
@@ -38,6 +40,13 @@ type InboxUpdatePayload = {
   event?: 'conversation_updated' | 'conversation_read' | string
   conversation: InboxConversationSlice
   total_unread: number
+}
+
+type PresenceUpdatePayload = {
+  type: 'presence_update'
+  user_id: string
+  is_online: boolean
+  last_seen_at?: string | null
 }
 
 export const useMessagingStore = defineStore('messaging', () => {
@@ -94,6 +103,7 @@ export const useMessagingStore = defineStore('messaging', () => {
     }
 
     if (messages.value.some((m) => m.id === msg.id)) return
+    // Live / send path: new messages are newest — append (API list is already chronological).
     messages.value = [...messages.value, msg]
   }
 
@@ -242,6 +252,30 @@ export const useMessagingStore = defineStore('messaging', () => {
       await fetchConversations({ silent: true })
     } finally {
       inboxFetchMissingInFlight = false
+    }
+  }
+
+  function applyPresenceUpdate(payload: PresenceUpdatePayload) {
+    const userId = String(payload.user_id || '')
+    if (!userId) return
+
+    const patchPeer = (conv: Conversation): Conversation => {
+      if (!conv.other_participant || String(conv.other_participant.id) !== userId) {
+        return conv
+      }
+      return {
+        ...conv,
+        other_participant: {
+          ...conv.other_participant,
+          is_online: Boolean(payload.is_online),
+          last_seen_at: payload.is_online ? null : (payload.last_seen_at ?? null),
+        },
+      }
+    }
+
+    conversations.value = conversations.value.map(patchPeer)
+    if (currentConversation.value) {
+      currentConversation.value = patchPeer(currentConversation.value)
     }
   }
 
@@ -395,9 +429,24 @@ export const useMessagingStore = defineStore('messaging', () => {
         ws.onmessage = (event) => {
           if (generation !== inboxGeneration) return
           try {
-            const data = JSON.parse(event.data) as InboxUpdatePayload
-            if (data?.type === 'inbox_update' && data.conversation) {
-              void applyInboxUpdate(data)
+            const data = JSON.parse(event.data) as Record<string, unknown>
+            const type = data?.type
+            if (type === 'inbox_update' && data.conversation) {
+              void applyInboxUpdate(data as unknown as InboxUpdatePayload)
+              return
+            }
+            if (type === 'presence_update' && data.user_id) {
+              applyPresenceUpdate(data as unknown as PresenceUpdatePayload)
+              return
+            }
+            if (
+              type === 'notification_created' ||
+              type === 'notification_updated' ||
+              type === 'notifications_read'
+            ) {
+              useNotificationsStore().handleInboxFrame(
+                data as unknown as NotificationInboxFrame
+              )
             }
           } catch {
             // ignore parse errors
@@ -482,10 +531,11 @@ export const useMessagingStore = defineStore('messaging', () => {
     try {
       loading.value = true
       error.value = null
-      const response = await messagingService.getMessages(
-        conversationId,
-        markRead ? { mark_read: true } : undefined
-      )
+      // Page 1 = latest window; results are already oldest → newest (see CHAT_MESSAGES_API.md).
+      const response = await messagingService.getMessages(conversationId, {
+        page_size: 50,
+        ...(markRead ? { mark_read: true } : {}),
+      })
       messages.value = response.data.results || []
     } catch (err: any) {
       error.value = err.response?.data?.detail || 'Failed to fetch messages'
@@ -670,10 +720,20 @@ export const useMessagingStore = defineStore('messaging', () => {
         ws.onmessage = (event) => {
           if (generation !== connectGeneration) return
           try {
-            const data = JSON.parse(event.data) as Message
-            if (data?.id != null && (data.content != null || data.attachments?.length)) {
-              appendMessage(data)
-              notifyEcho(data)
+            const data = JSON.parse(event.data) as Message | PresenceUpdatePayload
+            if (
+              data &&
+              typeof data === 'object' &&
+              'type' in data &&
+              data.type === 'presence_update'
+            ) {
+              applyPresenceUpdate(data)
+              return
+            }
+            const msg = data as Message
+            if (msg?.id != null && (msg.content != null || msg.attachments?.length)) {
+              appendMessage(msg)
+              notifyEcho(msg)
             }
           } catch {
             // ignore parse errors

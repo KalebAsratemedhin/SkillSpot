@@ -100,6 +100,14 @@ class ConversationDetailView(generics.RetrieveAPIView):
 
 
 class MessageListCreateView(generics.ListCreateAPIView):
+    """
+    Chat message history for a conversation.
+
+    Pagination is newest-first so page 1 is the latest window (open-thread
+    default). Each page's ``results`` are returned oldest → newest so clients
+    can render the thread without re-sorting. Page 2+ is older history
+    (prepend when implementing infinite scroll upward).
+    """
     serializer_class = MessageSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -114,15 +122,33 @@ class MessageListCreateView(generics.ListCreateAPIView):
         except Conversation.DoesNotExist:
             return Message.objects.none()
 
-        queryset = Message.objects.filter(conversation_id=conversation_id).select_related(
-            'sender', 'sender__profile'
-        ).prefetch_related('attachments')
+        queryset = (
+            Message.objects.filter(conversation_id=conversation_id)
+            .select_related('sender', 'sender__profile')
+            .prefetch_related('attachments')
+            .order_by('-created_at', '-id')
+        )
 
         mark_read = self.request.query_params.get('mark_read', 'false').lower() == 'true'
         if mark_read:
             mark_conversation_read(conversation=conversation, user=user)
 
         return queryset
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            # DB page is newest→oldest; reverse to chronological for the thread UI.
+            chronological = list(reversed(page))
+            serializer = self.get_serializer(chronological, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(
+            list(reversed(list(queryset))),
+            many=True,
+        )
+        return Response(serializer.data)
 
     def get_serializer_class(self):
         if self.request.method == 'POST':

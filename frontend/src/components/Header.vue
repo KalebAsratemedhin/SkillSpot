@@ -18,9 +18,20 @@
           <div class="absolute left-0 top-full pt-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
             <div class="rounded-lg border border-white/10 bg-midnight/95 backdrop-blur-md shadow-xl py-1 min-w-[160px]">
               <router-link to="/browse" class="block px-4 py-2 text-sm font-medium hover:bg-white/10 hover:text-amber transition-colors">Browse</router-link>
-              <router-link to="/jobs" class="block px-4 py-2 text-sm font-medium hover:bg-white/10 hover:text-amber transition-colors">My Jobs</router-link>
-              <router-link to="/applications" class="block px-4 py-2 text-sm font-medium hover:bg-white/10 hover:text-amber transition-colors">Applications</router-link>
-              <router-link to="/invitations" class="block px-4 py-2 text-sm font-medium hover:bg-white/10 hover:text-amber transition-colors">Invitations</router-link>
+              <router-link
+                v-if="authStore.isClient"
+                to="/jobs"
+                class="block px-4 py-2 text-sm font-medium hover:bg-white/10 hover:text-amber transition-colors"
+              >
+                My Jobs
+              </router-link>
+              <router-link
+                v-if="authStore.isProvider"
+                to="/applications"
+                class="block px-4 py-2 text-sm font-medium hover:bg-white/10 hover:text-amber transition-colors"
+              >
+                Requests
+              </router-link>
             </div>
           </div>
         </div>
@@ -56,9 +67,17 @@
               Post a Job
             </Button>
           </router-link>
-          <button class="hidden sm:flex items-center justify-center rounded-lg h-10 w-10 md:h-11 md:w-11 bg-midnight-light text-slate-300 hover:text-white transition-colors">
+          <router-link
+            to="/notifications"
+            class="relative hidden sm:flex items-center justify-center rounded-lg h-10 w-10 md:h-11 md:w-11 bg-midnight-light text-slate-300 hover:text-white transition-colors"
+            aria-label="Notifications"
+          >
             <span class="material-symbols-outlined text-[20px] md:text-[22px]">notifications</span>
-          </button>
+            <span
+              v-if="notificationsStore.unreadCount > 0"
+              class="absolute top-1.5 right-1.5 size-2 rounded-full bg-amber"
+            />
+          </router-link>
           <div ref="avatarMenuRef" class="relative">
             <button
               type="button"
@@ -115,10 +134,12 @@ import { useRouter } from 'vue-router'
 import { onClickOutside } from '@vueuse/core'
 import { useAuthStore } from '@/stores/auth'
 import { useMessagingStore } from '@/stores/messaging'
+import { useNotificationsStore } from '@/stores/notifications'
 import Button from './ui/Button.vue'
 
 const authStore = useAuthStore()
 const messagingStore = useMessagingStore()
+const notificationsStore = useNotificationsStore()
 const router = useRouter()
 const avatarMenuOpen = ref(false)
 const avatarMenuRef = ref<HTMLElement | null>(null)

@@ -23,7 +23,13 @@ export interface Conversation {
   participant1_name?: string
   participant2?: string
   participant2_name?: string
-  other_participant?: { id: string; email: string; name: string }
+  other_participant?: {
+    id: string
+    email: string
+    name: string
+    is_online?: boolean
+    last_seen_at?: string | null
+  }
   participants?: string[]
   job?: string
   job_title?: string
@@ -65,7 +71,10 @@ export const messagingService = {
   createConversation(data: CreateConversationPayload): Promise<AxiosResponse<Conversation>> {
     return api.post('/messaging/conversations/', data)
   },
-  getMessages(conversationId: string, params?: { mark_read?: boolean }): Promise<AxiosResponse<PaginatedResponse<Message>>> {
+  getMessages(
+    conversationId: string,
+    params?: { mark_read?: boolean; page?: number; page_size?: number }
+  ): Promise<AxiosResponse<PaginatedResponse<Message>>> {
     return api.get(`/messaging/conversations/${conversationId}/messages/`, { params })
   },
   sendMessage(conversationId: string, data: { content: string }): Promise<AxiosResponse<Message>> {

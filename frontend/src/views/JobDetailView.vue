@@ -271,9 +271,51 @@
 
               <!-- Invitations tab -->
               <div v-else class="space-y-5">
-                <p class="text-gray-500 text-sm">
-                  Browse providers below, optionally filter by this job’s skills, then invite.
-                </p>
+                <div>
+                  <h4 class="text-sm font-bold text-midnight mb-3">Invitations sent</h4>
+                  <ul v-if="invitationsForThisJob.length" class="space-y-2">
+                    <li
+                      v-for="inv in invitationsForThisJob"
+                      :key="inv.id"
+                      class="flex flex-wrap items-center justify-between gap-2 text-sm py-2.5 px-3 rounded-xl border border-slate-200 bg-slate-50"
+                    >
+                      <div class="min-w-0">
+                        <p class="font-semibold text-midnight truncate">{{ getInvitationProviderDisplay(inv) }}</p>
+                        <p v-if="inv.message" class="text-xs text-slate-500 mt-0.5 line-clamp-2">{{ inv.message }}</p>
+                      </div>
+                      <div class="flex items-center gap-2 shrink-0">
+                        <span
+                          class="text-xs font-medium px-2 py-0.5 rounded-full"
+                          :class="inv.status === 'PENDING' ? 'bg-amber/10 text-amber' : inv.status === 'ACCEPTED' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'"
+                        >
+                          {{ inv.status }}
+                        </span>
+                        <Button
+                          v-if="inv.status === 'ACCEPTED' && inv.provider"
+                          size="sm"
+                          :disabled="contractLoading === inv.id"
+                          @click="createContractFromInvitation(inv)"
+                        >
+                          <span v-if="contractLoading === inv.id" class="material-symbols-outlined animate-spin text-sm">refresh</span>
+                          <span v-else class="material-symbols-outlined text-sm">description</span>
+                          Create Contract
+                        </Button>
+                      </div>
+                    </li>
+                  </ul>
+                  <p
+                    v-else
+                    class="text-sm text-slate-500 py-4 px-3 rounded-xl border border-dashed border-slate-200 bg-slate-50"
+                  >
+                    No invitations sent for this job yet.
+                  </p>
+                </div>
+
+                <div class="pt-2 border-t border-slate-100">
+                  <p class="text-gray-500 text-sm mb-4">
+                    Browse providers below, optionally filter by this job’s skills, then invite.
+                  </p>
+                </div>
                 <div class="flex flex-wrap gap-2">
                   <button
                     type="button"
@@ -464,37 +506,6 @@
                   @go-to-page="goInvitePage"
                   @update-page-size="onInvitePageSizeChange"
                 />
-
-                <div v-if="invitationsForThisJob.length" class="pt-4 border-t border-gray-100">
-                  <h4 class="text-sm font-bold text-midnight mb-3">Invitations sent</h4>
-                  <ul class="space-y-2">
-                    <li
-                      v-for="inv in invitationsForThisJob"
-                      :key="inv.id"
-                      class="flex flex-wrap items-center justify-between gap-2 text-sm py-2 px-3 rounded-lg bg-gray-50"
-                    >
-                      <span class="text-gray-700">{{ getInvitationProviderDisplay(inv) }}</span>
-                      <div class="flex items-center gap-2">
-                        <span
-                          class="text-xs font-medium px-2 py-0.5 rounded-full"
-                          :class="inv.status === 'PENDING' ? 'bg-amber/10 text-amber' : inv.status === 'ACCEPTED' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'"
-                        >
-                          {{ inv.status }}
-                        </span>
-                        <Button
-                          v-if="inv.status === 'ACCEPTED' && inv.provider"
-                          size="sm"
-                          :disabled="contractLoading === inv.id"
-                          @click="createContractFromInvitation(inv)"
-                        >
-                          <span v-if="contractLoading === inv.id" class="material-symbols-outlined animate-spin text-sm">refresh</span>
-                          <span v-else class="material-symbols-outlined text-sm">description</span>
-                          Create Contract
-                        </Button>
-                      </div>
-                    </li>
-                  </ul>
-                </div>
               </div>
             </Card>
 
@@ -507,7 +518,7 @@
                 <p class="text-gray-600 text-sm mt-1">The client has invited you to this job. Accept or decline from your invitations, then you can message them here.</p>
               </CardHeader>
               <CardContent class="flex flex-col gap-3">
-                <router-link to="/invitations">
+                <router-link :to="{ name: 'applications', query: { tab: 'invitations' } }">
                   <Button variant="default" size="default" class="bg-amber text-midnight hover:bg-amber-dark">
                     <span class="material-symbols-outlined mr-2 text-lg">inbox</span>
                     View invitations
@@ -980,7 +991,11 @@ const applicationsForThisJob = computed(() => {
   if (!jobId) return []
   const apps = jobsStore.applications
   if (!Array.isArray(apps)) return []
-  return apps.filter((a: JobApplication) => a.job === jobId)
+  return apps.filter((a: JobApplication) => {
+    const appJob = a.job
+    const appJobId = typeof appJob === 'object' && appJob != null ? (appJob as { id?: string }).id : appJob
+    return String(appJobId) === String(jobId)
+  })
 })
 
 const applicationsCountForJob = computed(() => {
@@ -1005,7 +1020,7 @@ const invitationsForThisJob = computed(() => {
   const list = Array.isArray(jobsStore.invitations) ? jobsStore.invitations : []
   return list.filter((inv: { job: string | { id?: string }; id?: string }) => {
     const invJobId = typeof inv.job === 'object' && inv.job != null ? inv.job.id : inv.job
-    return invJobId === jobId
+    return String(invJobId) === String(jobId)
   })
 })
 
@@ -1348,7 +1363,8 @@ async function inviteProviderById(providerUserId: string) {
       message: inviteMessage.value.trim() || undefined,
     })
     toast.success('Invitation sent successfully.')
-    await jobsStore.fetchInvitations()
+    const jobId = jobsStore.currentJob?.id
+    await jobsStore.fetchInvitations(jobId ? { job: jobId } : undefined)
   } catch (err: any) {
     inviteError.value =
       jobsStore.error ||
@@ -1375,10 +1391,10 @@ async function loadJob() {
   await jobsStore.fetchJob(jobId)
   if (isJobOwner.value) {
     await jobsStore.fetchApplications(jobId)
-    await jobsStore.fetchInvitations()
+    await jobsStore.fetchInvitations({ job: jobId })
     await fetchInviteProviders()
   } else if (authStore.isProvider) {
-    await jobsStore.fetchInvitations()
+    await jobsStore.fetchInvitations({ job: jobId })
   }
 }
 

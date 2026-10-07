@@ -402,8 +402,13 @@ class JobInvitationListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         if self.request.user.user_type in ['CLIENT', 'BOTH']:
-            return JobInvitation.objects.filter(client=self.request.user)
-        return JobInvitation.objects.filter(provider=self.request.user)
+            qs = JobInvitation.objects.filter(client=self.request.user)
+        else:
+            qs = JobInvitation.objects.filter(provider=self.request.user)
+        job_id = self.request.query_params.get('job')
+        if job_id:
+            qs = qs.filter(job_id=job_id)
+        return qs.select_related('job', 'client', 'provider', 'client__profile', 'provider__profile')
 
     def get_serializer_class(self):
         if self.request.method == 'POST':

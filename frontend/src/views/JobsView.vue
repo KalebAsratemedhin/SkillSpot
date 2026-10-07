@@ -40,12 +40,14 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useJobsStore } from '@/stores/jobs'
 import AppLayout from '@/components/AppLayout.vue'
 import JobCard from '@/components/JobCard.vue'
 import PaginationBar from '@/components/PaginationBar.vue'
 
+const router = useRouter()
 const authStore = useAuthStore()
 const jobsStore = useJobsStore()
 const currentPage = ref(1)
@@ -57,7 +59,7 @@ async function goToPage(page: number) {
   if (page < 1 || page > jobsTotalPages.value) return
   currentPage.value = page
   await jobsStore.fetchJobs(
-    { ...(authStore.isClient ? { my_jobs: true } : {}), page: currentPage.value, page_size: pageSize.value },
+    { my_jobs: true, page: currentPage.value, page_size: pageSize.value },
     { append: false }
   )
 }
@@ -66,15 +68,17 @@ function onPageSizeChange(size: number) {
   pageSize.value = size
   currentPage.value = 1
   jobsStore.fetchJobs(
-    { ...(authStore.isClient ? { my_jobs: true } : {}), page: 1, page_size: pageSize.value },
+    { my_jobs: true, page: 1, page_size: pageSize.value },
     { append: false }
   )
 }
 
 onMounted(async () => {
+  if (authStore.isProvider) {
+    await router.replace({ name: 'applications' })
+    return
+  }
   currentPage.value = 1
-  await jobsStore.fetchJobs(
-    { ...(authStore.isClient ? { my_jobs: true } : {}), page: 1, page_size: pageSize.value }
-  )
+  await jobsStore.fetchJobs({ my_jobs: true, page: 1, page_size: pageSize.value })
 })
 </script>

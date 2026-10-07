@@ -88,9 +88,7 @@ const router = createRouter({
     },
     {
       path: '/invitations',
-      name: 'invitations',
-      component: () => import('@/views/InvitationsView.vue'),
-      meta: { requiresAuth: true },
+      redirect: { name: 'applications', query: { tab: 'invitations' } },
     },
     {
       path: '/profile',

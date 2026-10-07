@@ -45,6 +45,8 @@ class NotificationDetailView(generics.RetrieveAPIView, generics.UpdateAPIView):
         instance.read = serializer.validated_data.get('read', instance.read)
         instance.read_at = timezone.now() if instance.read else None
         instance.save(update_fields=['read', 'read_at'])
+        from .realtime import broadcast_notification_updated
+        broadcast_notification_updated(instance)
         return Response(NotificationSerializer(instance).data)
 
 
@@ -57,7 +59,15 @@ class NotificationMarkAllReadView(generics.GenericAPIView):
             Notification.objects.filter(recipient=request.user, read=False)
             .update(read=True, read_at=timezone.now())
         )
-        return Response({'marked': updated}, status=status.HTTP_200_OK)
+        from .realtime import broadcast_notifications_read, unread_notification_count
+        broadcast_notifications_read(request.user.id, marked=updated)
+        return Response(
+            {
+                'marked': updated,
+                'unread_count': unread_notification_count(request.user.id),
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 

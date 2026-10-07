@@ -12,5 +12,5 @@ import { cn } from '@/lib/utils'
 
 defineOptions({ inheritAttrs: false })
 const attrs = useAttrs()
-const resolvedClass = computed(() => cn('text-sm text-slate-400', (attrs.class ?? '') as ClassValue))
+const resolvedClass = computed(() => cn('text-sm text-slate-500', (attrs.class ?? '') as ClassValue))
 </script>

@@ -207,11 +207,14 @@ export const useJobsStore = defineStore('jobs', () => {
     }
   }
 
-  async function fetchInvitations() {
+  async function fetchInvitations(params?: { job?: string; page?: number; page_size?: number }) {
     try {
       loading.value = true
       error.value = null
-      const response = await jobsService.listInvitations()
+      const response = await jobsService.listInvitations({
+        page_size: 50,
+        ...params,
+      })
       const data = response.data as { results?: JobInvitation[] } | JobInvitation[]
       invitations.value = Array.isArray(data) ? data : (data?.results ?? [])
     } catch (err: any) {

@@ -124,7 +124,7 @@
                     </form>
                     <DialogFooter>
                       <DialogClose as-child>
-                        <Button type="button" variant="outline" class="border-white/20 text-white">Cancel</Button>
+                        <Button type="button" variant="outline">Cancel</Button>
                       </DialogClose>
                       <Button type="submit" form="edit-profile-form" :loading="profilesStore.loading" variant="default" class="bg-amber text-midnight">
                         Save
@@ -229,7 +229,7 @@
                         </form>
                         <DialogFooter>
                           <DialogClose as-child>
-                            <Button type="button" variant="outline" class="border-white/20 text-white">Cancel</Button>
+                            <Button type="button" variant="outline">Cancel</Button>
                           </DialogClose>
                           <Button type="submit" form="add-experience-form" :loading="profilesStore.loading" variant="default" class="bg-amber text-midnight">
                             Add experience
