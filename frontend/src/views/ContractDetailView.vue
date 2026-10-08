@@ -11,7 +11,7 @@
         <div v-else class="space-y-10">
           <div class="flex flex-col md:flex-row md:items-end justify-between gap-6">
             <div class="flex flex-col gap-4">
-              <div class="flex items-center gap-3">
+              <div class="flex items-center gap-3 flex-wrap">
                 <span
                   :class="[
                     'text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest border',
@@ -22,13 +22,18 @@
                 >
                   {{ contract.status === 'ACTIVE' ? 'Active Contract' : contract.status === 'TERMINATED' ? 'Ended' : contract.status === 'COMPLETED' ? 'Completed' : contract.status.replace(/_/g, ' ') }}
                 </span>
+                <span
+                  class="text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest border border-slate-200 bg-white text-slate-600"
+                >
+                  {{ isHourly ? 'Hourly' : 'Fixed price' }}
+                </span>
                 <p class="text-slate-500 text-sm font-mono tracking-tighter">#SS-{{ contract.id.slice(0, 8).toUpperCase() }}</p>
               </div>
               <h1 class="text-midnight text-3xl md:text-4xl font-extrabold tracking-tight leading-none">{{ contractTitle }}</h1>
             </div>
             <div class="flex gap-4 flex-wrap">
               <router-link
-                v-if="isClient && canPayContract && isFixedPrice && !fixedPricePaid"
+                v-if="isClient && canPayContract && isFixedPrice && !hasMilestones && !fixedPricePaid"
                 :to="`/payments/contract/${contract.id}`"
               >
                 <Button variant="default" size="default" class="bg-[#635bff] hover:bg-[#7a73ff] text-white shadow-lg">
@@ -279,14 +284,126 @@
               </DialogFooter>
             </DialogContent>
           </Dialog>
+          <Dialog v-model:open="showMilestoneDialog" @update:open="(v: boolean) => !v && resetMilestoneForm()">
+            <DialogContent class="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>{{ editingMilestoneId ? 'Edit milestone' : 'Add milestone' }}</DialogTitle>
+                <DialogDescription>
+                  Split the fixed price into milestones. Amounts must sum to Br {{ contract?.total_amount?.toLocaleString() }} before signing.
+                </DialogDescription>
+              </DialogHeader>
+              <div class="grid gap-4 py-4">
+                <div class="grid gap-2">
+                  <label class="text-sm font-medium text-slate-700">Title</label>
+                  <input
+                    v-model="milestoneForm.title"
+                    type="text"
+                    class="w-full px-3 py-2 rounded-lg bg-white border border-slate-200 text-midnight"
+                    placeholder="e.g. Design mockups"
+                  />
+                </div>
+                <div class="grid gap-2">
+                  <label class="text-sm font-medium text-slate-700">Amount (Br)</label>
+                  <input
+                    v-model.number="milestoneForm.amount"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    class="w-full px-3 py-2 rounded-lg bg-white border border-slate-200 text-midnight"
+                  />
+                </div>
+                <div class="grid gap-2">
+                  <label class="text-sm font-medium text-slate-700">Due date (optional)</label>
+                  <input
+                    v-model="milestoneForm.due_date"
+                    type="date"
+                    class="w-full px-3 py-2 rounded-lg bg-white border border-slate-200 text-midnight"
+                  />
+                </div>
+                <div class="grid gap-2">
+                  <label class="text-sm font-medium text-slate-700">Description (optional)</label>
+                  <textarea
+                    v-model="milestoneForm.description"
+                    rows="2"
+                    class="w-full px-3 py-2 rounded-lg bg-white border border-slate-200 text-midnight"
+                    placeholder="What is included in this milestone?"
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <DialogClose as-child>
+                  <Button type="button" variant="outline">Cancel</Button>
+                </DialogClose>
+                <Button
+                  type="button"
+                  variant="default"
+                  class="bg-amber text-midnight hover:bg-amber/90"
+                  :loading="milestoneSaving"
+                  @click="submitMilestone"
+                >
+                  {{ editingMilestoneId ? 'Save' : 'Add milestone' }}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+          <Card
+            v-if="canConvertToFixed"
+            class="bg-amber/10 border-amber/30"
+          >
+            <CardContent class="p-4 flex flex-wrap gap-3 items-center justify-between">
+              <div class="flex gap-3 items-start min-w-0">
+                <span class="material-symbols-outlined text-amber shrink-0">warning</span>
+                <p class="text-sm text-slate-600">
+                  This job is fixed price, but the contract was saved as hourly (so it shows Log hours).
+                  Switch to fixed price to use milestones.
+                </p>
+              </div>
+              <Button
+                v-if="isClient"
+                variant="default"
+                size="sm"
+                class="bg-amber text-midnight hover:bg-amber/90 shrink-0"
+                :loading="convertScheduleLoading"
+                @click="convertToFixed"
+              >
+                Switch to fixed price
+              </Button>
+            </CardContent>
+          </Card>
+          <Card
+            v-if="isFixedPrice && hasMilestones && milestonesSumMismatch && ['DRAFT', 'PENDING_SIGNATURES'].includes(contract.status)"
+            class="bg-amber/10 border-amber/30"
+          >
+            <CardContent class="p-4 flex gap-3 items-start">
+              <span class="material-symbols-outlined text-amber">info</span>
+              <p class="text-sm text-slate-600">
+                Milestone amounts must sum to Br {{ contract.total_amount.toLocaleString() }} before signing.
+                Allocated Br {{ milestonesAllocated.toLocaleString() }} ·
+                remaining Br {{ milestonesRemaining.toLocaleString() }}.
+              </p>
+            </CardContent>
+          </Card>
           <div class="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
             <div class="lg:col-span-7 flex flex-col gap-10">
-              <Card class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                <div class="px-8 py-6 border-b border-gray-100 flex justify-between items-center bg-slate-50">
+              <Card
+                class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-visible"
+                :class="openMilestoneMenuId ? 'relative z-40' : 'relative z-0'"
+              >
+                <div class="px-8 py-6 border-b border-gray-100 flex justify-between items-center bg-slate-50 gap-4 rounded-t-2xl">
                   <h2 class="text-midnight text-lg font-bold flex items-center gap-2">
-                    <span class="material-symbols-outlined text-amber">{{ isHourly ? 'schedule' : 'payments' }}</span>
-                    {{ isHourly ? 'Time entries' : 'Fixed price' }}
+                    <span class="material-symbols-outlined text-amber">{{ isHourly ? 'schedule' : 'flag' }}</span>
+                    {{ isHourly ? 'Time entries' : 'Milestones' }}
                   </h2>
+                  <Button
+                    v-if="canEditMilestones"
+                    variant="outline"
+                    size="sm"
+                    class="border-amber/50 text-amber hover:bg-amber/10"
+                    @click="openAddMilestone"
+                  >
+                    <span class="material-symbols-outlined mr-1 text-base">add</span>
+                    Add milestone
+                  </Button>
                 </div>
                 <CardContent class="p-8">
                   <template v-if="isHourly">
@@ -349,8 +466,128 @@
                     </div>
                   </template>
                   <template v-else>
-                    <p class="text-slate-400 text-sm">Single payment of Br {{ contract.total_amount.toLocaleString() }} when work is complete.</p>
-                    <p v-if="isClient && canPayContract && !fixedPricePaid" class="text-amber text-sm mt-2">Use the &quot;Pay full amount&quot; button above to pay.</p>
+                    <div class="space-y-4">
+                      <div class="flex flex-wrap gap-4 text-sm text-slate-500">
+                        <span>Total Br {{ contract.total_amount.toLocaleString() }}</span>
+                        <span>Allocated Br {{ milestonesAllocated.toLocaleString() }}</span>
+                        <span :class="milestonesRemaining === 0 ? 'text-emerald-600 font-semibold' : 'text-amber font-semibold'">
+                          Remaining Br {{ milestonesRemaining.toLocaleString() }}
+                        </span>
+                      </div>
+                      <p v-if="milestones.length === 0" class="text-slate-500 text-sm">
+                        <template v-if="canEditMilestones">
+                          No milestones yet. Add milestones to split the fixed price, or leave empty for a single full payment.
+                        </template>
+                        <template v-else>
+                          Single payment of Br {{ contract.total_amount.toLocaleString() }} when work is complete.
+                        </template>
+                      </p>
+                      <div
+                        v-for="m in sortedMilestones"
+                        :key="m.id"
+                        class="flex flex-wrap items-center justify-between gap-4 p-4 rounded-xl border border-slate-200 bg-slate-50"
+                        :class="openMilestoneMenuId === m.id ? 'relative z-30' : 'relative z-0'"
+                      >
+                        <div class="min-w-0 flex-1">
+                          <p class="text-midnight font-bold">{{ m.title }}</p>
+                          <p v-if="m.description" class="text-slate-400 text-sm mt-1">{{ m.description }}</p>
+                          <p v-if="m.due_date" class="text-slate-400 text-xs mt-1">Due {{ formatDate(m.due_date) }}</p>
+                          <span
+                            :class="[
+                              'inline-block mt-2 text-[10px] font-black px-2 py-0.5 rounded uppercase border',
+                              milestonePaid(m.id) ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : '',
+                              !milestonePaid(m.id) && m.status === 'COMPLETED' ? 'bg-amber/10 text-amber border-amber/20' : '',
+                              !milestonePaid(m.id) && m.status === 'IN_PROGRESS' ? 'bg-sky-500/10 text-sky-600 border-sky-500/20' : '',
+                              !milestonePaid(m.id) && m.status === 'PENDING' ? 'bg-slate-100 border-slate-200 text-slate-600' : '',
+                              m.status === 'CANCELLED' ? 'bg-red-500/10 text-red-400 border-red-500/20' : '',
+                            ]"
+                          >
+                            {{ milestonePaid(m.id) ? 'Paid' : milestoneStatusLabel(m.status) }}
+                          </span>
+                        </div>
+                        <div class="flex items-center gap-2 shrink-0">
+                          <span class="text-midnight font-bold">Br {{ Number(m.amount).toLocaleString() }}</span>
+                          <div v-if="milestoneHasActions(m)" class="relative">
+                            <button
+                              type="button"
+                              class="grid size-9 place-items-center rounded-lg text-slate-500 hover:bg-slate-200/80 hover:text-midnight transition-colors"
+                              :class="openMilestoneMenuId === m.id ? 'bg-slate-200/80 text-midnight' : ''"
+                              :aria-expanded="openMilestoneMenuId === m.id"
+                              aria-haspopup="menu"
+                              aria-label="Milestone actions"
+                              @click.stop="openMilestoneMenuId = openMilestoneMenuId === m.id ? null : m.id"
+                            >
+                              <span class="material-symbols-outlined text-xl">more_vert</span>
+                            </button>
+                            <div
+                              v-if="openMilestoneMenuId === m.id"
+                              role="menu"
+                              class="absolute right-0 top-full mt-1 z-50 min-w-[11rem] rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
+                              @click.stop
+                            >
+                              <button
+                                v-if="canEditMilestones"
+                                type="button"
+                                role="menuitem"
+                                class="flex w-full items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                                @click="openEditMilestone(m); openMilestoneMenuId = null"
+                              >
+                                <span class="material-symbols-outlined text-lg">edit</span>
+                                Edit
+                              </button>
+                              <button
+                                v-if="canUpdateMilestoneStatus && !milestonePaid(m.id) && m.status === 'PENDING'"
+                                type="button"
+                                role="menuitem"
+                                class="flex w-full items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                                :disabled="milestoneStatusLoadingId === m.id"
+                                @click="setMilestoneStatus(m.id, 'IN_PROGRESS'); openMilestoneMenuId = null"
+                              >
+                                <span class="material-symbols-outlined text-lg">play_arrow</span>
+                                Start
+                              </button>
+                              <button
+                                v-if="canUpdateMilestoneStatus && !milestonePaid(m.id) && m.status !== 'CANCELLED' && m.status !== 'COMPLETED'"
+                                type="button"
+                                role="menuitem"
+                                class="flex w-full items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                                :disabled="milestoneStatusLoadingId === m.id"
+                                @click="setMilestoneStatus(m.id, 'COMPLETED'); openMilestoneMenuId = null"
+                              >
+                                <span class="material-symbols-outlined text-lg">check_circle</span>
+                                Mark complete
+                              </button>
+                              <router-link
+                                v-if="canPayMilestone(m)"
+                                :to="`/payments/contract/${contract.id}/milestone/${m.id}`"
+                                role="menuitem"
+                                class="flex w-full items-center gap-2 px-3 py-2 text-sm font-semibold text-[#635bff] hover:bg-indigo-50"
+                                @click="openMilestoneMenuId = null"
+                              >
+                                <span class="material-symbols-outlined text-lg">payments</span>
+                                Pay
+                              </router-link>
+                              <button
+                                v-if="canEditMilestones"
+                                type="button"
+                                role="menuitem"
+                                class="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+                                @click="deleteMilestone(m.id); openMilestoneMenuId = null"
+                              >
+                                <span class="material-symbols-outlined text-lg">delete</span>
+                                Delete
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <p
+                        v-if="isClient && canPayContract && !hasMilestones && !fixedPricePaid"
+                        class="text-amber text-sm"
+                      >
+                        Use &quot;Pay full amount&quot; above for a single payment (no milestones).
+                      </p>
+                    </div>
                   </template>
                 </CardContent>
               </Card>
@@ -384,7 +621,7 @@
               </Card>
             </div>
             <div class="lg:col-span-5 flex flex-col gap-6 sticky top-28">
-              <Card v-if="isClient && canPayContract && isFixedPrice && !fixedPricePaid" class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <Card v-if="isClient && canPayContract && isFixedPrice && !hasMilestones && !fixedPricePaid" class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
                 <div class="bg-slate-50 px-8 py-8 border-b border-gray-100">
                   <div class="flex justify-between items-start mb-4">
                     <div>
@@ -437,6 +674,27 @@
                   </div>
                 </CardContent>
               </Card>
+              <Card v-else-if="isClient && canPayContract && isFixedPrice && hasMilestones" class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                <div class="bg-slate-50 px-8 py-6 border-b border-gray-100">
+                  <p class="text-amber text-xs font-black uppercase tracking-widest mb-1">Payment</p>
+                  <h3 class="text-midnight text-xl font-black">Pay by milestone</h3>
+                  <p class="text-slate-400 text-sm mt-2">
+                    {{ unpaidMilestones.length }} unpaid · Br {{ unpaidMilestonesTotal.toLocaleString() }} remaining
+                  </p>
+                </div>
+                <CardContent class="p-6 space-y-3">
+                  <p v-if="unpaidMilestones.length === 0" class="text-sm text-emerald-600">All milestones paid.</p>
+                  <router-link
+                    v-for="m in unpaidMilestones"
+                    :key="m.id"
+                    :to="`/payments/contract/${contract.id}/milestone/${m.id}`"
+                    class="flex items-center justify-between gap-3 p-3 rounded-xl border border-slate-200 hover:border-amber/40 hover:bg-amber/5 transition-colors"
+                  >
+                    <span class="text-sm font-semibold text-midnight truncate">{{ m.title }}</span>
+                    <span class="text-sm font-bold text-midnight whitespace-nowrap">Br {{ Number(m.amount).toLocaleString() }}</span>
+                  </router-link>
+                </CardContent>
+              </Card>
               <Card class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 flex flex-col gap-4">
                 <h3 class="text-slate-400 text-xs font-black uppercase tracking-widest">Transaction History</h3>
                 <div class="space-y-4">
@@ -462,11 +720,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, reactive, onMounted, watch } from 'vue'
+import { ref, computed, reactive, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useMessagingStore } from '@/stores/messaging'
 import { contractsService, type Contract, type ContractMilestone, type TimeEntry } from '@/services/contracts'
+import { jobsService, type Job } from '@/services/jobs'
 import { paymentsService, type Payment } from '@/services/payments'
 import { ratingsService, type Rating, type RatingType } from '@/services/ratings'
 import AppLayout from '@/components/AppLayout.vue'
@@ -502,6 +761,12 @@ const showCloseContractConfirm = ref(false)
 const showDeleteConfirm = ref(false)
 const showEndContractConfirm = ref(false)
 const showAddTimeEntry = ref(false)
+const showMilestoneDialog = ref(false)
+const editingMilestoneId = ref<string | null>(null)
+const openMilestoneMenuId = ref<string | null>(null)
+const milestoneSaving = ref(false)
+const milestoneStatusLoadingId = ref<string | null>(null)
+const milestoneForm = reactive({ title: '', amount: 0, due_date: '', description: '' })
 const contractRatings = ref<Rating[]>([])
 const showReviewModal = ref(false)
 const reviewForm = reactive({ score: 5, comment: '' })
@@ -509,6 +774,8 @@ const reviewSubmitting = ref(false)
 const reviewTypeRef = ref<RatingType | null>(null)
 const addTimeEntryLoading = ref(false)
 const payTimeEntriesLoading = ref(false)
+const convertScheduleLoading = ref(false)
+const linkedJob = ref<Job | null>(null)
 const newTimeEntry = reactive({ date: '', hours: 0, description: '' })
 
 const approvedUnpaidTimeEntries = computed(() => {
@@ -528,15 +795,105 @@ const timeEntryMinDate = computed(() => {
   return d.toISOString().slice(0, 10)
 })
 
-const isFixedPrice = computed(() => (contract.value?.payment_schedule ?? 'FIXED') === 'FIXED')
-const isHourly = computed(() => contract.value?.payment_schedule === 'HOURLY')
+const paymentSchedule = computed(() =>
+  String(contract.value?.payment_schedule ?? 'FIXED').toUpperCase()
+)
+const isFixedPrice = computed(() => paymentSchedule.value === 'FIXED')
+const isHourly = computed(() => paymentSchedule.value === 'HOURLY')
+const hasMilestones = computed(() => milestones.value.length > 0)
+
+const linkedJobIsFixed = computed(() => {
+  const j = linkedJob.value
+  if (!j) return false
+  if (j.payment_schedule === 'FIXED' || j.budget_type === 'fixed') return true
+  if (j.payment_schedule === 'HOURLY' || j.budget_type === 'hourly') return false
+  return false
+})
+
+const canConvertToFixed = computed(() => {
+  const c = contract.value
+  if (!c || !isHourly.value || !linkedJobIsFixed.value) return false
+  if (['COMPLETED', 'TERMINATED', 'CANCELLED'].includes(c.status)) return false
+  return timeEntries.value.length === 0
+})
+
+const sortedMilestones = computed(() =>
+  [...milestones.value].sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.title.localeCompare(b.title))
+)
+
+const milestonesAllocated = computed(() => {
+  const c = contract.value
+  if (c?.milestones_allocated != null) return Number(c.milestones_allocated)
+  return milestones.value.reduce((sum, m) => sum + Number(m.amount ?? 0), 0)
+})
+
+const milestonesRemaining = computed(() => {
+  const c = contract.value
+  if (c?.milestones_remaining != null) return Number(c.milestones_remaining)
+  if (!c) return 0
+  return Number(c.total_amount) - milestonesAllocated.value
+})
+
+const milestonesSumMismatch = computed(() => {
+  if (!hasMilestones.value || !contract.value) return false
+  return Math.abs(milestonesAllocated.value - Number(contract.value.total_amount)) > 0.009
+})
 
 const fixedPricePaid = computed(() => {
-  const c = contract.value
-  if (!c || c.payment_schedule !== 'FIXED') return false
+  if (!isFixedPrice.value) return false
   return payments.value.some(
-    (p: Payment) => (p.status === 'COMPLETED' || p.status === 'completed')
+    (p: Payment) =>
+      !p.milestone && !p.milestone_id && (p.status === 'COMPLETED' || p.status === 'completed')
   )
+})
+
+async function convertToFixed() {
+  const c = contract.value
+  if (!c?.id || !canConvertToFixed.value || !isClient.value) return
+  convertScheduleLoading.value = true
+  try {
+    await contractsService.update(c.id, {
+      payment_schedule: 'FIXED',
+      hourly_rate: null,
+    })
+    toast.success('Contract switched to fixed price. You can add milestones now.')
+    await loadContract()
+  } catch (err: any) {
+    const data = err.response?.data
+    const msg =
+      data?.payment_schedule?.[0] ??
+      data?.detail ??
+      data?.error ??
+      'Failed to switch payment schedule.'
+    toast.error(String(msg))
+  } finally {
+    convertScheduleLoading.value = false
+  }
+}
+
+const unpaidMilestones = computed(() =>
+  sortedMilestones.value.filter((m) => canPayMilestone(m))
+)
+
+const unpaidMilestonesTotal = computed(() =>
+  unpaidMilestones.value.reduce((sum, m) => sum + Number(m.amount ?? 0), 0)
+)
+
+const canEditMilestones = computed(() => {
+  const c = contract.value
+  if (!c || !isClient.value || !isFixedPrice.value) return false
+  if (!['DRAFT', 'PENDING_SIGNATURES'].includes(c.status)) return false
+  return !payments.value.some(
+    (p: Payment) =>
+      (p.milestone || p.milestone_id) && (p.status === 'COMPLETED' || p.status === 'completed')
+  )
+})
+
+const canUpdateMilestoneStatus = computed(() => {
+  const c = contract.value
+  if (!c || !isFixedPrice.value) return false
+  if (!(isClient.value || isProvider.value)) return false
+  return ['ACTIVE', 'PENDING_SIGNATURES', 'DRAFT'].includes(c.status)
 })
 
 const isProvider = computed(() => {
@@ -552,6 +909,128 @@ function timeEntryPaid(entryId: string): boolean {
   )
 }
 
+function milestonePaid(milestoneId: string): boolean {
+  return payments.value.some(
+    (p: Payment) =>
+      (p.milestone === milestoneId || p.milestone_id === milestoneId) &&
+      (p.status === 'COMPLETED' || p.status === 'completed')
+  )
+}
+
+function milestoneStatusLabel(status: ContractMilestone['status']): string {
+  if (status === 'IN_PROGRESS') return 'In progress'
+  if (status === 'COMPLETED') return 'Completed'
+  if (status === 'CANCELLED') return 'Cancelled'
+  return 'Pending'
+}
+
+function canPayMilestone(m: ContractMilestone): boolean {
+  if (!isClient.value || !canPayContract.value) return false
+  if (milestonePaid(m.id) || m.status === 'CANCELLED') return false
+  // Pay only after the milestone is marked complete
+  return m.status === 'COMPLETED'
+}
+
+function milestoneHasActions(m: ContractMilestone): boolean {
+  if (canEditMilestones.value) return true
+  if (canUpdateMilestoneStatus.value && !milestonePaid(m.id) && m.status !== 'CANCELLED' && m.status !== 'COMPLETED') {
+    return true
+  }
+  if (canPayMilestone(m)) return true
+  return false
+}
+
+function resetMilestoneForm() {
+  editingMilestoneId.value = null
+  milestoneForm.title = ''
+  milestoneForm.amount = 0
+  milestoneForm.due_date = ''
+  milestoneForm.description = ''
+}
+
+function openAddMilestone() {
+  resetMilestoneForm()
+  const remaining = Math.max(0, milestonesRemaining.value)
+  milestoneForm.amount = remaining > 0 ? Number(remaining.toFixed(2)) : 0
+  showMilestoneDialog.value = true
+}
+
+function openEditMilestone(m: ContractMilestone) {
+  editingMilestoneId.value = m.id
+  milestoneForm.title = m.title
+  milestoneForm.amount = Number(m.amount)
+  milestoneForm.due_date = m.due_date ? String(m.due_date).slice(0, 10) : ''
+  milestoneForm.description = m.description ?? ''
+  showMilestoneDialog.value = true
+}
+
+async function submitMilestone() {
+  const c = contract.value
+  if (!c?.id || !canEditMilestones.value) return
+  if (!milestoneForm.title.trim() || !milestoneForm.amount || milestoneForm.amount <= 0) {
+    toast.error('Enter a title and a valid amount.')
+    return
+  }
+  milestoneSaving.value = true
+  try {
+    const payload = {
+      title: milestoneForm.title.trim(),
+      amount: milestoneForm.amount,
+      description: milestoneForm.description.trim() || undefined,
+      due_date: milestoneForm.due_date || undefined,
+      order: editingMilestoneId.value
+        ? undefined
+        : milestones.value.length,
+    }
+    if (editingMilestoneId.value) {
+      await contractsService.updateMilestone(editingMilestoneId.value, payload)
+      toast.success('Milestone updated.')
+    } else {
+      await contractsService.createMilestone(c.id, payload)
+      toast.success('Milestone added.')
+    }
+    showMilestoneDialog.value = false
+    resetMilestoneForm()
+    await loadContract()
+  } catch (err: any) {
+    const data = err.response?.data
+    const msg =
+      data?.amount?.[0] ??
+      data?.detail ??
+      data?.error ??
+      (typeof data === 'object' ? Object.values(data).flat()?.[0] : null) ??
+      'Failed to save milestone.'
+    toast.error(String(msg))
+  } finally {
+    milestoneSaving.value = false
+  }
+}
+
+async function deleteMilestone(id: string) {
+  if (!canEditMilestones.value) return
+  try {
+    await contractsService.deleteMilestone(id)
+    toast.success('Milestone deleted.')
+    await loadContract()
+  } catch (err: any) {
+    toast.error(err.response?.data?.detail ?? err.response?.data?.error ?? 'Failed to delete milestone.')
+  }
+}
+
+async function setMilestoneStatus(id: string, status: ContractMilestone['status']) {
+  if (!canUpdateMilestoneStatus.value) return
+  milestoneStatusLoadingId.value = id
+  try {
+    await contractsService.updateMilestone(id, { status })
+    toast.success(status === 'COMPLETED' ? 'Milestone marked complete.' : 'Milestone updated.')
+    await loadContract()
+  } catch (err: any) {
+    toast.error(err.response?.data?.detail ?? err.response?.data?.error ?? 'Failed to update status.')
+  } finally {
+    milestoneStatusLoadingId.value = null
+  }
+}
+
 const contractTitle = computed(() => {
   if (contract.value?.job && typeof contract.value.job === 'object') {
     return (contract.value.job as { title?: string }).title || 'Contract Details'
@@ -563,6 +1042,7 @@ const canSign = computed(() => {
   const c = contract.value
   if (!c || !authStore.user) return false
   if (!['DRAFT', 'PENDING_SIGNATURES'].includes(c.status)) return false
+  if (isFixedPrice.value && hasMilestones.value && milestonesSumMismatch.value) return false
   const mySignature = c.signatures?.find((s: { signer: string }) => s.signer === authStore.user?.id)
   return mySignature && !mySignature.is_signed
 })
@@ -621,14 +1101,20 @@ const isClient = computed(() => {
   const c = contract.value
   if (!c || !authStore.user) return false
   const clientId = typeof c.client === 'object' && c.client !== null && 'id' in c.client ? (c.client as { id: string }).id : c.client
-  return clientId === authStore.user?.id
+  return String(clientId) === String(authStore.user.id)
 })
 
-/** Client can pay when contract is ACTIVE (backend only accepts payments for active contracts) */
+/** Client can pay on ACTIVE contracts, or settle unpaid completed milestones if already CLOSED early. */
 const canPayContract = computed(() => {
   const c = contract.value
   if (!c || !isClient.value) return false
-  return c.status === 'ACTIVE'
+  if (c.status === 'ACTIVE') return true
+  if (c.status === 'COMPLETED' && isFixedPrice.value) {
+    return milestones.value.some(
+      (m) => m.status === 'COMPLETED' && !milestonePaid(m.id)
+    )
+  }
+  return false
 })
 
 /** Provider may log hours only after both parties have signed (ACTIVE). */
@@ -756,8 +1242,13 @@ async function handleSign() {
     const res = await contractsService.get(c.id)
     contract.value = res.data
   } catch (err: any) {
-    const msg = err.response?.data?.detail ?? err.response?.data?.signature_data?.[0] ?? 'Failed to sign contract'
-    toast.error(msg)
+    const data = err.response?.data
+    const msg =
+      data?.detail ??
+      data?.signature_data?.[0] ??
+      (typeof data === 'object' ? Object.values(data).flat()?.[0] : null) ??
+      'Failed to sign contract'
+    toast.error(String(msg))
   } finally {
     signLoading.value = false
   }
@@ -877,10 +1368,20 @@ function getContractIdFromRoute(): string | undefined {
   return typeof id === 'string' ? id : undefined
 }
 
+function getJobId(c: Contract): string | undefined {
+  if (!c.job) return undefined
+  if (typeof c.job === 'string') return c.job
+  if (typeof c.job === 'object' && c.job !== null && 'id' in c.job) {
+    return String((c.job as { id: string }).id)
+  }
+  return undefined
+}
+
 async function loadContract() {
   const contractId = getContractIdFromRoute()
   if (!contractId) return
   loading.value = true
+  linkedJob.value = null
   try {
     const [contractResponse, paymentsResponse] = await Promise.all([
       contractsService.get(contractId),
@@ -891,7 +1392,22 @@ async function loadContract() {
     timeEntries.value = contractResponse.data.time_entries ?? []
     const paymentsList = paymentsResponse.data.results || []
     payments.value = Array.isArray(paymentsList) ? paymentsList : []
-    if (contractResponse.data.payment_schedule === 'HOURLY' && timeEntries.value.length === 0) {
+
+    const schedule = String(contractResponse.data.payment_schedule ?? 'FIXED').toUpperCase()
+    const jobId = getJobId(contractResponse.data)
+    if (jobId) {
+      try {
+        linkedJob.value = (await jobsService.get(jobId)).data
+      } catch {
+        linkedJob.value = null
+      }
+    }
+
+    if (schedule === 'FIXED' && milestones.value.length === 0) {
+      const mRes = await contractsService.getMilestones(contractId)
+      milestones.value = mRes.data.results ?? []
+    }
+    if (schedule === 'HOURLY' && timeEntries.value.length === 0) {
       const teRes = await contractsService.getTimeEntries(contractId)
       timeEntries.value = teRes.data.results ?? []
     }
@@ -905,7 +1421,17 @@ async function loadContract() {
   }
 }
 
-onMounted(loadContract)
+function closeMilestoneMenusOnOutsideClick() {
+  openMilestoneMenuId.value = null
+}
+
+onMounted(() => {
+  loadContract()
+  document.addEventListener('click', closeMilestoneMenusOnOutsideClick)
+})
+onUnmounted(() => {
+  document.removeEventListener('click', closeMilestoneMenusOnOutsideClick)
+})
 watch(() => getContractIdFromRoute(), (id) => {
   if (id) loadContract()
 })

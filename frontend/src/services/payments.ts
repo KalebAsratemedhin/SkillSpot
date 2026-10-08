@@ -12,6 +12,7 @@ export interface Payment {
   id: string
   contract: string | { id: string }
   milestone?: string
+  milestone_id?: string
   time_entry?: string
   time_entry_id?: string
   amount: number

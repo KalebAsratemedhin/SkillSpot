@@ -159,6 +159,13 @@ async function handlePayment() {
   if (!contract.value) return
   if (paymentMode.value === 'milestone' && !milestone.value) return
   if (paymentMode.value === 'time-entry' && !timeEntry.value) return
+  if (
+    paymentMode.value === 'fixed' &&
+    (contract.value.milestones?.length ?? 0) > 0
+  ) {
+    toast.error('This contract uses milestones. Pay each milestone from the contract page.')
+    return
+  }
   processing.value = true
   try {
     const payload: Parameters<typeof paymentsService.create>[0] = {
@@ -207,13 +214,22 @@ onMounted(async () => {
   try {
     contract.value = (await contractsService.get(cId)).data
     if (milestoneId.value) {
-      const res = await contractsService.getMilestones(cId)
-      const list = res.data.results ?? []
-      milestone.value = list.find((m: { id: string }) => m.id === milestoneId.value) ?? null
+      const embedded = contract.value.milestones ?? []
+      milestone.value = embedded.find((m) => m.id === milestoneId.value) ?? null
+      if (!milestone.value) {
+        const res = await contractsService.getMilestones(cId)
+        const list = res.data.results ?? []
+        milestone.value = list.find((m: { id: string }) => m.id === milestoneId.value) ?? null
+      }
     } else if (timeEntryId.value) {
       const res = await contractsService.getTimeEntries(cId)
       const list = res.data.results ?? []
       timeEntry.value = list.find((t: { id: string }) => t.id === timeEntryId.value) ?? null
+    } else if (
+      paymentMode.value === 'fixed' &&
+      (contract.value.milestones?.length ?? 0) > 0
+    ) {
+      toast.error('This contract uses milestones. Pay each milestone from the contract page.')
     }
   } catch (err) {
     console.error('Failed to fetch payment data:', err)

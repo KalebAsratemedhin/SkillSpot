@@ -211,37 +211,36 @@ class ContractMilestoneListCreateView(generics.ListCreateAPIView):
     serializer_class = ContractMilestoneSerializer
     permission_classes = [permissions.IsAuthenticated]
 
-    def get_queryset(self):
+    def get_contract(self):
+        from rest_framework.exceptions import NotFound
         contract_id = self.kwargs.get('contract_id')
-        return ContractMilestone.objects.filter(contract_id=contract_id)
+        try:
+            return Contract.objects.get(id=contract_id)
+        except Contract.DoesNotExist:
+            raise NotFound('Contract not found.')
+
+    def get_queryset(self):
+        contract = self.get_contract()
+        from .milestone_rules import assert_party
+        assert_party(self.request.user, contract)
+        return ContractMilestone.objects.filter(contract=contract)
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
-        contract_id = self.kwargs.get('contract_id')
-        try:
-            contract = Contract.objects.get(id=contract_id)
-            context['contract'] = contract
-        except Contract.DoesNotExist:
-            pass
+        context['contract'] = self.get_contract()
         return context
 
     def perform_create(self, serializer):
-        contract_id = self.kwargs.get('contract_id')
-        contract_id = self.kwargs.get('contract_id')
-        try:
-            contract = Contract.objects.get(id=contract_id)
-            # Verify user has permission
-            if self.request.user not in [contract.client, contract.provider]:
-                return Response(
-                    {'error': 'You do not have permission to add milestones to this contract.'},
-                    status=status.HTTP_403_FORBIDDEN
-                )
-            serializer.save(contract=contract)
-        except Contract.DoesNotExist:
-            return Response(
-                {'error': 'Contract not found.'},
-                status=status.HTTP_404_NOT_FOUND
-            )
+        from .milestone_rules import (
+            assert_client_owns_structure,
+            assert_fixed_schedule,
+            assert_structure_editable,
+        )
+        contract = self.get_contract()
+        assert_fixed_schedule(contract)
+        assert_client_owns_structure(self.request.user, contract)
+        assert_structure_editable(contract)
+        serializer.save(contract=contract)
 
 
 class ContractMilestoneDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -250,45 +249,97 @@ class ContractMilestoneDetailView(generics.RetrieveUpdateDestroyAPIView):
     lookup_field = 'id'
 
     def get_queryset(self):
-        return ContractMilestone.objects.all()
+        user = self.request.user
+        return ContractMilestone.objects.filter(
+            Q(contract__client=user) | Q(contract__provider=user)
+        ).select_related('contract')
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
-        if self.instance:
-            context['contract'] = self.instance.contract
+        try:
+            context['contract'] = self.get_object().contract
+        except Exception:
+            pass
         return context
 
     def update(self, request, *args, **kwargs):
+        from .milestone_rules import (
+            assert_client_owns_structure,
+            assert_fixed_schedule,
+            assert_party,
+            assert_structure_editable,
+        )
         milestone = self.get_object()
         contract = milestone.contract
+        assert_party(request.user, contract)
+        assert_fixed_schedule(contract)
 
-        # Verify user has permission
-        if request.user not in [contract.client, contract.provider]:
-            return Response(
-                {'error': 'You do not have permission to update this milestone.'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
-        # Handle status updates
         new_status = request.data.get('status')
-        if new_status == ContractMilestone.MilestoneStatus.COMPLETED:
+        structure_keys = {'title', 'description', 'amount', 'due_date', 'order'}
+        touching_structure = bool(structure_keys.intersection(request.data.keys()))
+
+        if touching_structure:
+            assert_client_owns_structure(request.user, contract)
+            assert_structure_editable(contract)
+            response = super().update(request, *args, **kwargs)
+            if new_status == ContractMilestone.MilestoneStatus.COMPLETED:
+                milestone.refresh_from_db()
+                milestone.status = ContractMilestone.MilestoneStatus.COMPLETED
+                milestone.completed_at = timezone.now()
+                milestone.save(update_fields=['status', 'completed_at', 'updated_at'])
+                self._maybe_complete_contract(contract)
+                return Response(ContractMilestoneSerializer(milestone).data)
+            return response
+
+        # Status-only (either party): IN_PROGRESS / COMPLETED / CANCELLED
+        if new_status:
             milestone.status = new_status
-            milestone.completed_at = timezone.now()
-            milestone.save()
-
-            # Check if all milestones are completed
-            all_completed = not contract.milestones.exclude(
-                status=ContractMilestone.MilestoneStatus.COMPLETED
-            ).exists()
-
-            if all_completed and contract.milestones.exists():
-                contract.status = Contract.ContractStatus.COMPLETED
-                contract.completed_at = timezone.now()
-                contract.save()
-
+            update_fields = ['status', 'updated_at']
+            if new_status == ContractMilestone.MilestoneStatus.COMPLETED:
+                milestone.completed_at = timezone.now()
+                update_fields.append('completed_at')
+                milestone.save(update_fields=update_fields)
+                self._maybe_complete_contract(contract)
+            else:
+                milestone.save(update_fields=update_fields)
             return Response(ContractMilestoneSerializer(milestone).data)
 
-        return super().update(request, *args, **kwargs)
+        return Response(
+            {'detail': 'No updatable fields provided.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    def _maybe_complete_contract(self, contract):
+        """Complete contract only after every non-cancelled milestone is paid."""
+        from payments.models import Payment
+
+        milestones = contract.milestones.exclude(
+            status=ContractMilestone.MilestoneStatus.CANCELLED
+        )
+        if not milestones.exists():
+            return
+        for milestone in milestones:
+            paid = milestone.payments.filter(
+                status=Payment.PaymentStatus.COMPLETED
+            ).exists()
+            if not paid:
+                return
+        contract.status = Contract.ContractStatus.COMPLETED
+        contract.completed_at = timezone.now()
+        contract.save(update_fields=['status', 'completed_at', 'updated_at'])
+
+    def destroy(self, request, *args, **kwargs):
+        from .milestone_rules import (
+            assert_client_owns_structure,
+            assert_fixed_schedule,
+            assert_structure_editable,
+        )
+        milestone = self.get_object()
+        contract = milestone.contract
+        assert_fixed_schedule(contract)
+        assert_client_owns_structure(request.user, contract)
+        assert_structure_editable(contract)
+        return super().destroy(request, *args, **kwargs)
 
 
 class ContractSignatureListView(generics.ListAPIView):

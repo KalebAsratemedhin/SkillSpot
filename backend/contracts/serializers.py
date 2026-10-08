@@ -3,6 +3,7 @@ from django.contrib.auth import get_user_model
 from django.db.models import Sum
 from django.utils import timezone
 from .models import Contract, ContractMilestone, ContractSignature, TimeEntry
+from .milestone_rules import milestone_sum
 from jobs.models import Job, JobApplication
 
 User = get_user_model()
@@ -20,16 +21,22 @@ class ContractMilestoneSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         contract = self.instance.contract if self.instance else self.context.get('contract')
-        if contract:
-            # Ensure milestone amount doesn't exceed remaining contract amount
-            total_milestone_amount = sum(
-                m.amount for m in contract.milestones.exclude(id=self.instance.id if self.instance else None)
+        if not contract:
+            return attrs
+        if contract.payment_schedule != Contract.PaymentSchedule.FIXED:
+            raise serializers.ValidationError({
+                'detail': 'Milestones are only allowed on fixed-price (FIXED) contracts.'
+            })
+        total_milestone_amount = sum(
+            m.amount for m in contract.milestones.exclude(
+                id=self.instance.id if self.instance else None
             )
-            new_amount = attrs.get('amount', self.instance.amount if self.instance else 0)
-            if total_milestone_amount + new_amount > contract.total_amount:
-                raise serializers.ValidationError({
-                    'amount': 'Total milestone amounts cannot exceed contract total amount.'
-                })
+        )
+        new_amount = attrs.get('amount', self.instance.amount if self.instance else 0)
+        if total_milestone_amount + new_amount > contract.total_amount:
+            raise serializers.ValidationError({
+                'amount': 'Total milestone amounts cannot exceed contract total amount.'
+            })
         return attrs
 
 
@@ -106,6 +113,8 @@ class ContractSerializer(serializers.ModelSerializer):
     signatures = ContractSignatureSerializer(many=True, read_only=True)
     is_fully_signed = serializers.SerializerMethodField()
     completion_percentage = serializers.SerializerMethodField()
+    milestones_allocated = serializers.SerializerMethodField()
+    milestones_remaining = serializers.SerializerMethodField()
 
     class Meta:
         model = Contract
@@ -116,6 +125,7 @@ class ContractSerializer(serializers.ModelSerializer):
             'payment_schedule', 'hourly_rate',
             'start_date', 'end_date', 'status', 'milestones', 'time_entries', 'signatures',
             'is_fully_signed', 'completion_percentage',
+            'milestones_allocated', 'milestones_remaining',
             'created_at', 'updated_at', 'signed_at', 'completed_at'
         )
         read_only_fields = (
@@ -139,7 +149,12 @@ class ContractSerializer(serializers.ModelSerializer):
     def get_completion_percentage(self, obj):
         from decimal import Decimal
         if obj.payment_schedule == Contract.PaymentSchedule.FIXED:
-            # Fixed: 100% when full amount has been paid (one completed payment)
+            milestones = obj.milestones.all()
+            if milestones.exists():
+                completed = milestones.filter(
+                    status=ContractMilestone.MilestoneStatus.COMPLETED
+                ).count()
+                return int((completed / milestones.count()) * 100)
             paid = obj.payments.filter(status='COMPLETED').aggregate(
                 total=Sum('amount')
             )['total'] or Decimal('0')
@@ -157,6 +172,16 @@ class ContractSerializer(serializers.ModelSerializer):
         amount_paid = paid_sum * obj.hourly_rate
         pct = int((amount_paid / obj.total_amount) * 100)
         return min(100, pct)
+
+    def get_milestones_allocated(self, obj):
+        if obj.payment_schedule != Contract.PaymentSchedule.FIXED:
+            return None
+        return milestone_sum(obj)
+
+    def get_milestones_remaining(self, obj):
+        if obj.payment_schedule != Contract.PaymentSchedule.FIXED:
+            return None
+        return obj.total_amount - milestone_sum(obj)
 
 
 class ContractCreateSerializer(serializers.ModelSerializer):
@@ -271,13 +296,50 @@ class ContractUpdateSerializer(serializers.ModelSerializer):
         model = Contract
         fields = (
             'title', 'description', 'terms', 'total_amount', 'currency',
+            'payment_schedule', 'hourly_rate',
             'start_date', 'end_date', 'status'
         )
 
     def validate(self, attrs):
+        contract = self.instance
+        new_schedule = attrs.get('payment_schedule')
+        if new_schedule and new_schedule != contract.payment_schedule:
+            if contract.status in (
+                Contract.ContractStatus.COMPLETED,
+                Contract.ContractStatus.TERMINATED,
+                Contract.ContractStatus.CANCELLED,
+            ):
+                raise serializers.ValidationError({
+                    'payment_schedule': 'Cannot change payment schedule on a closed contract.'
+                })
+            if new_schedule == Contract.PaymentSchedule.FIXED and contract.time_entries.exists():
+                raise serializers.ValidationError({
+                    'payment_schedule': 'Cannot switch to fixed price while time entries exist.'
+                })
+            if new_schedule == Contract.PaymentSchedule.HOURLY and contract.milestones.exists():
+                raise serializers.ValidationError({
+                    'payment_schedule': 'Cannot switch to hourly while milestones exist.'
+                })
+            if new_schedule == Contract.PaymentSchedule.FIXED:
+                attrs['hourly_rate'] = None
+            elif new_schedule == Contract.PaymentSchedule.HOURLY:
+                rate = attrs.get('hourly_rate', contract.hourly_rate)
+                if rate is None or rate <= 0:
+                    raise serializers.ValidationError({
+                        'hourly_rate': 'Hourly rate is required when switching to hourly.'
+                    })
+
+        schedule_after = new_schedule or contract.payment_schedule
+        if 'total_amount' in attrs and schedule_after == Contract.PaymentSchedule.FIXED:
+            allocated = milestone_sum(contract)
+            if allocated > attrs['total_amount']:
+                raise serializers.ValidationError({
+                    'total_amount': (
+                        f'Cannot set total below allocated milestones ({allocated}).'
+                    )
+                })
         if 'status' not in attrs:
             return attrs
-        contract = self.instance
         new_status = attrs['status']
         # Don't allow status changes to ACTIVE if not fully signed
         if new_status == Contract.ContractStatus.ACTIVE:
@@ -331,9 +393,14 @@ class ContractSignatureCreateSerializer(serializers.Serializer):
         return attrs
 
     def save(self):
+        from .milestone_rules import assert_milestones_allocated_for_signing
+
         contract = self.context['contract']
         signer = self.context['signer']
         request = self.context.get('request')
+
+        # FIXED + milestones: amounts must sum to total before anyone signs.
+        assert_milestones_allocated_for_signing(contract)
 
         signature, _ = ContractSignature.objects.get_or_create(
             contract=contract,

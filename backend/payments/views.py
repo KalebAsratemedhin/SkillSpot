@@ -295,8 +295,9 @@ class CreateStripeCheckoutSessionView(generics.GenericAPIView):
                     'destination': provider_profile.stripe_account_id,
                 }
 
+            # Do not pass payment_method_types — Stripe manages methods from Dashboard
+            # (dynamic payment methods). Passing it returns invalid_request_error.
             session = stripe.checkout.Session.create(
-                payment_method_types=['card'],
                 line_items=line_items,
                 mode='payment',
                 success_url=success_url,
@@ -484,16 +485,33 @@ class CreateStripeCheckoutSessionForTimeEntriesView(generics.GenericAPIView):
                 'destination': provider_profile.stripe_account_id,
             }
 
-        session = stripe.checkout.Session.create(
-            payment_method_types=['card'],
-            line_items=line_items,
-            mode='payment',
-            success_url=success_url,
-            cancel_url=cancel_url,
-            client_reference_id=payment_ids_str,
-            metadata={'payment_ids': payment_ids_str},
-            payment_intent_data=payment_intent_data,
-        )
+        try:
+            # Do not pass payment_method_types — Stripe manages methods from Dashboard.
+            session = stripe.checkout.Session.create(
+                line_items=line_items,
+                mode='payment',
+                success_url=success_url,
+                cancel_url=cancel_url,
+                client_reference_id=payment_ids_str,
+                metadata={'payment_ids': payment_ids_str},
+                payment_intent_data=payment_intent_data,
+            )
+        except stripe.error.StripeError as e:
+            err_msg = str(e)
+            if '50 cents' in err_msg or 'total amount must convert' in err_msg.lower():
+                return Response(
+                    {
+                        'error': (
+                            'Payment amount must be at least 25 ETB. '
+                            'Please add more hours or wait until the total is higher.'
+                        )
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            return Response(
+                {'error': err_msg},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         for p in payments_created:
             PaymentTransaction.objects.create(
@@ -654,6 +672,9 @@ def stripe_webhook(request):
             event = stripe.Webhook.construct_event(
                 payload, sig_header, webhook_secret
             )
+            # Newer stripe-python returns Event objects, not dicts — normalize.
+            if hasattr(event, 'to_dict'):
+                event = event.to_dict()
         else:
             # For development only: skip signature verification if no secret set
             import json
@@ -666,11 +687,18 @@ def stripe_webhook(request):
         logger.exception('[Stripe webhook] Invalid signature - check STRIPE_WEBHOOK_SECRET matches stripe listen secret')
         return JsonResponse({'error': 'Invalid signature'}, status=400)
 
+    if not isinstance(event, dict):
+        event = dict(event)
+
     logger.info('[Stripe webhook] Event type: %s', event.get('type'))
 
     # Handle the event
     event_type = event.get('type')
-    data = event.get('data', {}).get('object', {})
+    data = (event.get('data') or {}).get('object') or {}
+    if data and not isinstance(data, dict) and hasattr(data, 'to_dict'):
+        data = data.to_dict()
+    elif data and not isinstance(data, dict):
+        data = dict(data)
 
     try:
         if event_type == 'checkout.session.completed':
@@ -709,7 +737,17 @@ def stripe_webhook(request):
                 if payment_intent_id:
                     try:
                         pi = stripe.PaymentIntent.retrieve(payment_intent_id)
-                        payment.stripe_charge_id = pi.get('latest_charge') or ''
+                        latest = getattr(pi, 'latest_charge', None)
+                        if latest is None and hasattr(pi, 'get'):
+                            latest = pi.get('latest_charge')
+                        elif latest is None:
+                            try:
+                                latest = pi['latest_charge']
+                            except Exception:
+                                latest = None
+                        if hasattr(latest, 'id'):
+                            latest = latest.id
+                        payment.stripe_charge_id = (latest or '') if isinstance(latest, str) else ''
                     except Exception:
                         pass
                 payment.save()

@@ -84,17 +84,61 @@ class PaymentCreateSerializer(serializers.ModelSerializer):
                 'contract': 'You can only make payments for your own contracts.'
             })
 
-        # Verify contract is active
-        if contract.status != Contract.ContractStatus.ACTIVE:
+        # Active contracts always; COMPLETED allowed only to settle unpaid FIXED milestones
+        # (e.g. contract was closed when work was marked done before payment).
+        allowing_completed_milestone_pay = (
+            contract.status == Contract.ContractStatus.COMPLETED
+            and contract.payment_schedule == Contract.PaymentSchedule.FIXED
+            and milestone_id
+        )
+        if (
+            contract.status != Contract.ContractStatus.ACTIVE
+            and not allowing_completed_milestone_pay
+        ):
             raise serializers.ValidationError({
                 'contract': 'Payments can only be made for active contracts.'
             })
 
-        # Fixed price: amount must equal total_amount, no time_entry; one full payment only
+        # Fixed price: pay per milestone when milestones exist; else legacy single full payment
         if contract.payment_schedule == Contract.PaymentSchedule.FIXED:
             if time_entry_id:
                 raise serializers.ValidationError({
                     'time_entry_id': 'Time entry is only for hourly contracts.'
+                })
+            attrs['time_entry'] = None
+            has_milestones = contract.milestones.exists()
+            if has_milestones:
+                if not milestone_id:
+                    raise serializers.ValidationError({
+                        'milestone_id': (
+                            'This fixed-price contract has milestones. '
+                            'Pay each milestone with milestone_id (not the full contract).'
+                        )
+                    })
+                try:
+                    milestone = ContractMilestone.objects.get(
+                        id=milestone_id,
+                        contract=contract,
+                    )
+                except ContractMilestone.DoesNotExist:
+                    raise serializers.ValidationError({
+                        'milestone_id': 'Milestone not found or does not belong to this contract.'
+                    })
+                if amount != milestone.amount:
+                    raise serializers.ValidationError({
+                        'amount': f'Amount must match milestone amount: {milestone.amount}'
+                    })
+                if milestone.payments.filter(status=Payment.PaymentStatus.COMPLETED).exists():
+                    raise serializers.ValidationError({
+                        'milestone_id': 'This milestone has already been paid.'
+                    })
+                attrs['milestone'] = milestone
+                return attrs
+
+            # Legacy: no milestones — single payment of contract total
+            if milestone_id:
+                raise serializers.ValidationError({
+                    'milestone_id': 'This contract has no milestones; omit milestone_id and pay the total.'
                 })
             if amount != contract.total_amount:
                 raise serializers.ValidationError({
@@ -104,7 +148,6 @@ class PaymentCreateSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({
                     'contract': 'This fixed-price contract has already been paid in full.'
                 })
-            attrs['time_entry'] = None
             attrs['milestone'] = None
             return attrs
 

@@ -490,15 +490,38 @@
                     </div>
                     <template v-else-if="stripeConnectStatus?.has_account">
                       <div class="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200">
-                        <span class="material-symbols-outlined text-emerald-600 text-2xl">check_circle</span>
+                        <span
+                          class="material-symbols-outlined text-2xl"
+                          :class="stripeConnectStatus.enabled ? 'text-emerald-600' : 'text-amber'"
+                        >
+                          {{ stripeConnectStatus.enabled ? 'check_circle' : 'pending' }}
+                        </span>
                         <div>
-                          <p class="font-bold text-midnight">Stripe connected</p>
+                          <p class="font-bold text-midnight">
+                            {{ stripeConnectStatus.enabled ? 'Stripe ready' : 'Stripe setup incomplete' }}
+                          </p>
                           <p class="text-xs text-slate-500">
-                            {{ stripeConnectStatus.enabled ? 'Ready to receive payments' : 'Complete onboarding to receive payments' }}
+                            {{
+                              stripeConnectStatus.enabled
+                                ? 'Ready to receive payments'
+                                : 'Finish onboarding (or wait for verification) before you can get paid'
+                            }}
                           </p>
                         </div>
                       </div>
                       <div class="flex flex-col gap-2">
+                        <Button
+                          v-if="!stripeConnectStatus.enabled"
+                          variant="default"
+                          size="sm"
+                          class="w-full bg-[#635bff] hover:bg-[#7a73ff] text-white"
+                          :disabled="stripeOnboardLoading"
+                          @click="connectStripe"
+                        >
+                          <span v-if="stripeOnboardLoading" class="material-symbols-outlined animate-spin mr-2">refresh</span>
+                          <span v-else class="material-symbols-outlined mr-2">link</span>
+                          Finish Stripe setup
+                        </Button>
                         <Button
                           variant="outline"
                           size="sm"

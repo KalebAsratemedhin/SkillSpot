@@ -74,7 +74,10 @@ class Contract(models.Model):
         max_length=20,
         choices=PaymentSchedule.choices,
         default=PaymentSchedule.FIXED,
-        help_text=_('FIXED = pay once; HOURLY = provider logs hours, client approves and pays')
+        help_text=_(
+            'FIXED = split total into milestones and pay per milestone; '
+            'HOURLY = provider logs hours, client approves and pays'
+        )
     )
     hourly_rate = models.DecimalField(
         max_digits=10,

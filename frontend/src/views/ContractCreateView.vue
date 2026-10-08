@@ -18,7 +18,7 @@
         >
           Prefilling from provider proposal
           <span v-if="applicationPrefill.proposed_rate != null" class="font-semibold text-midnight">
-            — Br {{ Number(applicationPrefill.proposed_rate).toLocaleString() }}/hr
+            — Br {{ Number(applicationPrefill.proposed_rate).toLocaleString() }}{{ isHourlyJob ? '/hr' : '' }}
           </span>
         </div>
         <template v-if="!job">
@@ -51,14 +51,20 @@
         <FormField :error="errors.payment_schedule">
           <Label class="text-sm font-semibold text-slate-700">Payment schedule</Label>
           <Select v-model="form.payment_schedule">
-            <SelectTrigger class="h-11 w-full rounded-xl border border-slate-200 bg-white text-slate-900 placeholder:text-slate-500 focus:ring-2 focus:ring-amber/20 [&>span]:line-clamp-1">
+            <SelectTrigger
+              class="h-11 w-full rounded-xl border border-slate-200 bg-white text-slate-900 placeholder:text-slate-500 focus:ring-2 focus:ring-amber/20 [&>span]:line-clamp-1"
+              :disabled="!!job"
+            >
               <SelectValue placeholder="Choose schedule" />
             </SelectTrigger>
             <SelectContent class="rounded-xl border border-slate-200 bg-white text-slate-900">
-              <SelectItem value="FIXED" class="rounded-lg focus:bg-slate-100 focus:text-slate-900 data-[highlighted]:bg-slate-100 data-[highlighted]:text-slate-900">Fixed price (pay once)</SelectItem>
+              <SelectItem value="FIXED" class="rounded-lg focus:bg-slate-100 focus:text-slate-900 data-[highlighted]:bg-slate-100 data-[highlighted]:text-slate-900">Fixed price (milestones)</SelectItem>
               <SelectItem value="HOURLY" class="rounded-lg focus:bg-slate-100 focus:text-slate-900 data-[highlighted]:bg-slate-100 data-[highlighted]:text-slate-900">Hourly (provider logs hours, you approve and pay)</SelectItem>
             </SelectContent>
           </Select>
+          <p v-if="job" class="text-xs text-slate-500 mt-1">
+            Matches the job ({{ isHourlyJob ? 'hourly' : 'fixed price' }}).
+          </p>
         </FormField>
         <FormField v-if="form.payment_schedule === 'HOURLY'" :error="errors.hourly_rate">
           <Label class="text-sm font-semibold text-slate-700">Hourly rate (Br)</Label>
@@ -214,19 +220,28 @@ function applyJobDefaults() {
   if (j.payment_schedule === 'HOURLY' || j.budget_type === 'hourly') {
     form.payment_schedule = 'HOURLY'
     form.hourly_rate = String(j.budget_min ?? j.budget_max ?? '')
+  } else {
+    form.payment_schedule = 'FIXED'
+    form.hourly_rate = ''
   }
 }
 
 function applyApplicationDefaults(app: JobApplication) {
   applicationPrefill.value = app
   const rate = app.proposed_rate != null ? Number(app.proposed_rate) : NaN
-  if (Number.isFinite(rate) && rate >= 0) {
+  if (!Number.isFinite(rate) || rate < 0) return
+
+  // proposed_rate is hourly rate on HOURLY jobs, total price on FIXED jobs — never force HOURLY.
+  if (isHourlyJob.value) {
     form.payment_schedule = 'HOURLY'
     form.hourly_rate = String(rate)
-    // Keep total cap at job budget when available; otherwise leave as-is / estimate lightly
     if (!form.total_amount && budgetCeiling.value != null) {
       form.total_amount = String(budgetCeiling.value)
     }
+  } else {
+    form.payment_schedule = 'FIXED'
+    form.hourly_rate = ''
+    form.total_amount = String(rate)
   }
 }
 
@@ -255,13 +270,19 @@ onMounted(async () => {
 async function handleSubmit() {
   if (!authStore.isClient || !providerId.value) return
   clearErrors()
+  // Job always wins — never save HOURLY for a fixed-price job (or vice versa).
+  const schedule = job.value
+    ? (isHourlyJob.value ? 'HOURLY' : 'FIXED')
+    : form.payment_schedule
+  form.payment_schedule = schedule
+
   const amount = form.total_amount ? parseFloat(String(form.total_amount).trim()) : NaN
   const hourlyRate = form.hourly_rate ? parseFloat(String(form.hourly_rate).trim()) : NaN
   if (!form.title?.trim()) errors.title = 'Title is required.'
   if (!form.description?.trim()) form.description = 'As per job description.'
   if (!form.terms?.trim()) form.terms = 'As per job agreement.'
   if (!form.start_date?.trim()) errors.start_date = 'Start date is required.'
-  if (form.payment_schedule === 'HOURLY') {
+  if (schedule === 'HOURLY') {
     if (Number.isNaN(hourlyRate) || hourlyRate <= 0) {
       errors.hourly_rate = 'Enter a valid hourly rate.'
     } else if (budgetCeiling.value != null && hourlyRate > budgetCeiling.value) {
@@ -271,7 +292,7 @@ async function handleSubmit() {
   if (Number.isNaN(amount) || amount < 0) {
     errors.total_amount = 'Enter a valid amount.'
   } else if (
-    form.payment_schedule === 'FIXED' &&
+    schedule === 'FIXED' &&
     budgetCeiling.value != null &&
     amount > budgetCeiling.value
   ) {
@@ -288,10 +309,10 @@ async function handleSubmit() {
       terms: form.terms.trim(),
       total_amount: amount,
       currency: 'ETB',
-      payment_schedule: form.payment_schedule,
+      payment_schedule: schedule,
       start_date: form.start_date.trim(),
     }
-    if (form.payment_schedule === 'HOURLY') payload.hourly_rate = hourlyRate
+    if (schedule === 'HOURLY') payload.hourly_rate = hourlyRate
     if (jobId.value) payload.job = jobId.value
     if (applicationId.value) payload.job_application = applicationId.value
     if (form.end_date?.trim()) payload.end_date = form.end_date.trim()

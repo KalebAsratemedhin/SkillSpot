@@ -33,6 +33,10 @@ export interface Contract {
   milestones?: ContractMilestone[]
   time_entries?: TimeEntry[]
   completion_percentage?: number
+  /** FIXED only: sum of milestone amounts */
+  milestones_allocated?: number | string | null
+  /** FIXED only: total_amount − allocated */
+  milestones_remaining?: number | string | null
 }
 
 export interface TimeEntry {
@@ -56,10 +60,12 @@ export interface ContractMilestone {
   title: string
   description?: string
   amount: number
+  due_date?: string | null
   status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED'
   order: number
   completed_at?: string
   created_at: string
+  updated_at?: string
 }
 
 export interface ContractSignature {
@@ -122,6 +128,9 @@ export const contractsService = {
   },
   updateMilestone(id: string, data: Partial<ContractMilestone>): Promise<AxiosResponse<ContractMilestone>> {
     return api.patch(`/contracts/milestones/${id}/`, data)
+  },
+  deleteMilestone(id: string): Promise<AxiosResponse<void>> {
+    return api.delete(`/contracts/milestones/${id}/`)
   },
   getTimeEntries(contractId: string): Promise<AxiosResponse<PaginatedResponse<TimeEntry>>> {
     return api.get(`/contracts/${contractId}/time-entries/`)
