@@ -121,7 +121,12 @@ import dj_database_url
 
 _database_url = config('DATABASE_URL', default=None)
 if _database_url:
-    _db = dj_database_url.parse(_database_url, conn_max_age=600)
+    # Default 0: open a fresh connection when needed. Hosted Postgres (Neon,
+    # Render, etc.) often closes idle links sooner than a long CONN_MAX_AGE,
+    # which showed up as InterfaceError "connection already closed" on WS auth.
+    # Set DB_CONN_MAX_AGE=600 locally against a stable Postgres if you want pooling.
+    _conn_max_age = int(config('DB_CONN_MAX_AGE', default='0'))
+    _db = dj_database_url.parse(_database_url, conn_max_age=_conn_max_age)
     _db.setdefault('CONN_HEALTH_CHECKS', True)
     DATABASES = {'default': _db}
 else:

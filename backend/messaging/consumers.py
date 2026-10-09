@@ -87,7 +87,10 @@ class ChatConsumer(PresenceMixin, AsyncWebsocketConsumer):
 
     @database_sync_to_async
     def _user_is_participant(self, user_id):
+        from django.db import close_old_connections
         from .models import Conversation
+
+        close_old_connections()
         try:
             conv = Conversation.objects.get(id=self.conversation_id)
             return conv.participant1_id == user_id or conv.participant2_id == user_id
@@ -97,8 +100,10 @@ class ChatConsumer(PresenceMixin, AsyncWebsocketConsumer):
     @database_sync_to_async
     def _peer_presence(self, user_id):
         from django.contrib.auth import get_user_model
+        from django.db import close_old_connections
         from .models import Conversation
 
+        close_old_connections()
         User = get_user_model()
         try:
             conv = Conversation.objects.select_related(
@@ -153,9 +158,11 @@ class ChatConsumer(PresenceMixin, AsyncWebsocketConsumer):
     @database_sync_to_async
     def _create_message(self, user_id, content):
         from django.contrib.auth import get_user_model
+        from django.db import close_old_connections
         from .models import Conversation
         from .services import create_and_broadcast_message
 
+        close_old_connections()
         User = get_user_model()
         try:
             conv = Conversation.objects.get(id=self.conversation_id)
