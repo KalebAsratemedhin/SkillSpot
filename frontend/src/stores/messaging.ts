@@ -864,14 +864,17 @@ export const useMessagingStore = defineStore('messaging', () => {
     if (connected && ws && ws.readyState === WebSocket.OPEN) {
       try {
         ws.send(JSON.stringify({ type: 'send_message', content: text }))
-        const echoed = await waitForEcho(text, 2000)
+        const echoed = await waitForEcho(text, 5000)
         if (echoed) {
           removeMessageById(tempId)
           appendMessage(echoed)
           return echoed
         }
+        // WS already accepted the send — do not REST-fallback (that duplicated messages).
+        // onmessage will replace the optimistic row when the echo arrives.
+        return null
       } catch {
-        // fall through to REST
+        // fall through to REST only if the socket send itself failed
       }
     }
 

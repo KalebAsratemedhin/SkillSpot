@@ -654,6 +654,7 @@ const messagingStore = useMessagingStore()
 
 const selectedConversation = ref<string | null>(null)
 const messageForm = ref({ content: '' })
+const sendingMessage = ref(false)
 const searchQuery = ref('')
 const pendingFiles = ref<File[]>([])
 const fileInputRef = ref<HTMLInputElement | null>(null)
@@ -729,6 +730,7 @@ const threadHeaderHint = computed(() => {
 const canSend = computed(
   () =>
     Boolean(selectedConversation.value) &&
+    !sendingMessage.value &&
     (Boolean(messageForm.value.content?.trim()) || pendingFiles.value.length > 0)
 )
 
@@ -942,17 +944,21 @@ function removePendingFile(index: number) {
 }
 
 async function handleSendMessage() {
-  if (!selectedConversation.value || !canSend.value) return
+  if (!selectedConversation.value || !canSend.value || sendingMessage.value) return
   const content = messageForm.value.content?.trim() || ''
   const files = [...pendingFiles.value]
+  if (!content && !files.length) return
   messageForm.value.content = ''
   pendingFiles.value = []
+  sendingMessage.value = true
   try {
     await messagingStore.sendChatMessage(selectedConversation.value, content, files)
     await scrollToBottom()
   } catch {
     messageForm.value.content = content
     pendingFiles.value = files
+  } finally {
+    sendingMessage.value = false
   }
 }
 
