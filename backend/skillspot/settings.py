@@ -49,13 +49,15 @@ else:
 
 # Application definition
 
-# Cloudinary (optional): set CLOUDINARY_CLOUD_NAME + API_KEY + API_SECRET
+# Cloudinary — required for all user uploads (avatars, chat attachments)
 CLOUDINARY_CLOUD_NAME = config('CLOUDINARY_CLOUD_NAME', default='').strip()
 CLOUDINARY_API_KEY = config('CLOUDINARY_API_KEY', default='').strip()
 CLOUDINARY_API_SECRET = config('CLOUDINARY_API_SECRET', default='').strip()
-USE_CLOUDINARY = bool(
-    CLOUDINARY_CLOUD_NAME and CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET
-)
+if not (CLOUDINARY_CLOUD_NAME and CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET):
+    from django.core.exceptions import ImproperlyConfigured
+    raise ImproperlyConfigured(
+        'CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET are required.'
+    )
 
 INSTALLED_APPS = [
     'daphne',
@@ -64,15 +66,10 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
-]
-if USE_CLOUDINARY:
-    INSTALLED_APPS.append('cloudinary_storage')
-INSTALLED_APPS += [
+    'cloudinary_storage',
     'django.contrib.staticfiles',
-]
-if USE_CLOUDINARY:
-    INSTALLED_APPS.append('cloudinary')
-INSTALLED_APPS += [
+    'cloudinary',
+
     # third party
     'rest_framework',
     'rest_framework_simplejwt',
@@ -205,25 +202,21 @@ USE_TZ = True
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
-# Media files (user uploads). Prefer Cloudinary when credentials are set.
-MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
-
-if USE_CLOUDINARY:
-    CLOUDINARY_STORAGE = {
-        'CLOUD_NAME': CLOUDINARY_CLOUD_NAME,
-        'API_KEY': CLOUDINARY_API_KEY,
-        'API_SECRET': CLOUDINARY_API_SECRET,
-    }
-    # default = images (avatars); message attachments use RawMediaCloudinaryStorage
-    STORAGES = {
-        'default': {
-            'BACKEND': 'cloudinary_storage.storage.MediaCloudinaryStorage',
-        },
-        'staticfiles': {
-            'BACKEND': 'whitenoise.storage.CompressedStaticFilesStorage',
-        },
-    }
+# Media: Cloudinary only (no local MEDIA_ROOT fallback).
+CLOUDINARY_STORAGE = {
+    'CLOUD_NAME': CLOUDINARY_CLOUD_NAME,
+    'API_KEY': CLOUDINARY_API_KEY,
+    'API_SECRET': CLOUDINARY_API_SECRET,
+}
+# default = images (avatars); message attachments use RawMediaCloudinaryStorage
+STORAGES = {
+    'default': {
+        'BACKEND': 'cloudinary_storage.storage.MediaCloudinaryStorage',
+    },
+    'staticfiles': {
+        'BACKEND': 'whitenoise.storage.CompressedStaticFilesStorage',
+    },
+}
 
 # REST Framework Configuration
 REST_FRAMEWORK = {
