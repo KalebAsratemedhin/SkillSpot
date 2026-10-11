@@ -116,10 +116,8 @@ class JobSerializer(serializers.ModelSerializer):
             location = profile.location or ''
             member_since = profile.created_at
             if profile.avatar:
-                if request:
-                    avatar = request.build_absolute_uri(profile.avatar.url)
-                else:
-                    avatar = profile.avatar.url
+                from profiles.serializers import media_url
+                avatar = media_url(profile.avatar, request)
 
         if not full_name and authenticated:
             full_name = client.email
@@ -290,10 +288,8 @@ class JobApplicationSerializer(serializers.ModelSerializer):
             location = profile.location or ''
             is_verified = bool(profile.is_verified)
             if profile.avatar:
-                if request:
-                    avatar = request.build_absolute_uri(profile.avatar.url)
-                else:
-                    avatar = profile.avatar.url
+                from profiles.serializers import media_url
+                avatar = media_url(profile.avatar, request)
 
         if provider_profile is not None:
             hourly_rate = (

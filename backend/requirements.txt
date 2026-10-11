@@ -5,6 +5,8 @@ djangorestframework
 djangorestframework-simplejwt
 python-decouple
 Pillow
+cloudinary
+django-cloudinary-storage
 drf-spectacular
 stripe
 django-cors-headers

@@ -1,10 +1,22 @@
 import uuid
-from django.db import models
+
+from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.core.files.storage import default_storage
+from django.db import models
 from django.utils.translation import gettext_lazy as _
+
 from jobs.models import Job
 
 User = get_user_model()
+
+
+def _attachment_storage():
+    """Non-image chat files need Cloudinary raw storage when Cloudinary is enabled."""
+    if getattr(settings, 'USE_CLOUDINARY', False):
+        from cloudinary_storage.storage import RawMediaCloudinaryStorage
+        return RawMediaCloudinaryStorage()
+    return default_storage
 
 
 class Conversation(models.Model):
@@ -176,6 +188,7 @@ class MessageAttachment(models.Model):
     )
     file = models.FileField(
         upload_to='message_attachments/%Y/%m/%d/',
+        storage=_attachment_storage,
         help_text=_('Uploaded file')
     )
     file_name = models.CharField(

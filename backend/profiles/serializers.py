@@ -43,9 +43,8 @@ class ProfileSerializer(serializers.ModelSerializer):
             data['first_name'] = instance.user.first_name
         if not data.get('last_name') and instance.user.last_name:
             data['last_name'] = instance.user.last_name
-        request = self.context.get('request')
-        if request and instance.avatar:
-            data['avatar'] = request.build_absolute_uri(instance.avatar.url)
+        if instance.avatar:
+            data['avatar'] = media_url(instance.avatar, self.context.get('request'))
         return data
 
     def validate_avatar(self, value):
@@ -170,12 +169,22 @@ class ServiceProviderProfileUpdateSerializer(serializers.ModelSerializer):
 
 # --- Public provider directory (no email, phone, address, Stripe) ---
 
+def media_url(file_field, request=None):
+    """Absolute URL for a FileField/ImageField; leave Cloudinary HTTPS as-is."""
+    if not file_field:
+        return None
+    url = file_field.url
+    if url.startswith(('http://', 'https://')):
+        return url
+    if request:
+        return request.build_absolute_uri(url)
+    return url
+
+
 def _absolute_avatar(request, profile):
     if not profile or not profile.avatar:
         return None
-    if request:
-        return request.build_absolute_uri(profile.avatar.url)
-    return profile.avatar.url
+    return media_url(profile.avatar, request)
 
 
 def _public_display_name(profile):
