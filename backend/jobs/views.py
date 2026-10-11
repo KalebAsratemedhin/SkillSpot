@@ -80,6 +80,20 @@ class JobListCreateView(generics.ListCreateAPIView):
         else:
             # Public browse: open jobs only (exclude completed/cancelled; also exclude draft)
             queryset = queryset.filter(status=Job.JobStatus.OPEN)
+            # Optional: hide jobs the requester already applied to or was invited to.
+            # Default is to keep them visible so browse stays complete.
+            exclude_applied = self.request.query_params.get('exclude_applied') in (
+                '1', 'true', 'True', 'yes',
+            )
+            if (
+                exclude_applied
+                and getattr(user, 'is_authenticated', False)
+                and user.user_type in ('PROVIDER', 'BOTH')
+            ):
+                queryset = queryset.exclude(
+                    Q(applications__provider=user)
+                    | Q(invitations__provider=user)
+                )
 
         status_filter = self.request.query_params.get('status')
         if status_filter and is_my_jobs:

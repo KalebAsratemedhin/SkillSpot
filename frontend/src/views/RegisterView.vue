@@ -52,7 +52,7 @@
       </div>
     </section>
     <section class="w-full lg:w-1/2 flex flex-col bg-slate-50 overflow-y-auto">
-      <div class="max-w-xl mx-auto w-full px-8 py-12 lg:py-20">
+      <div class="max-w-xl mx-auto w-full px-8 py-12 lg:py-20 my-auto">
         <div class="mb-10 text-center lg:text-left">
           <div class="lg:hidden flex justify-center items-center gap-2 mb-8">
             <div class="w-8 h-8 bg-amber rounded-lg flex items-center justify-center">
@@ -134,7 +134,7 @@
                   id="password"
                   v-model="form.password"
                   :type="showPassword ? 'text' : 'password'"
-                  placeholder="••••••••"
+                  placeholder="Create a password"
                   :error="errors.password"
                   class="w-full px-4 py-3 pr-12 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-amber/20 focus:border-amber"
                 />
@@ -155,7 +155,7 @@
                   id="password_confirm"
                   v-model="form.password_confirm"
                   :type="showPasswordConfirm ? 'text' : 'password'"
-                  placeholder="••••••••"
+                  placeholder="Confirm your password"
                   :error="errors.password_confirm"
                   class="w-full px-4 py-3 pr-12 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-amber/20 focus:border-amber"
                 />

@@ -105,21 +105,21 @@
                     <form id="edit-profile-form" @submit.prevent="saveProfile" class="space-y-4">
                       <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <FormField :error="editErrors.first_name">
-                          <Label class="text-slate-300">First Name</Label>
-                          <Input v-model="editForm.first_name" class="bg-white/5 border-white/10 text-white" />
+                          <Label class="text-slate-700">First Name</Label>
+                          <Input v-model="editForm.first_name" class="bg-white border border-slate-200 text-midnight placeholder:text-slate-400" />
                         </FormField>
                         <FormField :error="editErrors.last_name">
-                          <Label class="text-slate-300">Last Name</Label>
-                          <Input v-model="editForm.last_name" class="bg-white/5 border-white/10 text-white" />
+                          <Label class="text-slate-700">Last Name</Label>
+                          <Input v-model="editForm.last_name" class="bg-white border border-slate-200 text-midnight placeholder:text-slate-400" />
                         </FormField>
                       </div>
                       <FormField :error="editErrors.phone_number">
-                        <Label class="text-slate-300">Phone</Label>
-                        <Input v-model="editForm.phone_number" class="bg-white/5 border-white/10 text-white" />
+                        <Label class="text-slate-700">Phone</Label>
+                        <Input v-model="editForm.phone_number" class="bg-white border border-slate-200 text-midnight placeholder:text-slate-400" />
                       </FormField>
                       <FormField :error="editErrors.location">
-                        <Label class="text-slate-300">Location</Label>
-                        <Input v-model="editForm.location" class="bg-white/5 border-white/10 text-white" />
+                        <Label class="text-slate-700">Location</Label>
+                        <Input v-model="editForm.location" class="bg-white border border-slate-200 text-midnight placeholder:text-slate-400" />
                       </FormField>
                     </form>
                     <DialogFooter>
@@ -201,30 +201,30 @@
                         </DialogHeader>
                         <form id="add-experience-form" @submit.prevent="submitExperience" class="space-y-4">
                           <FormField :error="expErrors.title">
-                            <Label class="text-slate-300">Title</Label>
-                            <Input v-model="expForm.title" class="bg-white/5 border-white/10 text-white" placeholder="e.g. Senior Plumber" required />
+                            <Label class="text-slate-700">Title</Label>
+                            <Input v-model="expForm.title" class="bg-white border border-slate-200 text-midnight placeholder:text-slate-400" placeholder="e.g. Senior Plumber" required />
                           </FormField>
                           <FormField :error="expErrors.company_name">
-                            <Label class="text-slate-300">Company</Label>
-                            <Input v-model="expForm.company_name" class="bg-white/5 border-white/10 text-white" placeholder="e.g. ABC Services" />
+                            <Label class="text-slate-700">Company</Label>
+                            <Input v-model="expForm.company_name" class="bg-white border border-slate-200 text-midnight placeholder:text-slate-400" placeholder="e.g. ABC Services" />
                           </FormField>
                           <FormField :error="expErrors.description">
-                            <Label class="text-slate-300">Description</Label>
-                            <textarea v-model="expForm.description" class="w-full rounded-xl border border-white/10 bg-white/5 text-white p-4 min-h-[80px] placeholder:text-slate-500" placeholder="What did you do there?" />
+                            <Label class="text-slate-700">Description</Label>
+                            <textarea v-model="expForm.description" class="w-full rounded-xl border border-slate-200 bg-white text-midnight p-4 min-h-[80px] placeholder:text-slate-400" placeholder="What did you do there?" />
                           </FormField>
                           <div class="grid grid-cols-2 gap-4">
                             <FormField :error="expErrors.start_date">
-                              <Label class="text-slate-300">Start date</Label>
-                              <Input v-model="expForm.start_date" type="date" class="bg-white/5 border-white/10 text-white [color-scheme:dark]" required />
+                              <Label class="text-slate-700">Start date</Label>
+                              <Input v-model="expForm.start_date" type="date" class="bg-white border border-slate-200 text-midnight" required />
                             </FormField>
                             <FormField :error="expErrors.end_date">
-                              <Label class="text-slate-300">End date</Label>
-                              <Input v-model="expForm.end_date" type="date" class="bg-white/5 border-white/10 text-white [color-scheme:dark]" :disabled="expForm.is_current" />
+                              <Label class="text-slate-700">End date</Label>
+                              <Input v-model="expForm.end_date" type="date" class="bg-white border border-slate-200 text-midnight" :disabled="expForm.is_current" />
                             </FormField>
                           </div>
                           <label class="flex items-center gap-2 cursor-pointer">
-                            <input v-model="expForm.is_current" type="checkbox" class="rounded border-white/20 bg-white/5 text-amber focus:ring-amber" />
-                            <span class="text-slate-300 text-sm">Currently working here</span>
+                            <input v-model="expForm.is_current" type="checkbox" class="rounded border-slate-300 bg-white text-amber focus:ring-amber" />
+                            <span class="text-slate-700 text-sm">Currently working here</span>
                           </label>
                         </form>
                         <DialogFooter>

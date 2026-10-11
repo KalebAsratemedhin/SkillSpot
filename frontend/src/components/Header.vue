@@ -81,12 +81,19 @@
           <div ref="avatarMenuRef" class="relative">
             <button
               type="button"
-              class="size-8 md:size-10 rounded-full border-2 border-midnight-light overflow-hidden bg-amber flex items-center justify-center font-semibold text-midnight text-sm md:text-base focus:outline-none focus-visible:ring-2 focus-visible:ring-amber"
+              class="size-8 md:size-10 rounded-full border-2 border-midnight-light overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-amber p-0"
               aria-haspopup="menu"
               :aria-expanded="avatarMenuOpen"
               @click="avatarMenuOpen = !avatarMenuOpen"
             >
-              {{ userInitials }}
+              <UserAvatar
+                :src="userAvatarUrl"
+                :name="userDisplayName"
+                size-class="size-full"
+                rounded-class="rounded-full"
+                fallback-class="bg-amber text-midnight"
+                text-class="text-sm md:text-base"
+              />
             </button>
             <div
               v-if="avatarMenuOpen"
@@ -129,17 +136,20 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { onClickOutside } from '@vueuse/core'
 import { useAuthStore } from '@/stores/auth'
 import { useMessagingStore } from '@/stores/messaging'
 import { useNotificationsStore } from '@/stores/notifications'
+import { useProfilesStore } from '@/stores/profiles'
 import Button from './ui/Button.vue'
+import UserAvatar from './UserAvatar.vue'
 
 const authStore = useAuthStore()
 const messagingStore = useMessagingStore()
 const notificationsStore = useNotificationsStore()
+const profilesStore = useProfilesStore()
 const router = useRouter()
 const avatarMenuOpen = ref(false)
 const avatarMenuRef = ref<HTMLElement | null>(null)
@@ -149,12 +159,30 @@ onClickOutside(avatarMenuRef, () => {
   avatarMenuOpen.value = false
 })
 
-const userInitials = computed(() => {
-  if (!authStore.user) return 'U'
-  const first = authStore.user.first_name?.[0] || ''
-  const last = authStore.user.last_name?.[0] || ''
-  return (first + last).toUpperCase() || 'U'
+const userDisplayName = computed(() => {
+  const p = profilesStore.profile
+  if (p?.first_name || p?.last_name) {
+    return `${p.first_name || ''} ${p.last_name || ''}`.trim()
+  }
+  const u = authStore.user
+  if (!u) return 'User'
+  const name = `${u.first_name || ''} ${u.last_name || ''}`.trim()
+  return name || u.email || 'User'
 })
+
+const userAvatarUrl = computed(() => {
+  return profilesStore.profile?.avatar || (authStore.user as { avatar?: string } | null)?.avatar || null
+})
+
+watch(
+  () => authStore.isAuthenticated,
+  (authed) => {
+    if (authed && !profilesStore.profile) {
+      profilesStore.fetchProfile().catch(() => {})
+    }
+  },
+  { immediate: true }
+)
 
 async function handleLogout() {
   if (loggingOut.value) return

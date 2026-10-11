@@ -119,6 +119,17 @@
                 </SelectContent>
               </Select>
             </div>
+            <label
+              v-if="authStore.isProvider"
+              class="flex items-center gap-2 text-sm text-slate-700 cursor-pointer"
+            >
+              <input
+                v-model="excludeApplied"
+                type="checkbox"
+                class="rounded border-slate-300 text-amber focus:ring-amber"
+              />
+              Hide applied &amp; invited
+            </label>
           </template>
 
           <template v-else>
@@ -210,17 +221,15 @@
               class="block bg-white rounded-2xl border border-slate-200 p-5 shadow-sm hover:shadow-md hover:border-amber/30 transition-all no-underline text-inherit"
             >
               <div class="flex gap-4">
-                <div
-                  v-if="p.avatar"
-                  class="size-14 rounded-xl bg-cover bg-center shrink-0 ring-2 ring-slate-100"
-                  :style="{ backgroundImage: `url(${p.avatar})` }"
+                <UserAvatar
+                  :src="p.avatar"
+                  :name="p.full_name"
+                  size-class="size-14"
+                  rounded-class="rounded-xl"
+                  fallback-class="bg-slate-100 text-amber"
+                  text-class="text-lg font-black"
+                  class="ring-2 ring-slate-100"
                 />
-                <div
-                  v-else
-                  class="size-14 rounded-xl bg-slate-100 text-amber font-black flex items-center justify-center shrink-0 text-lg"
-                >
-                  {{ initials(p.full_name) }}
-                </div>
                 <div class="min-w-0 flex-1">
                   <div class="flex items-center gap-2 flex-wrap">
                     <h3 class="font-bold text-midnight truncate">{{ p.full_name || 'Provider' }}</h3>
@@ -275,6 +284,7 @@ import { useAuthStore } from '@/stores/auth'
 import { jobsService, type Job } from '@/services/jobs'
 import { profilesService, type PublicProvider, type Tag } from '@/services/profiles'
 import AppLayout from '@/components/AppLayout.vue'
+import UserAvatar from '@/components/UserAvatar.vue'
 import JobCard from '@/components/JobCard.vue'
 import PaginationBar from '@/components/PaginationBar.vue'
 import Button from '@/components/ui/Button.vue'
@@ -306,6 +316,7 @@ const skill = ref(String(route.query.skill || '__all__'))
 const budgetMin = ref<number | undefined>(route.query.budget_min ? Number(route.query.budget_min) : undefined)
 const budgetMax = ref<number | undefined>(route.query.budget_max ? Number(route.query.budget_max) : undefined)
 const paymentSchedule = ref(String(route.query.payment_schedule || '__all__'))
+const excludeApplied = ref(route.query.exclude_applied === 'true')
 const rateMin = ref<number | undefined>(route.query.hourly_rate_min ? Number(route.query.hourly_rate_min) : undefined)
 const rateMax = ref<number | undefined>(route.query.hourly_rate_max ? Number(route.query.hourly_rate_max) : undefined)
 const verifiedOnly = ref(route.query.is_verified === 'true')
@@ -322,12 +333,6 @@ const skillTags = ref<Tag[]>([])
 const totalPages = computed(() => Math.max(1, Math.ceil(totalCount.value / pageSize.value)))
 const hasResults = computed(() => (tab.value === 'jobs' ? jobs.value.length > 0 : providers.value.length > 0))
 
-function initials(name: string) {
-  const parts = name.trim().split(/\s+/).filter(Boolean)
-  if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase()
-  return (name.charAt(0) || 'P').toUpperCase()
-}
-
 function syncUrl() {
   const q: Record<string, string> = { tab: tab.value }
   if (query.value.trim()) q.q = query.value.trim()
@@ -340,6 +345,7 @@ function syncUrl() {
     if (budgetMin.value != null && !Number.isNaN(budgetMin.value)) q.budget_min = String(budgetMin.value)
     if (budgetMax.value != null && !Number.isNaN(budgetMax.value)) q.budget_max = String(budgetMax.value)
     if (paymentSchedule.value && paymentSchedule.value !== '__all__') q.payment_schedule = paymentSchedule.value
+    if (excludeApplied.value && authStore.isProvider) q.exclude_applied = 'true'
   } else {
     if (rateMin.value != null && !Number.isNaN(rateMin.value)) q.hourly_rate_min = String(rateMin.value)
     if (rateMax.value != null && !Number.isNaN(rateMax.value)) q.hourly_rate_max = String(rateMax.value)
@@ -360,6 +366,7 @@ async function fetchResults() {
         budget_min: budgetMin.value,
         budget_max: budgetMax.value,
         payment_schedule: paymentSchedule.value !== '__all__' ? paymentSchedule.value : undefined,
+        exclude_applied: excludeApplied.value && authStore.isProvider ? true : undefined,
         ordering: ordering.value === 'relevance' && !query.value.trim() ? '-created_at' : ordering.value,
         page: page.value,
         page_size: pageSize.value,
@@ -436,6 +443,7 @@ function clearFilters() {
   budgetMin.value = undefined
   budgetMax.value = undefined
   paymentSchedule.value = '__all__'
+  excludeApplied.value = false
   rateMin.value = undefined
   rateMax.value = undefined
   verifiedOnly.value = false
@@ -454,7 +462,7 @@ function onPageSizeChange(size: number) {
   void fetchResults()
 }
 
-watch([skill, paymentSchedule, ordering, verifiedOnly], () => {
+watch([skill, paymentSchedule, excludeApplied, ordering, verifiedOnly], () => {
   applyFilters()
 })
 

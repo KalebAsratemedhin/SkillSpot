@@ -91,6 +91,18 @@
                 </div>
               </div>
             </div>
+            <label
+              v-if="authStore.isProvider"
+              class="flex items-center gap-2 text-sm text-slate-700 cursor-pointer"
+            >
+              <input
+                v-model="searchForm.exclude_applied"
+                type="checkbox"
+                class="rounded border-slate-300 text-amber focus:ring-amber"
+                @change="applySearch"
+              />
+              Hide applied &amp; invited
+            </label>
             <div class="pt-8 border-t border-slate-200">
               <h4 class="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-5">Service Radius</h4>
               <input class="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-midnight" type="range"/>
@@ -176,6 +188,7 @@ const searchForm = ref({
   skill: '__all__' as string,
   budget_min: undefined as number | undefined,
   budget_max: undefined as number | undefined,
+  exclude_applied: false,
 })
 
 const sortBy = ref('-created_at')
@@ -188,12 +201,14 @@ const jobsTotalPages = computed(() => Math.max(1, Math.ceil(jobsStore.totalCount
 function buildParams(append = false) {
   const page = append ? currentPage.value : 1
   const skillParam = searchForm.value.skill === '__all__' ? undefined : searchForm.value.skill
-  const params: Record<string, string | number | undefined> = {
+  const params: Record<string, string | number | boolean | undefined> = {
     search: searchForm.value.service.trim() || undefined,
     location: searchForm.value.location.trim() || undefined,
     skill: skillParam || undefined,
     budget_min: searchForm.value.budget_min,
     budget_max: searchForm.value.budget_max,
+    exclude_applied:
+      searchForm.value.exclude_applied && authStore.isProvider ? true : undefined,
     ordering: sortBy.value,
     page,
     page_size: pageSize.value,

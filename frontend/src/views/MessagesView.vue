@@ -92,11 +92,12 @@
             @click="selectConversation(conv.id)"
           >
             <div class="relative shrink-0">
-              <div
-                class="size-11 rounded-full bg-gradient-to-br from-midnight to-slate-700 text-white flex items-center justify-center text-sm font-semibold"
-              >
-                {{ getConversationInitial(conv) }}
-              </div>
+              <UserAvatar
+                :src="conv.other_participant?.avatar"
+                :name="getConversationDisplayName(conv)"
+                size-class="size-11"
+                text-class="text-sm"
+              />
               <span
                 class="absolute bottom-0 right-0 size-2.5 rounded-full border-2 border-white"
                 :class="conv.other_participant?.is_online ? 'bg-emerald-500' : 'bg-slate-300'"
@@ -287,11 +288,13 @@
       >
         <template v-if="selectedConversation && activeConversation">
           <div class="px-6 py-6 border-b border-slate-100 text-center">
-            <div
-              class="mx-auto size-16 rounded-full bg-gradient-to-br from-midnight to-slate-700 text-white flex items-center justify-center text-xl font-semibold"
-            >
-              {{ getConversationInitial(activeConversation) }}
-            </div>
+            <UserAvatar
+              class="mx-auto"
+              :src="activeConversation.other_participant?.avatar"
+              :name="getConversationDisplayName(activeConversation)"
+              size-class="size-16"
+              text-class="text-xl"
+            />
             <p class="mt-3 text-base font-semibold text-midnight truncate">
               {{ getConversationDisplayName(activeConversation) }}
             </p>
@@ -381,11 +384,13 @@
                     :key="m.id"
                     class="flex items-center gap-2.5 rounded-xl border border-slate-200 px-2.5 py-2"
                   >
-                    <div
-                      class="size-8 rounded-full bg-midnight text-white flex items-center justify-center text-xs font-semibold shrink-0"
-                    >
-                      {{ (m.name || '?')[0].toUpperCase() }}
-                    </div>
+                    <UserAvatar
+                      :src="m.avatar"
+                      :name="m.name"
+                      size-class="size-8"
+                      text-class="text-xs"
+                      fallback-class="bg-midnight text-white"
+                    />
                     <p class="text-sm font-medium text-midnight truncate">{{ m.name }}</p>
                   </li>
                 </ul>
@@ -508,11 +513,13 @@
               :disabled="startingChat"
               @click="startChatWith(person.user_id)"
             >
-              <div
-                class="size-9 rounded-full bg-midnight text-white flex items-center justify-center text-xs font-semibold shrink-0"
-              >
-                {{ (person.full_name || '?')[0].toUpperCase() }}
-              </div>
+              <UserAvatar
+                :src="person.avatar"
+                :name="person.full_name"
+                size-class="size-9"
+                text-class="text-xs"
+                fallback-class="bg-midnight text-white"
+              />
               <div class="min-w-0">
                 <p class="text-sm font-semibold text-midnight truncate">{{ person.full_name }}</p>
                 <p class="text-xs text-slate-500 truncate">{{ person.location || 'Provider' }}</p>
@@ -589,11 +596,13 @@
               class="w-full flex items-center gap-3 px-3 py-2.5 text-left bg-white hover:bg-amber/5 transition"
               @click="toggleGroupMember(person)"
             >
-              <div
-                class="size-8 rounded-full bg-midnight text-white flex items-center justify-center text-xs font-semibold shrink-0"
-              >
-                {{ (person.full_name || '?')[0].toUpperCase() }}
-              </div>
+              <UserAvatar
+                :src="person.avatar"
+                :name="person.full_name"
+                size-class="size-8"
+                text-class="text-xs"
+                fallback-class="bg-midnight text-white"
+              />
               <p class="text-sm font-medium text-midnight truncate flex-1">{{ person.full_name }}</p>
               <span
                 class="material-symbols-outlined text-[18px]"
@@ -632,10 +641,12 @@ import { onClickOutside } from '@vueuse/core'
 import { toast } from 'vue-sonner'
 import { useAuthStore } from '@/stores/auth'
 import { useMessagingStore } from '@/stores/messaging'
+import { useProfilesStore } from '@/stores/profiles'
 import type { Conversation, Message, MessageAttachment } from '@/services/messaging'
 import { contractsService, type Contract } from '@/services/contracts'
 import { profilesService, type PublicProvider } from '@/services/profiles'
 import AppLayout from '@/components/AppLayout.vue'
+import UserAvatar from '@/components/UserAvatar.vue'
 import Button from '@/components/ui/Button.vue'
 import {
   Dialog,
@@ -651,6 +662,7 @@ const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const messagingStore = useMessagingStore()
+const profilesStore = useProfilesStore()
 
 const selectedConversation = ref<string | null>(null)
 const messageForm = ref({ content: '' })
@@ -778,24 +790,32 @@ const filesPage = computed(() => {
   return threadAttachments.value.slice(start, start + ASIDE_PAGE_SIZE)
 })
 
-type AsideMember = { id: string; name: string }
+type AsideMember = { id: string; name: string; avatar?: string | null }
 
 const groupMembersAll = computed((): AsideMember[] => {
   const c = activeConversation.value
   if (!c) return []
   const members: AsideMember[] = []
   const seen = new Set<string>()
-  const push = (id?: string, name?: string) => {
+  const push = (id?: string, name?: string, avatar?: string | null) => {
     if (!id || seen.has(id)) return
     seen.add(id)
-    members.push({ id, name: name || 'Member' })
+    members.push({ id, name: name || 'Member', avatar: avatar ?? null })
   }
   if (c.other_participant?.id) {
-    push(c.other_participant.id, c.other_participant.name || c.other_participant.email)
+    push(
+      c.other_participant.id,
+      c.other_participant.name || c.other_participant.email,
+      c.other_participant.avatar
+    )
   }
   if (authStore.user?.id) {
     const me = authStore.user
-    push(me.id, [me.first_name, me.last_name].filter(Boolean).join(' ') || me.email)
+    push(
+      me.id,
+      [me.first_name, me.last_name].filter(Boolean).join(' ') || me.email,
+      profilesStore.profile?.avatar ?? null
+    )
   }
   for (const pid of c.participants ?? []) {
     push(pid, pid === authStore.user?.id ? 'You' : undefined)
@@ -847,13 +867,6 @@ function getConversationDisplayName(conv: Conversation): string {
   const names = [conv.participant1_name, conv.participant2_name].filter(Boolean)
   if (names.length) return names.join(', ')
   return 'Conversation'
-}
-
-function getConversationInitial(conv: Conversation): string {
-  const name = conv.other_participant?.name || conv.other_participant?.email
-  if (name) return name[0].toUpperCase()
-  const n = conv.participant1_name || conv.participant2_name
-  return n ? n[0].toUpperCase() : 'U'
 }
 
 function conversationPreview(conv: Conversation): string {

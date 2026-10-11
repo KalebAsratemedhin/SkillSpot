@@ -52,7 +52,7 @@
       </div>
     </section>
     <section class="w-full lg:w-1/2 flex flex-col bg-slate-50 overflow-y-auto">
-      <div class="max-w-xl mx-auto w-full px-8 py-12 lg:py-20">
+      <div class="max-w-xl mx-auto w-full px-8 py-12 lg:py-20 my-auto">
         <div class="mb-10 text-center lg:text-left">
           <div class="lg:hidden flex justify-center items-center gap-2 mb-8">
             <div class="w-8 h-8 bg-amber rounded-lg flex items-center justify-center">
@@ -80,14 +80,24 @@
               <Label for="password" class="text-sm font-semibold text-slate-700">Password</Label>
               <a class="text-amber text-xs font-bold hover:text-amber-600 transition-colors" href="#">Forgot password?</a>
             </div>
-            <Input
-              id="password"
-              v-model="form.password"
-              type="password"
-              placeholder="••••••••"
-              :error="errors.password"
-              class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-amber/20 focus:border-amber"
-            />
+            <div class="relative">
+              <Input
+                id="password"
+                v-model="form.password"
+                :type="showPassword ? 'text' : 'password'"
+                placeholder="Enter your password"
+                :error="errors.password"
+                class="w-full px-4 py-3 pr-12 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-amber/20 focus:border-amber"
+              />
+              <button
+                type="button"
+                class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 z-10"
+                :aria-label="showPassword ? 'Hide password' : 'Show password'"
+                @click.stop="showPassword = !showPassword"
+              >
+                <span class="material-symbols-outlined text-lg">{{ showPassword ? 'visibility_off' : 'visibility' }}</span>
+              </button>
+            </div>
           </FormField>
           <div class="pt-2">
             <Button type="submit" :loading="authStore.loading" class="w-full py-4 bg-midnight text-white font-bold rounded-xl shadow-lg hover:bg-slate-800 transition-all flex items-center justify-center gap-2">
@@ -108,7 +118,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive } from 'vue'
+import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { loginSchema, type LoginFormData } from '@/lib/validations/auth'
@@ -119,6 +129,7 @@ import FormField from '@/components/ui/FormField.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const showPassword = ref(false)
 
 const form = reactive<LoginFormData>({
   email: '',

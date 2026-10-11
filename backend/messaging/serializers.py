@@ -170,13 +170,16 @@ class ConversationSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         if request and request.user:
             from .presence import snapshot_for_user
+            from profiles.serializers import _absolute_avatar
 
             other = obj.get_other_participant(request.user)
             presence = snapshot_for_user(other)
+            profile = getattr(other, 'profile', None)
             return {
                 'id': str(other.id),
                 'email': other.email,
-                'name': other.profile.full_name if hasattr(other, 'profile') and other.profile else other.email,
+                'name': profile.full_name if profile and profile.full_name else other.email,
+                'avatar': _absolute_avatar(request, profile) if profile else None,
                 'is_online': presence['is_online'],
                 'last_seen_at': presence['last_seen_at'],
             }

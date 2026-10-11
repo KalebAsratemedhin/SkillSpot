@@ -180,17 +180,15 @@
                     <div class="flex flex-col gap-3">
                       <div class="flex items-start justify-between flex-wrap gap-3">
                         <div class="flex items-center gap-3 min-w-0">
-                          <div
-                            v-if="app.provider_summary?.avatar"
-                            class="size-11 rounded-xl bg-cover bg-center shrink-0 ring-2 ring-slate-100"
-                            :style="{ backgroundImage: `url(${app.provider_summary.avatar})` }"
+                          <UserAvatar
+                            :src="app.provider_summary?.avatar"
+                            :name="app.provider_summary?.full_name || app.provider_name || 'Provider'"
+                            size-class="size-11"
+                            rounded-class="rounded-xl"
+                            fallback-class="bg-slate-100 text-amber"
+                            text-class="font-black"
+                            class="ring-2 ring-slate-100"
                           />
-                          <div
-                            v-else
-                            class="size-11 rounded-xl bg-slate-100 text-amber font-black flex items-center justify-center shrink-0"
-                          >
-                            {{ providerInitials(app) }}
-                          </div>
                           <div class="min-w-0">
                             <router-link
                               v-if="providerProfileId(app)"
@@ -424,17 +422,15 @@
                     class="flex flex-col sm:flex-row sm:items-center gap-3 p-4 bg-white hover:bg-slate-50/80"
                   >
                     <div class="flex items-center gap-3 min-w-0 flex-1">
-                      <div
-                        v-if="p.avatar"
-                        class="size-11 rounded-xl bg-cover bg-center shrink-0 ring-2 ring-slate-100"
-                        :style="{ backgroundImage: `url(${p.avatar})` }"
+                      <UserAvatar
+                        :src="p.avatar"
+                        :name="p.full_name || 'Provider'"
+                        size-class="size-11"
+                        rounded-class="rounded-xl"
+                        fallback-class="bg-slate-100 text-amber"
+                        text-class="font-black"
+                        class="ring-2 ring-slate-100"
                       />
-                      <div
-                        v-else
-                        class="size-11 rounded-xl bg-slate-100 text-amber font-black flex items-center justify-center shrink-0"
-                      >
-                        {{ inviteProviderInitials(p.full_name) }}
-                      </div>
                       <div class="min-w-0">
                         <div class="flex items-center gap-1.5 flex-wrap">
                           <router-link
@@ -621,17 +617,15 @@
               <CardContent class="p-0">
                 <div class="flex flex-col md:flex-row items-start gap-8">
                   <div class="relative shrink-0">
-                    <div
-                      v-if="clientAvatarUrl"
-                      class="bg-center bg-no-repeat aspect-square bg-cover rounded-2xl size-24 ring-4 ring-gray-50 shadow-inner"
-                      :style="{ backgroundImage: `url(${clientAvatarUrl})` }"
+                    <UserAvatar
+                      :src="clientAvatarUrl"
+                      :name="clientDisplayName"
+                      size-class="size-24"
+                      rounded-class="rounded-2xl"
+                      fallback-class="bg-slate-100 text-amber"
+                      text-class="text-2xl font-black"
+                      class="ring-4 ring-gray-50 shadow-inner"
                     />
-                    <div
-                      v-else
-                      class="flex items-center justify-center aspect-square rounded-2xl size-24 ring-4 ring-gray-50 shadow-inner bg-slate-100 text-amber text-2xl font-black"
-                    >
-                      {{ clientInitials }}
-                    </div>
                   </div>
                   <div class="flex-1 min-w-0">
                     <h4 class="text-xl font-extrabold text-midnight mb-1">{{ clientDisplayName }}</h4>
@@ -758,6 +752,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useJobsStore } from '@/stores/jobs'
 import { useMessagingStore } from '@/stores/messaging'
 import AppLayout from '@/components/AppLayout.vue'
+import UserAvatar from '@/components/UserAvatar.vue'
 import LocationMap from '@/components/LocationMap.vue'
 import Card from '@/components/ui/Card.vue'
 import CardHeader from '@/components/ui/CardHeader.vue'
@@ -922,13 +917,6 @@ function providerProfileId(app: JobApplication): string | null {
   return app.provider_summary?.user_id || (typeof app.provider === 'string' ? app.provider : null) || null
 }
 
-function providerInitials(app: JobApplication): string {
-  const name = app.provider_summary?.full_name || app.provider_name || 'P'
-  const parts = name.trim().split(/\s+/).filter(Boolean)
-  if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase()
-  return name.charAt(0).toUpperCase()
-}
-
 const clientProfile = computed(() => jobsStore.currentJob?.client_profile ?? null)
 
 const clientDisplayName = computed(() => {
@@ -943,15 +931,6 @@ const clientDisplayName = computed(() => {
 })
 
 const clientAvatarUrl = computed(() => clientProfile.value?.avatar ?? null)
-
-const clientInitials = computed(() => {
-  const name = clientDisplayName.value
-  const parts = name.trim().split(/\s+/).filter(Boolean)
-  if (parts.length >= 2) {
-    return `${parts[0][0]}${parts[1][0]}`.toUpperCase()
-  }
-  return name.charAt(0).toUpperCase() || 'C'
-})
 
 const clientProfileLocation = computed(() => {
   const loc = clientProfile.value?.location?.trim()
@@ -1074,12 +1053,6 @@ function isProviderInvited(userId: string) {
 
 function isProviderApplied(userId: string) {
   return appliedProviderIds.value.has(userId)
-}
-
-function inviteProviderInitials(name: string) {
-  const parts = (name || '').trim().split(/\s+/).filter(Boolean)
-  if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase()
-  return (name.charAt(0) || 'P').toUpperCase()
 }
 
 function inviteSkillsParam(): string[] | undefined {
