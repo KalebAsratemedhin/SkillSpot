@@ -12,12 +12,17 @@ export type PaymentSchedule = 'FIXED' | 'HOURLY'
 
 export interface Contract {
   id: string
-  job?: string
-  job_title?: string
+  job?: string | null
+  job_title?: string | null
   job_application?: string
   client: string
+  client_name?: string
+  client_email?: string
   provider: string
+  provider_name?: string
+  provider_email?: string
   title?: string
+  description?: string
   terms: string
   total_amount: number
   currency?: string
@@ -26,6 +31,7 @@ export interface Contract {
   status: string
   signed_by_client?: boolean
   signed_by_provider?: boolean
+  is_fully_signed?: boolean
   signatures?: ContractSignature[]
   start_date?: string
   end_date?: string

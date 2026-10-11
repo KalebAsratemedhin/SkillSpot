@@ -15,8 +15,8 @@
         </Button>
       </div>
 
-      <div v-if="notificationsStore.loading && notificationsStore.list.length === 0" class="flex justify-center py-12">
-        <span class="material-symbols-outlined animate-spin text-4xl text-amber">refresh</span>
+      <div v-if="notificationsStore.loading && notificationsStore.list.length === 0" class="rounded-2xl border border-slate-200 bg-white px-6">
+        <SectionLoader :lines="5" />
       </div>
 
       <div v-else-if="notificationsStore.error" class="rounded-xl border border-red-200 bg-red-50 p-4 text-red-700 text-sm">
@@ -80,6 +80,7 @@ import { useRouter } from 'vue-router'
 import { useNotificationsStore } from '@/stores/notifications'
 import type { NotificationItem } from '@/services/notifications'
 import AppLayout from '@/components/AppLayout.vue'
+import SectionLoader from '@/components/SectionLoader.vue'
 import PaginationBar from '@/components/PaginationBar.vue'
 
 const router = useRouter()

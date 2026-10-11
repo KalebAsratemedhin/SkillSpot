@@ -3,8 +3,14 @@
     <div class="flex-1">
       <section class="pt-8 md:pt-12 pb-8 md:pb-10 border-b border-slate-200/80">
         <div class="mx-auto max-w-[1400px] px-4 md:px-6 lg:px-10">
-          <div v-if="profilesStore.loading" class="flex justify-center py-12">
-            <span class="material-symbols-outlined animate-spin text-4xl text-amber">refresh</span>
+          <!-- Header skeleton: only on first load, never replaces the whole page -->
+          <div v-if="headerLoading" class="flex flex-col md:flex-row items-center gap-10 animate-pulse">
+            <div class="h-40 w-40 md:h-52 md:w-52 rounded-2xl bg-slate-200 shrink-0" />
+            <div class="flex-1 w-full space-y-4 text-center md:text-left">
+              <div class="h-10 bg-slate-200 rounded-lg w-2/3 mx-auto md:mx-0" />
+              <div class="h-4 bg-slate-200 rounded w-1/2 mx-auto md:mx-0" />
+              <div class="h-4 bg-slate-200 rounded w-1/3 mx-auto md:mx-0" />
+            </div>
           </div>
           <div v-else class="flex flex-col md:flex-row items-center gap-10">
             <div class="relative group">
@@ -180,6 +186,11 @@
             <section v-if="authStore.isProvider && activeTab === 'portfolio'">
               <Card class="bg-white border border-gray-100 shadow-sm rounded-2xl">
                 <CardContent class="p-6 md:p-8">
+                  <div v-if="providerSectionsLoading" class="space-y-2">
+                    <div class="h-6 w-40 bg-slate-200 rounded animate-pulse mb-4" />
+                    <SectionLoader :lines="5" />
+                  </div>
+                  <template v-else>
                   <div class="flex items-center justify-between gap-3 mb-6">
                     <div>
                       <h3 class="text-lg md:text-xl font-bold text-midnight">Experience</h3>
@@ -290,6 +301,7 @@
                     <p class="text-sm font-medium text-slate-600">No experience added yet</p>
                     <p class="text-xs text-slate-400 mt-1">Add past roles so clients can see your background.</p>
                   </div>
+                  </template>
                 </CardContent>
               </Card>
             </section>
@@ -298,6 +310,11 @@
             <section v-if="authStore.isProvider && activeTab === 'services'">
               <Card class="bg-white border border-gray-100 shadow-sm rounded-2xl">
                 <CardContent class="p-6 md:p-8">
+                  <div v-if="providerSectionsLoading" class="space-y-2">
+                    <div class="h-6 w-36 bg-slate-200 rounded animate-pulse mb-4" />
+                    <SectionLoader :lines="4" />
+                  </div>
+                  <template v-else>
                   <div class="mb-6">
                     <h3 class="text-lg md:text-xl font-bold text-midnight">Services</h3>
                     <p class="text-sm text-slate-500 mt-0.5">
@@ -388,13 +405,14 @@
                       </Button>
                     </div>
                   </div>
+                  </template>
                 </CardContent>
               </Card>
             </section>
             <!-- Jobs tab: contracts with job link + review if completed (provider and client) -->
             <section v-if="activeTab === 'jobs'">
-              <div v-if="profileContractsLoading" class="flex justify-center py-12">
-                <span class="material-symbols-outlined animate-spin text-4xl text-amber">refresh</span>
+              <div v-if="profileContractsLoading" class="rounded-2xl border border-gray-100 bg-white shadow-sm px-6">
+                <SectionLoader :lines="5" />
               </div>
               <div v-else-if="profileContractsList.length === 0" class="text-center py-12 rounded-2xl border border-gray-100 bg-white shadow-sm">
                 <p class="text-slate-500 mb-4">{{ authStore.isClient ? 'No jobs with contracts yet' : 'No hired jobs yet' }}</p>
@@ -484,9 +502,8 @@
                     Payments &amp; Payouts
                   </h3>
                   <div v-if="authStore.isProvider || authStore.user?.user_type === 'BOTH'" class="space-y-4">
-                    <div v-if="stripeConnectLoading" class="flex items-center gap-2 text-slate-500">
-                      <span class="material-symbols-outlined animate-spin">refresh</span>
-                      <span class="text-sm">Loading...</span>
+                    <div v-if="stripeConnectLoading">
+                      <SectionLoader :lines="3" compact />
                     </div>
                     <template v-else-if="stripeConnectStatus?.has_account">
                       <div class="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200">
@@ -603,6 +620,7 @@ import { ratingsService, type Rating, type RatingStats } from '@/services/rating
 import { contractsService, type Contract } from '@/services/contracts'
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select'
 import AppLayout from '@/components/AppLayout.vue'
+import SectionLoader from '@/components/SectionLoader.vue'
 import Card from '@/components/ui/Card.vue'
 import CardContent from '@/components/ui/CardContent.vue'
 import Button from '@/components/ui/Button.vue'
@@ -653,6 +671,8 @@ const addingNewSkill = ref(false)
 const profileContracts = ref<Contract[]>([])
 const profileContractsList = computed(() => Array.isArray(profileContracts.value) ? profileContracts.value : [])
 const profileContractsLoading = ref(false)
+const providerSectionsLoading = ref(false)
+const headerLoading = computed(() => !profilesStore.profile && profilesStore.loading)
 const contractReviewByContractId = ref<Record<string, Rating>>({})
 const providerSkills = computed(() => profilesStore.providerProfile?.skills || [])
 const experienceList = computed(() => {
@@ -953,37 +973,59 @@ async function openStripeDashboard() {
 
 onMounted(async () => {
   await profilesStore.fetchProfile()
-  if (authStore.isProvider || authStore.user?.user_type === 'BOTH') {
-    await fetchStripeStatus()
-  }
+
+  const isProviderSide = authStore.isProvider || authStore.user?.user_type === 'BOTH'
+  const tasks: Promise<unknown>[] = []
+
+  if (isProviderSide) tasks.push(fetchStripeStatus())
+
   if (authStore.isProvider) {
-    await profilesStore.fetchProviderProfile()
-    await profilesStore.fetchTags({ category: 'SKILL' })
-    await profilesStore.fetchExperiences()
+    providerSectionsLoading.value = true
+    tasks.push(
+      (async () => {
+        try {
+          await Promise.all([
+            profilesStore.fetchProviderProfile(),
+            profilesStore.fetchTags({ category: 'SKILL' }),
+            profilesStore.fetchExperiences(),
+          ])
+        } finally {
+          providerSectionsLoading.value = false
+        }
+      })()
+    )
   }
+
   const userId = typeof profilesStore.profile?.user === 'string'
     ? profilesStore.profile.user
     : (profilesStore.profile?.user as unknown as { id?: string })?.id ?? authStore.user?.id
   if (userId) {
-    try {
-      const statsResponse = await ratingsService.getStats(userId)
-      const stats = statsResponse.data as import('@/services/ratings').RatingStats
-      const total = (stats.total_ratings ?? 0) || 0
-      const countP = stats.rating_count_as_provider ?? 0
-      const countC = stats.rating_count_as_client ?? 0
-      const avgP = stats.average_rating_as_provider ?? 0
-      const avgC = stats.average_rating_as_client ?? 0
-      const combinedAvg = total > 0 ? (avgP * countP + avgC * countC) / total : 0
-      ratingStats.value = {
-        ...stats,
-        average_rating: combinedAvg,
-        total_ratings: total,
-      }
-    } catch (err) {
-      console.error('Failed to fetch rating stats:', err)
-    }
+    tasks.push(
+      (async () => {
+        try {
+          const statsResponse = await ratingsService.getStats(userId)
+          const stats = statsResponse.data as import('@/services/ratings').RatingStats
+          const total = (stats.total_ratings ?? 0) || 0
+          const countP = stats.rating_count_as_provider ?? 0
+          const countC = stats.rating_count_as_client ?? 0
+          const avgP = stats.average_rating_as_provider ?? 0
+          const avgC = stats.average_rating_as_client ?? 0
+          const combinedAvg = total > 0 ? (avgP * countP + avgC * countC) / total : 0
+          ratingStats.value = {
+            ...stats,
+            average_rating: combinedAvg,
+            total_ratings: total,
+          }
+        } catch (err) {
+          console.error('Failed to fetch rating stats:', err)
+        }
+      })()
+    )
   }
-  if (activeTab.value === 'jobs') loadProfileContracts()
+
+  if (activeTab.value === 'jobs') tasks.push(loadProfileContracts())
+
+  await Promise.all(tasks)
 })
 </script>
 

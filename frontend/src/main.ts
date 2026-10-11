@@ -12,7 +12,9 @@ const pinia = createPinia()
 app.use(pinia)
 app.use(router)
 
+// Mount immediately so refresh isn't a blank white page while auth hydrates.
+// Router beforeEach still awaits initialize() when a token is present.
+app.mount('#app')
+
 const authStore = useAuthStore()
-authStore.initialize().then(() => {
-  app.mount('#app')
-})
+void authStore.initialize()

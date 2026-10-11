@@ -41,10 +41,10 @@
 
       <!-- Applications -->
       <template v-if="activeTab === 'applications'">
-        <div v-if="appsLoading" class="flex justify-center py-12">
-          <span class="material-symbols-outlined animate-spin text-4xl text-amber">refresh</span>
+        <div v-if="appsLoading && validApplications.length === 0" class="rounded-2xl border border-slate-200 bg-white px-6 max-w-3xl">
+          <SectionLoader :lines="5" />
         </div>
-        <div v-else-if="validApplications.length === 0" class="text-center py-12">
+        <div v-else-if="!appsLoading && validApplications.length === 0" class="text-center py-12">
           <p class="text-slate-500">No applications yet</p>
           <p class="text-slate-400 text-sm mt-1">
             {{
@@ -54,7 +54,11 @@
             }}
           </p>
         </div>
-        <div v-else class="space-y-4 max-w-3xl">
+        <div
+          v-else
+          class="space-y-4 max-w-3xl transition-opacity duration-150"
+          :class="appsLoading ? 'opacity-60 pointer-events-none' : 'opacity-100'"
+        >
           <Card
             v-for="app in validApplications"
             :key="app.id"
@@ -226,10 +230,10 @@
 
       <!-- Invitations -->
       <template v-else>
-        <div v-if="invitesLoading" class="flex justify-center py-12">
-          <span class="material-symbols-outlined animate-spin text-4xl text-amber">refresh</span>
+        <div v-if="invitesLoading && validInvitations.length === 0" class="rounded-2xl border border-slate-200 bg-white px-6 max-w-3xl">
+          <SectionLoader :lines="5" />
         </div>
-        <div v-else-if="validInvitations.length === 0" class="text-center py-12">
+        <div v-else-if="!invitesLoading && validInvitations.length === 0" class="text-center py-12">
           <p class="text-slate-500">No invitations yet</p>
           <p class="text-slate-400 text-sm mt-1">
             {{
@@ -239,7 +243,11 @@
             }}
           </p>
         </div>
-        <div v-else class="space-y-4 max-w-3xl">
+        <div
+          v-else
+          class="space-y-4 max-w-3xl transition-opacity duration-150"
+          :class="invitesLoading ? 'opacity-60 pointer-events-none' : 'opacity-100'"
+        >
           <Card
             v-for="invitation in validInvitations"
             :key="invitation.id"
@@ -345,6 +353,7 @@ import { useJobsStore } from '@/stores/jobs'
 import { useMessagingStore } from '@/stores/messaging'
 import { jobsService, type Job, type JobApplication, type JobInvitation } from '@/services/jobs'
 import AppLayout from '@/components/AppLayout.vue'
+import SectionLoader from '@/components/SectionLoader.vue'
 import Card from '@/components/ui/Card.vue'
 import CardContent from '@/components/ui/CardContent.vue'
 import Button from '@/components/ui/Button.vue'

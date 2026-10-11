@@ -1,8 +1,21 @@
 <template>
   <AppLayout>
     <div class="w-full max-w-[1100px] mx-auto px-4 md:px-6 lg:px-10 py-6 md:py-10">
-      <div v-if="loading" class="flex justify-center py-16">
-        <span class="material-symbols-outlined animate-spin text-4xl text-amber">refresh</span>
+      <div v-if="loading && !provider" class="space-y-8">
+        <div class="flex flex-col md:flex-row gap-8 items-start animate-pulse">
+          <div class="size-28 md:size-36 rounded-2xl bg-slate-200 shrink-0" />
+          <div class="flex-1 space-y-3 w-full">
+            <div class="h-9 bg-slate-200 rounded-lg w-2/3" />
+            <div class="h-4 bg-slate-200 rounded w-1/3" />
+            <SectionLoader :lines="3" compact />
+          </div>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div v-for="i in 4" :key="i" class="h-20 rounded-2xl bg-slate-200 animate-pulse" />
+        </div>
+        <div class="rounded-2xl border border-gray-100 bg-white px-6">
+          <SectionLoader :lines="5" />
+        </div>
       </div>
       <div v-else-if="!provider" class="text-center py-16">
         <p class="text-slate-500 mb-4">Provider not found.</p>
@@ -270,6 +283,7 @@ import {
   type ProviderWorkItem,
 } from '@/services/profiles'
 import AppLayout from '@/components/AppLayout.vue'
+import SectionLoader from '@/components/SectionLoader.vue'
 import Button from '@/components/ui/Button.vue'
 
 const route = useRoute()

@@ -12,14 +12,14 @@
         <SelectTrigger
           :class="[
             'w-[5.5rem] h-9 rounded-lg text-sm font-medium',
-            triggerClass
+            triggerClass,
           ]"
         >
-          <SelectValue placeholder="10" />
+          <SelectValue :placeholder="String(pageSize)" />
         </SelectTrigger>
         <SelectContent :class="contentClass">
           <SelectItem
-            v-for="size in pageSizeOptions"
+            v-for="size in resolvedPageSizeOptions"
             :key="size"
             :value="String(size)"
             :class="['rounded-lg cursor-pointer', itemClass]"
@@ -56,6 +56,7 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import Button from '@/components/ui/Button.vue'
 import {
   Select,
@@ -83,27 +84,45 @@ const emit = defineEmits<{
   updatePageSize: [size: number]
 }>()
 
-const pageSizeOptions = [5, 10, 15, 20] as const
+const basePageSizeOptions = [5, 10, 15, 20] as const
 
-const labelClass = props.variant === 'dark'
-  ? 'text-slate-400'
-  : 'text-slate-600'
+/** Include current pageSize even if a view uses a non-standard default (e.g. 12). */
+const resolvedPageSizeOptions = computed(() => {
+  const set = new Set<number>([...basePageSizeOptions])
+  if (props.pageSize > 0) set.add(props.pageSize)
+  return [...set].sort((a, b) => a - b)
+})
 
-const triggerClass = props.variant === 'dark'
-  ? 'border-white/10 bg-white/5 text-slate-200 hover:text-slate-200 focus:ring-amber/40'
-  : 'border-slate-200 bg-white text-slate-900 hover:text-slate-900 hover:bg-slate-50 focus:ring-amber/20'
+const isDark = computed(() => props.variant === 'dark')
 
-const contentClass = props.variant === 'dark'
-  ? 'rounded-xl border border-white/10 bg-midnight text-slate-200'
-  : 'rounded-xl border border-slate-200 bg-white text-slate-900'
+const labelClass = computed(() =>
+  isDark.value ? 'text-slate-400' : 'text-slate-600'
+)
 
-const itemClass = props.variant === 'dark'
-  ? 'focus:bg-white/10 focus:text-white data-[highlighted]:bg-white/10 data-[highlighted]:text-white'
-  : 'focus:bg-slate-100 focus:text-slate-900 data-[highlighted]:bg-slate-100 data-[highlighted]:text-slate-900'
+/** `!text-*` wins over SelectTrigger’s default `text-white` (invisible on white). */
+const triggerClass = computed(() =>
+  isDark.value
+    ? 'border-white/10 bg-white/5 !text-slate-200 hover:!text-slate-200 focus:ring-amber/40'
+    : 'border-slate-200 bg-white !text-slate-900 hover:!text-slate-900 hover:bg-slate-50 focus:ring-amber/20'
+)
 
-const buttonClass = props.variant === 'dark'
-  ? 'border-white/10 text-slate-400 hover:text-white hover:border-white/20 disabled:opacity-50'
-  : 'border-slate-200 text-slate-600 hover:text-slate-900'
+const contentClass = computed(() =>
+  isDark.value
+    ? 'rounded-xl border border-white/10 bg-midnight text-slate-200'
+    : 'rounded-xl border border-slate-200 bg-white text-slate-900'
+)
+
+const itemClass = computed(() =>
+  isDark.value
+    ? 'focus:bg-white/10 focus:text-white data-[highlighted]:bg-white/10 data-[highlighted]:text-white'
+    : 'focus:bg-slate-100 focus:text-slate-900 data-[highlighted]:bg-slate-100 data-[highlighted]:text-slate-900'
+)
+
+const buttonClass = computed(() =>
+  isDark.value
+    ? 'border-white/10 text-slate-400 hover:text-white hover:border-white/20 disabled:opacity-50'
+    : 'border-slate-200 text-slate-600 hover:text-slate-900'
+)
 
 function onPageSizeSelect(value: string) {
   const size = Number(value)
@@ -111,6 +130,3 @@ function onPageSizeSelect(value: string) {
   emit('updatePageSize', size)
 }
 </script>
-
-
-

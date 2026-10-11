@@ -3,8 +3,10 @@
     <Header />
     <main class="flex-1 flex flex-col items-center">
       <div class="w-full max-w-[1280px] px-8 py-10 flex flex-col gap-10">
-        <div v-if="loading" class="flex justify-center py-12">
-          <span class="material-symbols-outlined animate-spin text-4xl text-amber">refresh</span>
+        <div v-if="loading && !contract" class="space-y-6 py-4">
+          <div class="h-10 w-1/2 bg-white/10 rounded-lg animate-pulse" />
+          <div class="h-40 rounded-3xl bg-white/5 animate-pulse" />
+          <div class="h-24 rounded-2xl bg-white/5 animate-pulse" />
         </div>
         <div v-else-if="!contract" class="text-center py-16 text-slate-500">Contract not found.</div>
         <div v-else-if="paymentMode === 'fixed' || paymentMode === 'time-entry' || (paymentMode === 'milestone' && milestone)" class="space-y-10">

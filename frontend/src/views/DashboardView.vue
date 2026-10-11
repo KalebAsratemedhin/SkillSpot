@@ -137,13 +137,17 @@
               </Select>
             </div>
           </div>
-          <div v-if="jobsStore.loading && jobsStore.jobs.length === 0" class="flex justify-center py-12">
-            <span class="material-symbols-outlined animate-spin text-4xl text-amber">refresh</span>
+          <div v-if="jobsStore.loading && jobsStore.jobs.length === 0" class="rounded-2xl border border-slate-200 bg-white px-6">
+            <SectionLoader :lines="6" />
           </div>
-          <div v-else-if="jobsStore.jobs.length === 0" class="text-center py-12">
+          <div v-else-if="!jobsStore.loading && jobsStore.jobs.length === 0" class="text-center py-12">
             <p class="text-slate-500">No jobs found. Try adjusting your search or filters.</p>
           </div>
-          <div v-else class="flex flex-col gap-4">
+          <div
+            v-else
+            class="flex flex-col gap-4 transition-opacity duration-150"
+            :class="jobsStore.loading ? 'opacity-60 pointer-events-none' : 'opacity-100'"
+          >
             <JobCard
               v-for="job in jobsStore.jobs"
               :key="job.id"
@@ -172,6 +176,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useJobsStore } from '@/stores/jobs'
 import AppLayout from '@/components/AppLayout.vue'
+import SectionLoader from '@/components/SectionLoader.vue'
 import JobCard from '@/components/JobCard.vue'
 import PaginationBar from '@/components/PaginationBar.vue'
 import {

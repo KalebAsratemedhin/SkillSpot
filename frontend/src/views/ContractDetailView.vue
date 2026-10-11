@@ -1,8 +1,11 @@
 <template>
   <AppLayout>
     <div class="w-full max-w-[1280px] mx-auto px-4 md:px-6 lg:px-10 py-6 md:py-10 flex flex-col gap-8 md:gap-10">
-        <div v-if="loading" class="flex justify-center py-12">
-          <span class="material-symbols-outlined animate-spin text-4xl text-amber">refresh</span>
+        <div v-if="loading && !contract" class="space-y-6">
+          <div class="h-8 w-1/2 bg-slate-200 rounded-lg animate-pulse" />
+          <div class="rounded-2xl border border-slate-200 bg-white px-6">
+            <SectionLoader :lines="8" />
+          </div>
         </div>
         <div v-else-if="!contract" class="text-center py-16">
           <p class="text-slate-500 mb-4">Contract not found or you don't have access.</p>
@@ -729,6 +732,7 @@ import { jobsService, type Job } from '@/services/jobs'
 import { paymentsService, type Payment } from '@/services/payments'
 import { ratingsService, type Rating, type RatingType } from '@/services/ratings'
 import AppLayout from '@/components/AppLayout.vue'
+import SectionLoader from '@/components/SectionLoader.vue'
 import Card from '@/components/ui/Card.vue'
 import CardContent from '@/components/ui/CardContent.vue'
 import Button from '@/components/ui/Button.vue'

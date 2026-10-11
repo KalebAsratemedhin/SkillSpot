@@ -65,11 +65,11 @@
         </Button>
       </div>
 
-      <div v-if="loading" class="flex justify-center py-12">
-        <span class="material-symbols-outlined animate-spin text-4xl text-amber">refresh</span>
+      <div v-if="loading && payments.length === 0" class="rounded-2xl border border-slate-200 bg-white px-6">
+        <SectionLoader :lines="6" />
       </div>
 
-      <div v-else-if="payments.length === 0" class="text-center py-16">
+      <div v-else-if="!loading && payments.length === 0" class="text-center py-16">
         <div class="inline-flex items-center justify-center size-20 rounded-full bg-slate-100 mb-4">
           <span class="material-symbols-outlined text-4xl text-slate-400">receipt_long</span>
         </div>
@@ -77,7 +77,11 @@
         <p class="text-slate-400 text-sm">{{ selectedStatus === 'all' ? 'Payments will appear here once transactions are made' : `No ${selectedStatus} payments` }}</p>
       </div>
 
-      <div v-else class="space-y-4">
+      <div
+        v-else
+        class="space-y-4 transition-opacity duration-150"
+        :class="loading ? 'opacity-60 pointer-events-none' : 'opacity-100'"
+      >
         <Card
           v-for="payment in payments"
           :key="payment.id"
@@ -166,6 +170,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { paymentsService, type Payment } from '@/services/payments'
 import AppLayout from '@/components/AppLayout.vue'
+import SectionLoader from '@/components/SectionLoader.vue'
 import Card from '@/components/ui/Card.vue'
 import Button from '@/components/ui/Button.vue'
 import PaginationBar from '@/components/PaginationBar.vue'

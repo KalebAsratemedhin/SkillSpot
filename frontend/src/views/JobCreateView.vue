@@ -5,8 +5,13 @@
         {{ isEdit ? 'Edit Job' : 'Post a Job' }}
       </h1>
 
-      <div v-if="pageLoading" class="flex justify-center py-16">
-        <span class="material-symbols-outlined animate-spin text-4xl text-amber">refresh</span>
+      <div v-if="pageLoading" class="flex flex-col lg:flex-row gap-6 lg:gap-8">
+        <div class="w-full lg:w-[40%] rounded-2xl border border-slate-200 bg-white px-6">
+          <SectionLoader :lines="8" />
+        </div>
+        <div class="flex-1 rounded-2xl border border-slate-200 bg-white px-6 hidden lg:block">
+          <SectionLoader :lines="6" />
+        </div>
       </div>
 
       <div
@@ -216,6 +221,7 @@ import { searchPlaces, reversePlace, type GeoHit } from '@/lib/geocode'
 import { jobAddressText, jobCoordinates, jobsService, roundJobCoord, type Job } from '@/services/jobs'
 import { toast } from 'vue-sonner'
 import AppLayout from '@/components/AppLayout.vue'
+import SectionLoader from '@/components/SectionLoader.vue'
 import LocationMap from '@/components/LocationMap.vue'
 import Button from '@/components/ui/Button.vue'
 import Input from '@/components/ui/Input.vue'

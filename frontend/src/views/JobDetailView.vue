@@ -1,8 +1,12 @@
 <template>
   <AppLayout>
     <div class="max-w-[1280px] mx-auto w-full px-4 md:px-6 lg:px-10 py-6 md:py-10">
-      <div v-if="jobsStore.loading" class="flex justify-center py-12">
-        <span class="material-symbols-outlined animate-spin text-4xl text-amber">refresh</span>
+      <div v-if="pageLoading" class="space-y-6">
+        <div class="h-4 w-40 bg-slate-200 rounded animate-pulse" />
+        <div class="rounded-2xl border border-gray-100 bg-white p-8 space-y-4">
+          <div class="h-8 w-2/3 bg-slate-200 rounded animate-pulse" />
+          <SectionLoader :lines="6" />
+        </div>
       </div>
       <div v-else-if="!jobsStore.currentJob" class="text-center py-16">
         <p class="text-slate-500 mb-4">Job not found or you don't have access.</p>
@@ -761,6 +765,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useJobsStore } from '@/stores/jobs'
 import { useMessagingStore } from '@/stores/messaging'
 import AppLayout from '@/components/AppLayout.vue'
+import SectionLoader from '@/components/SectionLoader.vue'
 import UserAvatar from '@/components/UserAvatar.vue'
 import LocationMap from '@/components/LocationMap.vue'
 import Card from '@/components/ui/Card.vue'
@@ -1376,9 +1381,12 @@ async function inviteProviderById(providerUserId: string) {
   }
 }
 
+const pageLoading = ref(false)
+
 async function loadJob() {
   const jobId = route.params.id as string
   if (!jobId) return
+  pageLoading.value = true
   jobsStore.currentJob = null
   inviteProviders.value = []
   inviteProvidersTotal.value = 0
@@ -1386,13 +1394,17 @@ async function loadJob() {
   inviteQuery.value = ''
   invitePage.value = 1
   ownerPanelTab.value = 'applications'
-  await jobsStore.fetchJob(jobId)
-  if (isJobOwner.value) {
-    await jobsStore.fetchApplications(jobId)
-    await jobsStore.fetchInvitations({ job: jobId })
-    await fetchInviteProviders()
-  } else if (authStore.isProvider) {
-    await jobsStore.fetchInvitations({ job: jobId })
+  try {
+    await jobsStore.fetchJob(jobId)
+    if (isJobOwner.value) {
+      await jobsStore.fetchApplications(jobId)
+      await jobsStore.fetchInvitations({ job: jobId })
+      await fetchInviteProviders()
+    } else if (authStore.isProvider) {
+      await jobsStore.fetchInvitations({ job: jobId })
+    }
+  } finally {
+    pageLoading.value = false
   }
 }
 

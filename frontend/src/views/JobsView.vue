@@ -7,16 +7,20 @@
           <Button variant="default" size="default" class="w-full sm:w-auto">Post a Job</Button>
         </router-link>
       </div>
-      <div v-if="jobsStore.loading" class="flex justify-center py-12">
-        <span class="material-symbols-outlined animate-spin text-4xl text-amber">refresh</span>
+      <div v-if="jobsStore.loading && jobsStore.jobs.length === 0" class="rounded-2xl border border-slate-200 bg-white px-6">
+        <SectionLoader :lines="6" />
       </div>
-      <div v-else-if="jobsStore.jobs.length === 0" class="text-center py-12">
+      <div v-else-if="!jobsStore.loading && jobsStore.jobs.length === 0" class="text-center py-12">
         <p class="text-slate-500 mb-4">No jobs found</p>
         <router-link v-if="authStore.isClient" to="/jobs/create">
           <Button variant="default">Create Your First Job</Button>
         </router-link>
       </div>
-      <div v-else class="flex flex-col gap-4">
+      <div
+        v-else
+        class="flex flex-col gap-4 transition-opacity duration-150"
+        :class="jobsStore.loading ? 'opacity-60 pointer-events-none' : 'opacity-100'"
+      >
         <JobCard
           v-for="job in jobsStore.jobs"
           :key="job.id"
@@ -44,6 +48,7 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useJobsStore } from '@/stores/jobs'
 import AppLayout from '@/components/AppLayout.vue'
+import SectionLoader from '@/components/SectionLoader.vue'
 import JobCard from '@/components/JobCard.vue'
 import PaginationBar from '@/components/PaginationBar.vue'
 

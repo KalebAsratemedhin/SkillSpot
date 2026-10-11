@@ -194,87 +194,99 @@
         <div class="flex-1 min-w-0">
           <div class="flex items-center justify-between mb-4">
             <p class="text-sm text-slate-500">
-              <span v-if="loading">Searching…</span>
+              <span v-if="loading && !hasResults">Searching…</span>
+              <span v-else-if="loading">Updating…</span>
               <span v-else>{{ totalCount }} result{{ totalCount === 1 ? '' : 's' }}</span>
             </p>
           </div>
 
-          <div v-if="loading && !hasResults" class="flex justify-center py-16">
-            <span class="material-symbols-outlined animate-spin text-4xl text-amber">refresh</span>
+          <!-- Initial load for this tab only: compact inline spinner, not a full-page wipe -->
+          <div v-if="loading && !hasResults" class="flex items-center justify-center gap-2 py-12 text-slate-500">
+            <span class="material-symbols-outlined animate-spin text-2xl text-amber">progress_activity</span>
+            <span class="text-sm font-medium">Loading {{ tab === 'jobs' ? 'jobs' : 'providers' }}…</span>
           </div>
 
-          <div v-else-if="!hasResults" class="text-center py-16 rounded-2xl border border-dashed border-slate-200 bg-white">
+          <div
+            v-else-if="!hasResults && !loading"
+            class="text-center py-16 rounded-2xl border border-dashed border-slate-200 bg-white"
+          >
             <span class="material-symbols-outlined text-4xl text-slate-300 mb-2">search_off</span>
             <p class="text-slate-500">No results. Try a different search or filters.</p>
           </div>
 
-          <div v-else-if="tab === 'jobs'" class="space-y-3">
-            <JobCard
-              v-for="job in jobs"
-              :key="job.id"
-              :job="job"
-              :show-apply="authStore.isProvider"
-            />
-          </div>
+          <div
+            v-else
+            class="relative transition-opacity duration-150"
+            :class="loading ? 'opacity-60 pointer-events-none' : 'opacity-100'"
+          >
+            <div v-if="tab === 'jobs'" class="space-y-3">
+              <JobCard
+                v-for="job in jobs"
+                :key="job.id"
+                :job="job"
+                :show-apply="authStore.isProvider"
+              />
+            </div>
 
-          <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <router-link
-              v-for="p in providers"
-              :key="p.user_id"
-              :to="`/providers/${p.user_id}`"
-              class="block bg-white rounded-2xl border border-slate-200 p-5 shadow-sm hover:shadow-md hover:border-amber/30 transition-all no-underline text-inherit"
-            >
-              <div class="flex gap-4">
-                <UserAvatar
-                  :src="p.avatar"
-                  :name="p.full_name"
-                  size-class="size-14"
-                  rounded-class="rounded-xl"
-                  fallback-class="bg-slate-100 text-amber"
-                  text-class="text-lg font-black"
-                  class="ring-2 ring-slate-100"
-                />
-                <div class="min-w-0 flex-1">
-                  <div class="flex items-center gap-2 flex-wrap">
-                    <h3 class="font-bold text-midnight truncate">{{ p.full_name || 'Provider' }}</h3>
-                    <span v-if="p.is_verified" class="material-symbols-outlined text-amber text-base">verified</span>
-                  </div>
-                  <p v-if="p.location" class="text-sm text-slate-500 truncate">{{ p.location }}</p>
-                  <div class="flex flex-wrap gap-1.5 mt-2">
-                    <span
-                      v-for="s in p.headline_skills.slice(0, 3)"
-                      :key="s.id"
-                      class="px-2 py-0.5 text-xs font-semibold rounded-md bg-amber/10 text-amber"
-                    >
-                      {{ s.name }}
-                    </span>
-                  </div>
-                  <div class="flex items-center justify-between mt-3 text-sm">
-                    <span v-if="p.hourly_rate" class="font-bold text-midnight">${{ Number(p.hourly_rate).toLocaleString() }}/hr</span>
-                    <span v-else class="text-slate-400">Rate on request</span>
-                    <span v-if="p.rating.count > 0" class="text-slate-500 flex items-center gap-0.5">
-                      <span class="material-symbols-outlined text-amber text-sm fill-1">star</span>
-                      {{ Number(p.rating.average).toFixed(1) }}
-                      <span class="text-slate-400">({{ p.rating.count }})</span>
-                    </span>
-                    <span v-else class="text-slate-400 text-xs">No reviews</span>
+            <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <router-link
+                v-for="p in providers"
+                :key="p.user_id"
+                :to="`/providers/${p.user_id}`"
+                class="block bg-white rounded-2xl border border-slate-200 p-5 shadow-sm hover:shadow-md hover:border-amber/30 transition-all no-underline text-inherit"
+              >
+                <div class="flex gap-4">
+                  <UserAvatar
+                    :src="p.avatar"
+                    :name="p.full_name"
+                    size-class="size-14"
+                    rounded-class="rounded-xl"
+                    fallback-class="bg-slate-100 text-amber"
+                    text-class="text-lg font-black"
+                    class="ring-2 ring-slate-100"
+                  />
+                  <div class="min-w-0 flex-1">
+                    <div class="flex items-center gap-2 flex-wrap">
+                      <h3 class="font-bold text-midnight truncate">{{ p.full_name || 'Provider' }}</h3>
+                      <span v-if="p.is_verified" class="material-symbols-outlined text-amber text-base">verified</span>
+                    </div>
+                    <p v-if="p.location" class="text-sm text-slate-500 truncate">{{ p.location }}</p>
+                    <div class="flex flex-wrap gap-1.5 mt-2">
+                      <span
+                        v-for="s in (p.headline_skills || []).slice(0, 3)"
+                        :key="s.id"
+                        class="px-2 py-0.5 text-xs font-semibold rounded-md bg-amber/10 text-amber"
+                      >
+                        {{ s.name }}
+                      </span>
+                    </div>
+                    <div class="flex items-center justify-between mt-3 text-sm">
+                      <span v-if="p.hourly_rate" class="font-bold text-midnight">${{ Number(p.hourly_rate).toLocaleString() }}/hr</span>
+                      <span v-else class="text-slate-400">Rate on request</span>
+                      <span v-if="(p.rating?.count ?? 0) > 0" class="text-slate-500 flex items-center gap-0.5">
+                        <span class="material-symbols-outlined text-amber text-sm fill-1">star</span>
+                        {{ Number(p.rating?.average ?? 0).toFixed(1) }}
+                        <span class="text-slate-400">({{ p.rating.count }})</span>
+                      </span>
+                      <span v-else class="text-slate-400 text-xs">No reviews</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </router-link>
-          </div>
+              </router-link>
+            </div>
 
-          <PaginationBar
-            v-if="totalCount > 0"
-            class="mt-6"
-            :current-page="page"
-            :total-pages="totalPages"
-            :total-count="totalCount"
-            :page-size="pageSize"
-            :loading="loading"
-            @go-to-page="goToPage"
-            @update-page-size="onPageSizeChange"
-          />
+            <PaginationBar
+              v-if="totalCount > 0"
+              class="mt-6"
+              :current-page="page"
+              :total-pages="totalPages"
+              :total-count="totalCount"
+              :page-size="pageSize"
+              :loading="loading"
+              @go-to-page="goToPage"
+              @update-page-size="onPageSizeChange"
+            />
+          </div>
         </div>
       </div>
     </div>
@@ -326,14 +338,19 @@ const rateMax = ref<number | undefined>(route.query.hourly_rate_max ? Number(rou
 const verifiedOnly = ref(route.query.is_verified === 'true')
 const ordering = ref(String(route.query.ordering || 'relevance'))
 const page = ref(Number(route.query.page) || 1)
-const pageSize = ref(Number(route.query.page_size) || 12)
+const pageSize = ref(Number(route.query.page_size) || 10)
 
 const loading = ref(false)
 const jobs = ref<Job[]>([])
 const providers = ref<PublicProvider[]>([])
-const totalCount = ref(0)
+const jobsTotal = ref(0)
+const providersTotal = ref(0)
 const skillTags = ref<Tag[]>([])
 
+/** Ignore stale responses when filters/tabs change quickly. */
+let fetchSeq = 0
+
+const totalCount = computed(() => (tab.value === 'jobs' ? jobsTotal.value : providersTotal.value))
 const totalPages = computed(() => Math.max(1, Math.ceil(totalCount.value / pageSize.value)))
 const hasResults = computed(() => (tab.value === 'jobs' ? jobs.value.length > 0 : providers.value.length > 0))
 
@@ -344,7 +361,7 @@ function syncUrl() {
   if (skill.value && skill.value !== '__all__') q.skill = skill.value
   if (ordering.value && ordering.value !== 'relevance') q.ordering = ordering.value
   if (page.value > 1) q.page = String(page.value)
-  if (pageSize.value !== 12) q.page_size = String(pageSize.value)
+  if (pageSize.value !== 10) q.page_size = String(pageSize.value)
   if (tab.value === 'jobs') {
     if (budgetMin.value != null && !Number.isNaN(budgetMin.value)) q.budget_min = String(budgetMin.value)
     if (budgetMax.value != null && !Number.isNaN(budgetMax.value)) q.budget_max = String(budgetMax.value)
@@ -359,10 +376,12 @@ function syncUrl() {
 }
 
 async function fetchResults() {
+  const seq = ++fetchSeq
+  const requestedTab = tab.value
   loading.value = true
   syncUrl()
   try {
-    if (tab.value === 'jobs') {
+    if (requestedTab === 'jobs') {
       const res = await jobsService.list({
         q: query.value.trim() || undefined,
         location: location.value.trim() || undefined,
@@ -375,9 +394,9 @@ async function fetchResults() {
         page: page.value,
         page_size: pageSize.value,
       })
+      if (seq !== fetchSeq) return
       jobs.value = res.data.results || []
-      totalCount.value = res.data.count ?? jobs.value.length
-      providers.value = []
+      jobsTotal.value = res.data.count ?? jobs.value.length
     } else {
       const res = await profilesService.listPublicProviders({
         q: query.value.trim() || undefined,
@@ -390,23 +409,29 @@ async function fetchResults() {
         page: page.value,
         page_size: pageSize.value,
       })
+      if (seq !== fetchSeq) return
       const data = res.data
       if (Array.isArray(data)) {
         providers.value = data
-        totalCount.value = data.length
+        providersTotal.value = data.length
       } else {
         providers.value = data.results || []
-        totalCount.value = data.count ?? providers.value.length
+        providersTotal.value = data.count ?? providers.value.length
       }
-      jobs.value = []
     }
   } catch (err) {
+    if (seq !== fetchSeq) return
     console.error('Browse search failed', err)
-    jobs.value = []
-    providers.value = []
-    totalCount.value = 0
+    // Only clear the tab that failed — don't wipe the other tab's cache
+    if (requestedTab === 'jobs') {
+      jobs.value = []
+      jobsTotal.value = 0
+    } else {
+      providers.value = []
+      providersTotal.value = 0
+    }
   } finally {
-    loading.value = false
+    if (seq === fetchSeq) loading.value = false
   }
 }
 
@@ -437,12 +462,21 @@ const providerOrderings = new Set(['-rating', 'hourly_rate', '-hourly_rate'])
 function setTab(next: BrowseTab) {
   if (tab.value === next) return
   tab.value = next
-  if (next === 'jobs' && providerOrderings.has(ordering.value)) ordering.value = 'relevance'
-  if (next === 'providers' && jobOrderings.has(ordering.value)) ordering.value = 'relevance'
-  applyFilters()
+  page.value = 1
+  // Reset incompatible sort without double-fetch: watch is skipped via suppressWatch
+  const resetOrdering =
+    (next === 'jobs' && providerOrderings.has(ordering.value)) ||
+    (next === 'providers' && jobOrderings.has(ordering.value))
+  if (resetOrdering) {
+    suppressWatch = true
+    ordering.value = 'relevance'
+    suppressWatch = false
+  }
+  scheduleFetch()
 }
 
 function clearFilters() {
+  suppressWatch = true
   skill.value = '__all__'
   budgetMin.value = undefined
   budgetMax.value = undefined
@@ -452,6 +486,7 @@ function clearFilters() {
   rateMax.value = undefined
   verifiedOnly.value = false
   ordering.value = 'relevance'
+  suppressWatch = false
   applyFilters()
 }
 
@@ -466,7 +501,9 @@ function onPageSizeChange(size: number) {
   void fetchResults()
 }
 
+let suppressWatch = false
 watch([skill, paymentSchedule, jobStatus, ordering, verifiedOnly], () => {
+  if (suppressWatch) return
   applyFilters()
 })
 

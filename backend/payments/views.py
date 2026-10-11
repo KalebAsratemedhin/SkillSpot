@@ -11,6 +11,7 @@ from django.http import JsonResponse
 from django.utils import timezone
 from notifications.tasks import enqueue_in_app_notification
 from .models import Payment, PaymentTransaction
+from .services import complete_payment
 from contracts.models import Contract, ContractMilestone, TimeEntry
 from .serializers import (
     PaymentSerializer,
@@ -564,60 +565,21 @@ class ConfirmStripePaymentView(generics.GenericAPIView):
                 payment.stripe_payment_intent_id
             )
 
-            # Update payment status based on PaymentIntent status
             if payment_intent.status == 'succeeded':
-                payment.status = Payment.PaymentStatus.COMPLETED
-                payment.stripe_charge_id = payment_intent.latest_charge
-                payment.completed_at = timezone.now()
-                
-                # Handle transfer if not using destination charge
+                transfer_id = None
                 if payment_intent.get('transfer_data') and payment_intent['transfer_data'].get('destination'):
-                    # Transfer already happened via destination charge
-                    payment.stripe_transfer_id = payment_intent['transfer_data'].get('transfer', '')
-                else:
-                    # Manual transfer needed (provider doesn't have Stripe Connect)
-                    # In production, you'd create a Transfer here or queue it
-                    # For now, we'll mark it for manual processing
-                    pass
-                
-                payment.save()
-
-                # Update provider earnings if they have a profile
-                if hasattr(payment.recipient, 'profile') and hasattr(payment.recipient.profile, 'provider_profile'):
-                    provider_profile = payment.recipient.profile.provider_profile
-                    provider_profile.total_earnings += payment.provider_amount or payment.amount
-                    provider_profile.save()
-
-                # Create transaction record
-                PaymentTransaction.objects.create(
-                    payment=payment,
-                    transaction_type=PaymentTransaction.TransactionType.COMPLETED,
+                    transfer_id = payment_intent['transfer_data'].get('transfer', '') or None
+                latest = payment_intent.latest_charge
+                if hasattr(latest, 'id'):
+                    latest = latest.id
+                complete_payment(
+                    payment,
+                    stripe_charge_id=latest if isinstance(latest, str) else '',
+                    stripe_transfer_id=transfer_id,
                     stripe_event_id=payment_intent.id,
-                    details={
-                        'charge_id': payment_intent.latest_charge,
-                        'transfer_id': payment.stripe_transfer_id,
-                        'provider_amount': str(payment.provider_amount),
-                        'platform_fee': str(payment.platform_fee),
-                    }
+                    details={'source': 'confirm'},
                 )
-
-                # Update milestone status if linked (legacy)
-                if payment.milestone:
-                    payment.milestone.status = ContractMilestone.MilestoneStatus.COMPLETED
-                    payment.milestone.completed_at = timezone.now()
-                    payment.milestone.save()
-                # Update time entry status if linked (hourly)
-                if payment.time_entry:
-                    payment.time_entry.status = TimeEntry.TimeEntryStatus.PAID
-                    payment.time_entry.save(update_fields=['status', 'updated_at'])
-
-                enqueue_in_app_notification(
-                    str(payment.recipient_id),
-                    'Payment received',
-                    f'You received a payment of {payment.amount} {payment.currency or "USD"} for "{payment.contract.title}".',
-                    link=f'/contracts/{payment.contract_id}/',
-                    actor_id=str(payment.payer_id),
-                )
+                payment.refresh_from_db()
                 return Response(
                     PaymentSerializer(payment).data,
                     status=status.HTTP_200_OK
@@ -724,6 +686,18 @@ def stripe_webhook(request):
             print('[Stripe webhook] checkout.session.completed payment_ids=%r payment_intent=%s' % (payment_ids_list, payment_intent_id))
             logger.info('[Stripe webhook] checkout.session.completed payment_ids=%s payment_intent=%s', payment_ids_list, payment_intent_id)
             completed_any = False
+            charge_id = ''
+            if payment_intent_id:
+                try:
+                    pi = stripe.PaymentIntent.retrieve(payment_intent_id)
+                    latest = getattr(pi, 'latest_charge', None)
+                    if latest is None and hasattr(pi, 'get'):
+                        latest = pi.get('latest_charge')
+                    if hasattr(latest, 'id'):
+                        latest = latest.id
+                    charge_id = latest if isinstance(latest, str) else ''
+                except Exception:
+                    pass
             for pid in payment_ids_list:
                 try:
                     payment = Payment.objects.filter(id=pid).first()
@@ -731,48 +705,24 @@ def stripe_webhook(request):
                     payment = None
                 if not payment:
                     continue
-                payment.stripe_payment_intent_id = payment_intent_id or ''
-                payment.status = Payment.PaymentStatus.COMPLETED
-                payment.completed_at = timezone.now()
-                if payment_intent_id:
-                    try:
-                        pi = stripe.PaymentIntent.retrieve(payment_intent_id)
-                        latest = getattr(pi, 'latest_charge', None)
-                        if latest is None and hasattr(pi, 'get'):
-                            latest = pi.get('latest_charge')
-                        elif latest is None:
-                            try:
-                                latest = pi['latest_charge']
-                            except Exception:
-                                latest = None
-                        if hasattr(latest, 'id'):
-                            latest = latest.id
-                        payment.stripe_charge_id = (latest or '') if isinstance(latest, str) else ''
-                    except Exception:
-                        pass
-                payment.save()
-                PaymentTransaction.objects.create(
-                    payment=payment,
-                    transaction_type=PaymentTransaction.TransactionType.COMPLETED,
+                _, newly = complete_payment(
+                    payment,
+                    stripe_payment_intent_id=payment_intent_id or None,
+                    stripe_charge_id=charge_id or None,
                     stripe_event_id=event.get('id'),
-                    details={'checkout_session': session.get('id'), 'payment_intent': payment_intent_id}
+                    details={
+                        'checkout_session': session.get('id'),
+                        'payment_intent': payment_intent_id,
+                        'source': 'checkout.session.completed',
+                    },
                 )
-                if payment.milestone:
-                    payment.milestone.status = ContractMilestone.MilestoneStatus.COMPLETED
-                    payment.milestone.completed_at = timezone.now()
-                    payment.milestone.save()
-                if payment.time_entry:
-                    payment.time_entry.status = TimeEntry.TimeEntryStatus.PAID
-                    payment.time_entry.save(update_fields=['status', 'updated_at'])
-                enqueue_in_app_notification(
-                    str(payment.recipient_id),
-                    'Payment received',
-                    f'You received a payment of {payment.amount} {payment.currency or "USD"} for "{payment.contract.title}".',
-                    link=f'/contracts/{payment.contract_id}/',
-                    actor_id=str(payment.payer_id),
+                if newly:
+                    completed_any = True
+                logger.info(
+                    '[Stripe webhook] checkout.session.completed Payment id=%s newly_completed=%s',
+                    payment.id,
+                    newly,
                 )
-                completed_any = True
-                logger.info('[Stripe webhook] checkout.session.completed updated Payment id=%s to COMPLETED', payment.id)
             if not completed_any and not payment_ids_list:
                 print('[Stripe webhook] checkout.session.completed WARNING: could not find Payment client_reference_id=%s' % payment_id)
                 logger.warning('[Stripe webhook] checkout.session.completed could not find Payment client_reference_id=%s', payment_id)
@@ -795,35 +745,21 @@ def stripe_webhook(request):
                 logger.warning('[Stripe webhook] payment_intent.succeeded could not find Payment pi=%s metadata.payment_id=%s', payment_intent_id, payment_id_from_metadata)
 
             if payment:
-                payment.status = Payment.PaymentStatus.COMPLETED
-                payment.stripe_charge_id = data.get('latest_charge') or ''
-                payment.completed_at = timezone.now()
-                payment.save()
-
-                PaymentTransaction.objects.create(
-                    payment=payment,
-                    transaction_type=PaymentTransaction.TransactionType.COMPLETED,
+                latest = data.get('latest_charge') or ''
+                if isinstance(latest, dict):
+                    latest = latest.get('id') or ''
+                _, newly = complete_payment(
+                    payment,
+                    stripe_payment_intent_id=payment_intent_id,
+                    stripe_charge_id=latest if isinstance(latest, str) else '',
                     stripe_event_id=event.get('id'),
-                    details={'charge_id': data.get('latest_charge')}
+                    details={'source': 'payment_intent.succeeded'},
                 )
-
-                # Update milestone if linked (legacy)
-                if payment.milestone:
-                    payment.milestone.status = ContractMilestone.MilestoneStatus.COMPLETED
-                    payment.milestone.completed_at = timezone.now()
-                    payment.milestone.save()
-                # Update time entry if linked (hourly)
-                if payment.time_entry:
-                    payment.time_entry.status = TimeEntry.TimeEntryStatus.PAID
-                    payment.time_entry.save(update_fields=['status', 'updated_at'])
-                enqueue_in_app_notification(
-                    str(payment.recipient_id),
-                    'Payment received',
-                    f'You received a payment of {payment.amount} {payment.currency or "USD"} for "{payment.contract.title}".',
-                    link=f'/contracts/{payment.contract_id}/',
-                    actor_id=str(payment.payer_id),
+                logger.info(
+                    '[Stripe webhook] payment_intent.succeeded Payment id=%s newly_completed=%s',
+                    payment.id,
+                    newly,
                 )
-                logger.info('[Stripe webhook] payment_intent.succeeded updated Payment id=%s to COMPLETED', payment.id)
 
         elif event_type == 'payment_intent.payment_failed':
             payment_intent_id = data.get('id')
