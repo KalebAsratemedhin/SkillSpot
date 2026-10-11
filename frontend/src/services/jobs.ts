@@ -186,19 +186,13 @@ export interface JobListParams {
   ordering?: string
   /** When true (and user is client), returns only the current user's jobs including completed/cancelled */
   my_jobs?: boolean
-  /**
-   * When true (authenticated provider), hide jobs you've applied to or been invited to.
-   * Default (omitted/false): those jobs still appear in browse.
-   */
-  exclude_applied?: boolean
 }
 
 export const jobsService = {
   list(params?: JobListParams): Promise<AxiosResponse<{ results: Job[], count: number, next?: string, previous?: string }>> {
-    const { my_jobs, exclude_applied, q, search, ...rest } = params ?? {}
+    const { my_jobs, q, search, ...rest } = params ?? {}
     const requestParams = { ...rest } as Record<string, string | number | undefined>
     if (my_jobs === true) requestParams.my_jobs = 'true'
-    if (exclude_applied === true) requestParams.exclude_applied = 'true'
     const query = (q || search || '').trim()
     if (query) requestParams.q = query
     return api.get('/jobs/', { params: requestParams })

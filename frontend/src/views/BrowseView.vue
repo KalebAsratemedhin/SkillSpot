@@ -107,6 +107,21 @@
               </div>
             </div>
             <div>
+              <h3 class="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">Status</h3>
+              <Select v-model="jobStatus">
+                <SelectTrigger :class="selectTriggerClass">
+                  <SelectValue placeholder="All statuses" />
+                </SelectTrigger>
+                <SelectContent :class="selectContentClass">
+                  <SelectItem value="__all__" :class="selectItemClass">All statuses</SelectItem>
+                  <SelectItem value="OPEN" :class="selectItemClass">Open</SelectItem>
+                  <SelectItem value="IN_PROGRESS" :class="selectItemClass">In progress</SelectItem>
+                  <SelectItem value="COMPLETED" :class="selectItemClass">Completed</SelectItem>
+                  <SelectItem value="CANCELLED" :class="selectItemClass">Cancelled</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
               <h3 class="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">Payment</h3>
               <Select v-model="paymentSchedule">
                 <SelectTrigger :class="selectTriggerClass">
@@ -119,17 +134,6 @@
                 </SelectContent>
               </Select>
             </div>
-            <label
-              v-if="authStore.isProvider"
-              class="flex items-center gap-2 text-sm text-slate-700 cursor-pointer"
-            >
-              <input
-                v-model="excludeApplied"
-                type="checkbox"
-                class="rounded border-slate-300 text-amber focus:ring-amber"
-              />
-              Hide applied &amp; invited
-            </label>
           </template>
 
           <template v-else>
@@ -316,7 +320,7 @@ const skill = ref(String(route.query.skill || '__all__'))
 const budgetMin = ref<number | undefined>(route.query.budget_min ? Number(route.query.budget_min) : undefined)
 const budgetMax = ref<number | undefined>(route.query.budget_max ? Number(route.query.budget_max) : undefined)
 const paymentSchedule = ref(String(route.query.payment_schedule || '__all__'))
-const excludeApplied = ref(route.query.exclude_applied === 'true')
+const jobStatus = ref(String(route.query.status || '__all__'))
 const rateMin = ref<number | undefined>(route.query.hourly_rate_min ? Number(route.query.hourly_rate_min) : undefined)
 const rateMax = ref<number | undefined>(route.query.hourly_rate_max ? Number(route.query.hourly_rate_max) : undefined)
 const verifiedOnly = ref(route.query.is_verified === 'true')
@@ -345,7 +349,7 @@ function syncUrl() {
     if (budgetMin.value != null && !Number.isNaN(budgetMin.value)) q.budget_min = String(budgetMin.value)
     if (budgetMax.value != null && !Number.isNaN(budgetMax.value)) q.budget_max = String(budgetMax.value)
     if (paymentSchedule.value && paymentSchedule.value !== '__all__') q.payment_schedule = paymentSchedule.value
-    if (excludeApplied.value && authStore.isProvider) q.exclude_applied = 'true'
+    if (jobStatus.value && jobStatus.value !== '__all__') q.status = jobStatus.value
   } else {
     if (rateMin.value != null && !Number.isNaN(rateMin.value)) q.hourly_rate_min = String(rateMin.value)
     if (rateMax.value != null && !Number.isNaN(rateMax.value)) q.hourly_rate_max = String(rateMax.value)
@@ -366,7 +370,7 @@ async function fetchResults() {
         budget_min: budgetMin.value,
         budget_max: budgetMax.value,
         payment_schedule: paymentSchedule.value !== '__all__' ? paymentSchedule.value : undefined,
-        exclude_applied: excludeApplied.value && authStore.isProvider ? true : undefined,
+        status: jobStatus.value !== '__all__' ? jobStatus.value : undefined,
         ordering: ordering.value === 'relevance' && !query.value.trim() ? '-created_at' : ordering.value,
         page: page.value,
         page_size: pageSize.value,
@@ -443,7 +447,7 @@ function clearFilters() {
   budgetMin.value = undefined
   budgetMax.value = undefined
   paymentSchedule.value = '__all__'
-  excludeApplied.value = false
+  jobStatus.value = '__all__'
   rateMin.value = undefined
   rateMax.value = undefined
   verifiedOnly.value = false
@@ -462,7 +466,7 @@ function onPageSizeChange(size: number) {
   void fetchResults()
 }
 
-watch([skill, paymentSchedule, excludeApplied, ordering, verifiedOnly], () => {
+watch([skill, paymentSchedule, jobStatus, ordering, verifiedOnly], () => {
   applyFilters()
 })
 

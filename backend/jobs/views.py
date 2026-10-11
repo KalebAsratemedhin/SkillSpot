@@ -78,8 +78,8 @@ class JobListCreateView(generics.ListCreateAPIView):
         if is_my_jobs:
             queryset = queryset.filter(client=user)
         else:
-            # Public browse: open jobs only (exclude completed/cancelled; also exclude draft)
-            queryset = queryset.filter(status=Job.JobStatus.OPEN)
+            # Public browse: all non-draft jobs (OPEN / IN_PROGRESS / COMPLETED / CANCELLED)
+            queryset = queryset.exclude(status=Job.JobStatus.DRAFT)
             # Optional: hide jobs the requester already applied to or was invited to.
             # Default is to keep them visible so browse stays complete.
             exclude_applied = self.request.query_params.get('exclude_applied') in (
@@ -95,9 +95,15 @@ class JobListCreateView(generics.ListCreateAPIView):
                     | Q(invitations__provider=user)
                 )
 
-        status_filter = self.request.query_params.get('status')
-        if status_filter and is_my_jobs:
-            queryset = queryset.filter(status=status_filter)
+        status_filter = (self.request.query_params.get('status') or '').strip().upper()
+        if status_filter:
+            if is_my_jobs:
+                queryset = queryset.filter(status=status_filter)
+            elif status_filter == Job.JobStatus.DRAFT:
+                # Never expose drafts on public browse
+                queryset = queryset.none()
+            else:
+                queryset = queryset.filter(status=status_filter)
 
         location = self.request.query_params.get('location')
         if location:

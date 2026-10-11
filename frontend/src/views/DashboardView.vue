@@ -91,18 +91,21 @@
                 </div>
               </div>
             </div>
-            <label
-              v-if="authStore.isProvider"
-              class="flex items-center gap-2 text-sm text-slate-700 cursor-pointer"
-            >
-              <input
-                v-model="searchForm.exclude_applied"
-                type="checkbox"
-                class="rounded border-slate-300 text-amber focus:ring-amber"
-                @change="applySearch"
-              />
-              Hide applied &amp; invited
-            </label>
+            <div class="space-y-2">
+              <h4 class="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Status</h4>
+              <Select v-model="searchForm.status" @update:model-value="applySearch">
+                <SelectTrigger class="w-full h-11 rounded-xl border border-slate-200 bg-white text-slate-900 font-medium focus:ring-2 focus:ring-amber/20 [&>span]:line-clamp-1">
+                  <SelectValue placeholder="All statuses" />
+                </SelectTrigger>
+                <SelectContent class="rounded-xl border border-slate-200 bg-white text-slate-900">
+                  <SelectItem value="__all__" class="rounded-lg focus:bg-slate-100 focus:text-slate-900 data-[highlighted]:bg-slate-100 data-[highlighted]:text-slate-900">All statuses</SelectItem>
+                  <SelectItem value="OPEN" class="rounded-lg focus:bg-slate-100 focus:text-slate-900 data-[highlighted]:bg-slate-100 data-[highlighted]:text-slate-900">Open</SelectItem>
+                  <SelectItem value="IN_PROGRESS" class="rounded-lg focus:bg-slate-100 focus:text-slate-900 data-[highlighted]:bg-slate-100 data-[highlighted]:text-slate-900">In progress</SelectItem>
+                  <SelectItem value="COMPLETED" class="rounded-lg focus:bg-slate-100 focus:text-slate-900 data-[highlighted]:bg-slate-100 data-[highlighted]:text-slate-900">Completed</SelectItem>
+                  <SelectItem value="CANCELLED" class="rounded-lg focus:bg-slate-100 focus:text-slate-900 data-[highlighted]:bg-slate-100 data-[highlighted]:text-slate-900">Cancelled</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <div class="pt-8 border-t border-slate-200">
               <h4 class="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-5">Service Radius</h4>
               <input class="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-midnight" type="range"/>
@@ -186,9 +189,9 @@ const searchForm = ref({
   service: '',
   location: '',
   skill: '__all__' as string,
+  status: '__all__' as string,
   budget_min: undefined as number | undefined,
   budget_max: undefined as number | undefined,
-  exclude_applied: false,
 })
 
 const sortBy = ref('-created_at')
@@ -201,14 +204,13 @@ const jobsTotalPages = computed(() => Math.max(1, Math.ceil(jobsStore.totalCount
 function buildParams(append = false) {
   const page = append ? currentPage.value : 1
   const skillParam = searchForm.value.skill === '__all__' ? undefined : searchForm.value.skill
-  const params: Record<string, string | number | boolean | undefined> = {
+  const params: Record<string, string | number | undefined> = {
     search: searchForm.value.service.trim() || undefined,
     location: searchForm.value.location.trim() || undefined,
     skill: skillParam || undefined,
+    status: searchForm.value.status === '__all__' ? undefined : searchForm.value.status,
     budget_min: searchForm.value.budget_min,
     budget_max: searchForm.value.budget_max,
-    exclude_applied:
-      searchForm.value.exclude_applied && authStore.isProvider ? true : undefined,
     ordering: sortBy.value,
     page,
     page_size: pageSize.value,
