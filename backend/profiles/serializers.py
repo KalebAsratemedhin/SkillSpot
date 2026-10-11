@@ -1,9 +1,18 @@
-from rest_framework import serializers
+from datetime import datetime, time
+
 from django.contrib.auth import get_user_model
-from .models import Profile, ServiceProviderProfile, Tag, Experience
+from django.db.models import Count, Prefetch, Q
+from rest_framework import serializers
+
+from contracts.models import Contract
 from ratings.models import Rating
+from .models import Profile, ServiceProviderProfile, Tag, Experience
 
 User = get_user_model()
+
+# Public provider work history: max items per bucket (counts are uncapped).
+WORK_HISTORY_LIMIT = 20
+PLATFORM_CURRENCY = 'USD'
 
 
 class TagSerializer(serializers.ModelSerializer):
@@ -235,16 +244,132 @@ class PublicProviderListSerializer(serializers.Serializer):
         return obj.profile.created_at
 
 
+def _contract_started_at(contract):
+    """Prefer signed_at → start_date (UTC midnight) → created_at."""
+    if contract.signed_at:
+        return contract.signed_at
+    if contract.start_date:
+        from datetime import timezone as dt_timezone
+        return datetime.combine(contract.start_date, time.min, tzinfo=dt_timezone.utc)
+    return contract.created_at
+
+
+def _work_item_review(contract):
+    """CLIENT_TO_PROVIDER review for this contract, or None. No email/phone."""
+    reviews = getattr(contract, 'client_to_provider_reviews', None)
+    if reviews is None:
+        reviews = list(
+            contract.ratings.filter(
+                rating_type=Rating.RatingType.CLIENT_TO_PROVIDER,
+            ).select_related('rater__profile')[:1]
+        )
+    if not reviews:
+        return None
+    rating = reviews[0]
+    rater_profile = getattr(rating.rater, 'profile', None)
+    return {
+        'id': str(rating.id),
+        'score': rating.score,
+        'comment': rating.comment or '',
+        'rater_name': _public_display_name(rater_profile),
+        'created_at': rating.created_at,
+    }
+
+
+def _serialize_work_item(contract, *, closed=False):
+    job = contract.job
+    job_title = (job.title if job and job.title else None) or contract.title
+    return {
+        'contract_id': str(contract.id),
+        'job_id': str(job.id) if job else None,
+        'job_title': job_title,
+        'status': contract.status,
+        'started_at': _contract_started_at(contract),
+        'completed_at': contract.completed_at if closed else None,
+        'amount': str(contract.total_amount),
+        'currency': (contract.currency or PLATFORM_CURRENCY).upper(),
+        'review': _work_item_review(contract) if closed else None,
+    }
+
+
+def _provider_work_history(user):
+    """
+    Build in_progress / closed WorkItems for a provider user.
+    Counts are full; lists capped at WORK_HISTORY_LIMIT.
+    """
+    review_prefetch = Prefetch(
+        'ratings',
+        queryset=Rating.objects.filter(
+            rating_type=Rating.RatingType.CLIENT_TO_PROVIDER,
+        ).select_related('rater__profile').order_by('-created_at'),
+        to_attr='client_to_provider_reviews',
+    )
+    base = (
+        Contract.objects.filter(provider=user)
+        .select_related('job')
+        .prefetch_related(review_prefetch)
+    )
+    counts = base.aggregate(
+        in_progress=Count(
+            'id',
+            filter=Q(status=Contract.ContractStatus.ACTIVE),
+        ),
+        closed=Count(
+            'id',
+            filter=Q(
+                status__in=[
+                    Contract.ContractStatus.COMPLETED,
+                    Contract.ContractStatus.TERMINATED,
+                ]
+            ),
+        ),
+    )
+    in_progress_qs = list(
+        base.filter(status=Contract.ContractStatus.ACTIVE).order_by(
+            '-signed_at', '-updated_at', '-created_at',
+        )[:WORK_HISTORY_LIMIT]
+    )
+    in_progress_qs.sort(key=_contract_started_at, reverse=True)
+
+    closed_qs = list(
+        base.filter(
+            status__in=[
+                Contract.ContractStatus.COMPLETED,
+                Contract.ContractStatus.TERMINATED,
+            ]
+        ).order_by('-completed_at', '-updated_at', '-created_at')[:WORK_HISTORY_LIMIT]
+    )
+
+    return {
+        'jobs_in_progress_count': counts['in_progress'] or 0,
+        'jobs_closed_count': counts['closed'] or 0,
+        'work_history': {
+            'in_progress': [
+                _serialize_work_item(c, closed=False) for c in in_progress_qs
+            ],
+            'closed': [
+                _serialize_work_item(c, closed=True) for c in closed_qs
+            ],
+        },
+    }
+
+
 class PublicProviderDetailSerializer(PublicProviderListSerializer):
-    """Public provider profile detail — extends list card with bio/skills/experience."""
+    """Public provider profile detail — bio, skills, experience, work history, earnings."""
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
         data['bio'] = instance.profile.bio or ''
         data['years_of_experience'] = instance.years_of_experience
         data['total_jobs_completed'] = instance.total_jobs_completed
+        data['total_earnings'] = str(instance.total_earnings or 0)
+        data['currency'] = PLATFORM_CURRENCY
         data['skills'] = TagSerializer(instance.skills.all(), many=True).data
         data['certifications'] = TagSerializer(instance.certifications.all(), many=True).data
         data['languages'] = TagSerializer(instance.languages.all(), many=True).data
-        data['experiences'] = ExperienceSerializer(instance.experiences.all(), many=True).data
+        # Prefetch order follows Experience.Meta (-is_current, -start_date)
+        data['experiences'] = ExperienceSerializer(
+            instance.experiences.all(), many=True,
+        ).data
+        data.update(_provider_work_history(instance.profile.user))
         return data

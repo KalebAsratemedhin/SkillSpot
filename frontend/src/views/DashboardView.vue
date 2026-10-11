@@ -67,7 +67,7 @@
               </Select>
             </div>
             <div class="space-y-2">
-              <h4 class="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Budget (Br)</h4>
+              <h4 class="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Budget ($)</h4>
               <div class="grid grid-cols-2 gap-2">
                 <div class="space-y-1">
                   <span class="text-xs font-semibold text-slate-500">Min</span>

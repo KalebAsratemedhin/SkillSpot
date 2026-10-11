@@ -22,7 +22,7 @@
                 <p class="text-xs text-slate-500 mt-1">{{ formatDate(contract.created_at) }}</p>
               </div>
               <div class="text-right shrink-0 space-y-1.5">
-                <p class="text-lg font-bold text-midnight">Br {{ Number(contract.total_amount).toLocaleString() }}</p>
+                <p class="text-lg font-bold text-midnight">${{ Number(contract.total_amount).toLocaleString() }}</p>
                 <span class="inline-block text-xs font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
                   {{ contract.status }}
                 </span>

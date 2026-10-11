@@ -210,7 +210,8 @@ class Experience(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ['-start_date', '-is_current']
+        # Current roles first, then newest start date.
+        ordering = ['-is_current', '-start_date']
         indexes = [
             models.Index(fields=['provider', '-start_date']),
         ]

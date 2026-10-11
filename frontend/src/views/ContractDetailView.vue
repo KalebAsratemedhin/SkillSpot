@@ -289,7 +289,7 @@
               <DialogHeader>
                 <DialogTitle>{{ editingMilestoneId ? 'Edit milestone' : 'Add milestone' }}</DialogTitle>
                 <DialogDescription>
-                  Split the fixed price into milestones. Amounts must sum to Br {{ contract?.total_amount?.toLocaleString() }} before signing.
+                  Split the fixed price into milestones. Amounts must sum to ${{ contract?.total_amount?.toLocaleString() }} before signing.
                 </DialogDescription>
               </DialogHeader>
               <div class="grid gap-4 py-4">
@@ -303,7 +303,7 @@
                   />
                 </div>
                 <div class="grid gap-2">
-                  <label class="text-sm font-medium text-slate-700">Amount (Br)</label>
+                  <label class="text-sm font-medium text-slate-700">Amount ($)</label>
                   <input
                     v-model.number="milestoneForm.amount"
                     type="number"
@@ -377,9 +377,9 @@
             <CardContent class="p-4 flex gap-3 items-start">
               <span class="material-symbols-outlined text-amber">info</span>
               <p class="text-sm text-slate-600">
-                Milestone amounts must sum to Br {{ contract.total_amount.toLocaleString() }} before signing.
-                Allocated Br {{ milestonesAllocated.toLocaleString() }} ·
-                remaining Br {{ milestonesRemaining.toLocaleString() }}.
+                Milestone amounts must sum to ${{ contract.total_amount.toLocaleString() }} before signing.
+                Allocated ${{ milestonesAllocated.toLocaleString() }} ·
+                remaining ${{ milestonesRemaining.toLocaleString() }}.
               </p>
             </CardContent>
           </Card>
@@ -430,7 +430,7 @@
                           </span>
                         </div>
                         <div class="flex items-center gap-2">
-                          <span v-if="entry.amount != null" class="text-midnight font-bold">Br {{ Number(entry.amount).toLocaleString() }}</span>
+                          <span v-if="entry.amount != null" class="text-midnight font-bold">${{ Number(entry.amount).toLocaleString() }}</span>
                           <template v-if="isClient && entry.status === 'PENDING_APPROVAL'">
                             <Button variant="outline" size="sm" class="border-emerald-300 text-emerald-700" @click="approveTimeEntry(entry.id)">Approve</Button>
                             <Button variant="outline" size="sm" class="border-red-300 text-red-600" @click="rejectTimeEntry(entry.id)">Reject</Button>
@@ -439,7 +439,7 @@
                       </div>
                       <div v-if="isClient && canPayContract && approvedUnpaidTimeEntries.length > 0" class="pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-4">
                         <p class="text-slate-400 text-sm">
-                          {{ approvedUnpaidTimeEntries.length }} approved entr{{ approvedUnpaidTimeEntries.length === 1 ? 'y' : 'ies' }} · Total Br {{ totalUnpaidAmount.toLocaleString() }}
+                          {{ approvedUnpaidTimeEntries.length }} approved entr{{ approvedUnpaidTimeEntries.length === 1 ? 'y' : 'ies' }} · Total ${{ totalUnpaidAmount.toLocaleString() }}
                         </p>
                         <Button
                           variant="default"
@@ -449,7 +449,7 @@
                           @click="payAllTimeEntries"
                         >
                           <span class="material-symbols-outlined mr-2">payments</span>
-                          Pay Br {{ totalUnpaidAmount.toLocaleString() }}
+                          Pay ${{ totalUnpaidAmount.toLocaleString() }}
                         </Button>
                       </div>
                       <div v-if="isProvider && isHourly" class="pt-4 border-t border-slate-100">
@@ -468,10 +468,10 @@
                   <template v-else>
                     <div class="space-y-4">
                       <div class="flex flex-wrap gap-4 text-sm text-slate-500">
-                        <span>Total Br {{ contract.total_amount.toLocaleString() }}</span>
-                        <span>Allocated Br {{ milestonesAllocated.toLocaleString() }}</span>
+                        <span>Total ${{ contract.total_amount.toLocaleString() }}</span>
+                        <span>Allocated ${{ milestonesAllocated.toLocaleString() }}</span>
                         <span :class="milestonesRemaining === 0 ? 'text-emerald-600 font-semibold' : 'text-amber font-semibold'">
-                          Remaining Br {{ milestonesRemaining.toLocaleString() }}
+                          Remaining ${{ milestonesRemaining.toLocaleString() }}
                         </span>
                       </div>
                       <p v-if="milestones.length === 0" class="text-slate-500 text-sm">
@@ -479,7 +479,7 @@
                           No milestones yet. Add milestones to split the fixed price, or leave empty for a single full payment.
                         </template>
                         <template v-else>
-                          Single payment of Br {{ contract.total_amount.toLocaleString() }} when work is complete.
+                          Single payment of ${{ contract.total_amount.toLocaleString() }} when work is complete.
                         </template>
                       </p>
                       <div
@@ -506,7 +506,7 @@
                           </span>
                         </div>
                         <div class="flex items-center gap-2 shrink-0">
-                          <span class="text-midnight font-bold">Br {{ Number(m.amount).toLocaleString() }}</span>
+                          <span class="text-midnight font-bold">${{ Number(m.amount).toLocaleString() }}</span>
                           <div v-if="milestoneHasActions(m)" class="relative">
                             <button
                               type="button"
@@ -599,7 +599,7 @@
                   <div class="grid grid-cols-2 md:grid-cols-3 gap-y-8 gap-x-12">
                     <div>
                       <p class="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-1">Total Budget</p>
-                      <p class="text-midnight text-lg font-extrabold">Br {{ contract.total_amount.toLocaleString() }}</p>
+                      <p class="text-midnight text-lg font-extrabold">${{ contract.total_amount.toLocaleString() }}</p>
                     </div>
                     <div>
                       <p class="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-1">Escrow Status</p>
@@ -641,11 +641,11 @@
                   <div class="pt-4 border-t border-slate-100 flex justify-between items-end">
                     <div>
                       <p class="text-slate-500 text-[10px] font-black uppercase tracking-widest">Amount to Pay</p>
-                      <p class="text-midnight text-3xl font-black tracking-tight">Br {{ contract.total_amount.toLocaleString() }}</p>
+                      <p class="text-midnight text-3xl font-black tracking-tight">${{ contract.total_amount.toLocaleString() }}</p>
                     </div>
                     <div class="text-right">
                       <p class="text-emerald-500 text-[10px] font-black uppercase tracking-widest mb-1">Includes Tax</p>
-                      <p class="text-slate-500 text-xs">{{ contract.currency || 'ETB' }}</p>
+                      <p class="text-slate-500 text-xs">{{ contract.currency || 'USD' }}</p>
                     </div>
                   </div>
                   <div class="bg-amber/5 p-4 rounded-xl border border-amber/20 flex gap-3">
@@ -679,7 +679,7 @@
                   <p class="text-amber text-xs font-black uppercase tracking-widest mb-1">Payment</p>
                   <h3 class="text-midnight text-xl font-black">Pay by milestone</h3>
                   <p class="text-slate-400 text-sm mt-2">
-                    {{ unpaidMilestones.length }} unpaid · Br {{ unpaidMilestonesTotal.toLocaleString() }} remaining
+                    {{ unpaidMilestones.length }} unpaid · ${{ unpaidMilestonesTotal.toLocaleString() }} remaining
                   </p>
                 </div>
                 <CardContent class="p-6 space-y-3">
@@ -691,7 +691,7 @@
                     class="flex items-center justify-between gap-3 p-3 rounded-xl border border-slate-200 hover:border-amber/40 hover:bg-amber/5 transition-colors"
                   >
                     <span class="text-sm font-semibold text-midnight truncate">{{ m.title }}</span>
-                    <span class="text-sm font-bold text-midnight whitespace-nowrap">Br {{ Number(m.amount).toLocaleString() }}</span>
+                    <span class="text-sm font-bold text-midnight whitespace-nowrap">${{ Number(m.amount).toLocaleString() }}</span>
                   </router-link>
                 </CardContent>
               </Card>
@@ -708,7 +708,7 @@
                       <p class="text-slate-200 text-xs font-bold leading-none mb-1">{{ (payment.status === 'COMPLETED' || payment.status === 'completed') ? 'Funds Released' : 'Payment Pending' }}</p>
                       <p class="text-slate-500 text-[10px]">{{ formatDate(payment.created_at) }}</p>
                     </div>
-                    <span class="text-slate-400 text-xs font-bold">Br {{ payment.amount.toLocaleString() }}</span>
+                    <span class="text-slate-400 text-xs font-bold">${{ payment.amount.toLocaleString() }}</span>
                   </div>
                 </div>
               </Card>
@@ -1147,8 +1147,8 @@ async function rejectTimeEntry(entryId: string) {
 async function payAllTimeEntries() {
   const c = contract.value
   if (!c?.id || approvedUnpaidTimeEntries.value.length === 0) return
-  if (totalUnpaidAmount.value < 25) {
-    toast.error('Total payment must be at least 25 ETB. Please add more hours.')
+  if (totalUnpaidAmount.value < 0.5) {
+    toast.error('Total payment must be at least $0.50. Please add more hours.')
     return
   }
   payTimeEntriesLoading.value = true

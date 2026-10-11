@@ -52,7 +52,7 @@ class Job(models.Model):
         default=PaymentSchedule.FIXED,
         help_text=_('FIXED = one total price; HOURLY = rate per hour, provider logs hours')
     )
-    currency = models.CharField(max_length=3, default='ETB')
+    currency = models.CharField(max_length=3, default='USD')
     address = models.TextField(
         blank=True,
         default='',

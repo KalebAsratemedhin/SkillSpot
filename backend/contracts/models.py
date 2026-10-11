@@ -89,8 +89,8 @@ class Contract(models.Model):
     )
     currency = models.CharField(
         max_length=3,
-        default='ETB',
-        help_text=_('Currency code')
+        default='USD',
+        help_text=_('Currency code (USD for Stripe Connect payouts)')
     )
     start_date = models.DateField(
         help_text=_('Contract start date')

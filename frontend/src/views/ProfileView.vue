@@ -459,7 +459,7 @@
                 <div class="flex items-baseline justify-between mb-6">
                   <span class="text-sm font-bold uppercase tracking-widest opacity-70">Premium Rate</span>
                   <div class="text-right">
-                    <span class="text-4xl font-black">Br {{ Math.round(profilesStore.providerProfile.hourly_rate).toLocaleString() }}/hr</span>
+                    <span class="text-4xl font-black">${{ Math.round(profilesStore.providerProfile.hourly_rate).toLocaleString() }}/hr</span>
                     <span class="text-sm font-bold opacity-70">/hr</span>
                   </div>
                 </div>

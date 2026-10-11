@@ -94,7 +94,7 @@
 
           <div class="min-h-[76px] flex flex-col justify-end">
             <FormField v-if="form.budget_type === 'hourly'" :error="errors.rate_hourly || errors.budget_min">
-              <Label class="text-sm font-semibold text-slate-700">Rate (Br/hr)</Label>
+              <Label class="text-sm font-semibold text-slate-700">Rate ($/hr)</Label>
               <Input
                 v-model="form.rate_hourly"
                 type="number"

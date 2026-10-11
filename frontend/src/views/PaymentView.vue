@@ -23,7 +23,7 @@
                   <div class="flex justify-between items-start mb-4">
                     <div>
                       <p class="text-amber text-xs font-black uppercase tracking-widest mb-1">Payment Amount</p>
-                      <h3 class="text-white text-2xl font-black">Br {{ payAmount.toLocaleString() }}</h3>
+                      <h3 class="text-white text-2xl font-black">${{ payAmount.toLocaleString() }}</h3>
                     </div>
                     <div class="p-2 bg-amber/10 rounded-xl text-amber">
                       <span class="material-symbols-outlined text-2xl">account_balance_wallet</span>
@@ -34,11 +34,11 @@
                   <div class="pt-4 border-t border-white/5 flex justify-between items-end">
                     <div>
                       <p class="text-slate-500 text-[10px] font-black uppercase tracking-widest">Amount to Pay</p>
-                      <p class="text-white text-3xl font-black tracking-tight">Br {{ payAmount.toLocaleString() }}</p>
+                      <p class="text-white text-3xl font-black tracking-tight">${{ payAmount.toLocaleString() }}</p>
                     </div>
                     <div class="text-right">
                       <p class="text-emerald-500 text-[10px] font-black uppercase tracking-widest mb-1">Includes Tax</p>
-                      <p class="text-slate-500 text-xs">{{ contract.currency || 'ETB' }}</p>
+                      <p class="text-slate-500 text-xs">{{ contract.currency || 'USD' }}</p>
                     </div>
                   </div>
                   <div class="bg-white/5 p-4 rounded-xl border border-white/5 flex gap-3">
@@ -90,7 +90,7 @@
                   </div>
                   <div class="flex justify-between text-sm">
                     <span class="text-slate-400">Amount</span>
-                    <span class="text-amber font-bold">Br {{ payAmount.toLocaleString() }}</span>
+                    <span class="text-amber font-bold">${{ payAmount.toLocaleString() }}</span>
                   </div>
                 </div>
               </Card>
@@ -171,7 +171,7 @@ async function handlePayment() {
     const payload: Parameters<typeof paymentsService.create>[0] = {
       contract: contract.value.id,
       amount: payAmount.value,
-      currency: contract.value.currency || 'ETB',
+      currency: contract.value.currency || 'USD',
       payment_method: 'STRIPE',
     }
     if (paymentMode.value === 'milestone' && milestone.value) {

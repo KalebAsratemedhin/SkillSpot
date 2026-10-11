@@ -254,7 +254,7 @@
                       >
                         <div v-if="app.proposed_rate != null">
                           <p class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Proposed rate</p>
-                          <p class="text-midnight font-semibold">Br {{ Number(app.proposed_rate).toLocaleString() }}/hr</p>
+                          <p class="text-midnight font-semibold">${{ Number(app.proposed_rate).toLocaleString() }}/hr</p>
                         </div>
                         <div>
                           <p class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Cover letter</p>
@@ -464,7 +464,7 @@
                     <div class="flex items-center gap-3 shrink-0 sm:ml-auto">
                       <div class="text-right text-xs text-slate-500 hidden sm:block">
                         <p v-if="p.hourly_rate" class="font-bold text-midnight text-sm">
-                          Br {{ Number(p.hourly_rate).toLocaleString() }}/hr
+                          ${{ Number(p.hourly_rate).toLocaleString() }}/hr
                         </p>
                         <p v-if="p.rating?.count > 0">
                           ★ {{ Number(p.rating.average).toFixed(1) }} ({{ p.rating.count }})
@@ -554,7 +554,7 @@
                 </div>
                 <p v-if="myApplication.cover_letter" class="text-slate-600 text-sm whitespace-pre-wrap">{{ myApplication.cover_letter }}</p>
                 <p v-if="myApplication.proposed_rate != null && myApplication.proposed_rate !== ''" class="text-sm text-slate-500">
-                  Proposed rate: Br {{ Number(myApplication.proposed_rate).toLocaleString() }}/hr
+                  Proposed rate: ${{ Number(myApplication.proposed_rate).toLocaleString() }}/hr
                 </p>
                 <p class="text-xs text-slate-400">Submitted {{ formatAppliedAt(myApplication.applied_at) }}</p>
               </CardContent>
@@ -579,7 +579,7 @@
                     ></textarea>
                   </FormField>
                   <FormField :error="applicationErrors.proposed_rate">
-                    <Label>{{ isHourlyJob ? 'Proposed Rate (Br/hr)' : 'Proposed Price (Br)' }}</Label>
+                    <Label>{{ isHourlyJob ? 'Proposed Rate ($/hr)' : 'Proposed Price ($)' }}</Label>
                     <Input
                       v-model="applicationForm.proposed_rate"
                       type="number"
@@ -591,7 +591,7 @@
                       @blur="validateProposedRateField"
                     />
                     <p v-if="jobBudgetCeiling != null" class="text-xs text-slate-500 mt-1">
-                      Must be Br {{ jobBudgetCeiling.toLocaleString() }}{{ isHourlyJob ? '/hr' : '' }} or less
+                      Must be ${{ jobBudgetCeiling.toLocaleString() }}{{ isHourlyJob ? '/hr' : '' }} or less
                     </p>
                   </FormField>
                   <Button type="submit" :loading="jobsStore.loading" variant="default" size="lg" class="w-full">
@@ -663,10 +663,10 @@
               <div class="absolute top-0 right-0 -mr-16 -mt-16 w-32 h-32 bg-amber/10 blur-3xl rounded-full"></div>
               <div class="relative z-10 space-y-8">
                 <div>
-                  <p class="text-amber text-xs font-black uppercase tracking-[0.2em] mb-2">{{ isHourlyJob ? 'Hourly rate (Br/hr)' : 'Investment' }}</p>
+                  <p class="text-amber text-xs font-black uppercase tracking-[0.2em] mb-2">{{ isHourlyJob ? 'Hourly rate ($/hr)' : 'Investment' }}</p>
                   <div class="flex items-baseline gap-2">
-                    <span class="text-white text-4xl font-black tracking-tight">Br {{ formatBudgetMax(jobsStore.currentJob.budget_max) }}</span>
-                    <span class="text-gray-400 text-sm font-medium">{{ isHourlyJob ? 'Br/hr' : 'max budget' }}</span>
+                    <span class="text-white text-4xl font-black tracking-tight">${{ formatBudgetMax(jobsStore.currentJob.budget_max) }}</span>
+                    <span class="text-gray-400 text-sm font-medium">{{ isHourlyJob ? '$/hr' : 'max budget' }}</span>
                   </div>
                 </div>
                 <div class="space-y-4">
@@ -877,7 +877,7 @@ function proposedRateError(raw: string): string {
   const ceiling = jobBudgetCeiling.value
   if (ceiling != null && proposedRate > ceiling) {
     const unit = isHourlyJob.value ? '/hr' : ''
-    return `Must be Br ${ceiling.toLocaleString()}${unit} or less`
+    return `Must be $${ceiling.toLocaleString()}${unit} or less`
   }
   return ''
 }
@@ -891,12 +891,12 @@ const jobBudgetLabel = computed(() => {
   const min = job.budget_min ?? 0
   const max = job.budget_max ?? min
   if (isHourlyJob.value) {
-    return min === max ? `Br ${min.toLocaleString()} Br/hr` : `Br ${min.toLocaleString()} – ${max.toLocaleString()} Br/hr`
+    return min === max ? `$${min.toLocaleString()}/hr` : `$${min.toLocaleString()} – ${max.toLocaleString()}/hr`
   }
   if (job.budget_type === 'fixed' || job.payment_schedule === 'FIXED') {
-    return `Br ${(max || min).toLocaleString()} fixed`
+    return `$${(max || min).toLocaleString()} fixed`
   }
-  return `Br ${min.toLocaleString()} – ${max.toLocaleString()}`
+  return `$${min.toLocaleString()} – ${max.toLocaleString()}`
 })
 
 const myApplication = computed(() => jobsStore.currentJob?.my_application ?? null)

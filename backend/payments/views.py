@@ -235,11 +235,10 @@ class CreateStripeCheckoutSessionView(generics.GenericAPIView):
             if hasattr(payment.recipient, 'profile') and hasattr(payment.recipient.profile, 'provider_profile'):
                 provider_profile = payment.recipient.profile.provider_profile
 
-            # Platform minimum: 25 ETB; Stripe also requires ~50 cents USD equivalent per session
-            currency_code = (payment.currency or 'ETB').strip().upper()
+            # Stripe Checkout minimums (USD is platform default for Connect payouts).
+            currency_code = (payment.currency or 'USD').strip().upper()
             min_amounts = getattr(settings, 'STRIPE_CHECKOUT_MIN_AMOUNT_BY_CURRENCY', None) or {
                 'USD': Decimal('0.50'),
-                'ETB': Decimal('25'),   # Platform minimum 25 ETB
                 'EUR': Decimal('0.50'),
                 'GBP': Decimal('0.30'),
             }
@@ -331,7 +330,7 @@ class CreateStripeCheckoutSessionView(generics.GenericAPIView):
                 return Response(
                     {
                         'error': (
-                            'Payment amount must be at least 25 ETB. '
+                            'Payment amount must be at least $0.50 USD. '
                             'Please add more hours or wait until the total is higher.'
                         )
                     },
@@ -397,14 +396,15 @@ class CreateStripeCheckoutSessionForTimeEntriesView(generics.GenericAPIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        currency = (contract.currency or 'ETB').strip().upper()
-        min_etb = Decimal('25')
+        currency = (contract.currency or 'USD').strip().upper()
+        min_usd = Decimal('0.50')
         total_amount = sum((e.amount or Decimal('0')) for e in entries)
-        if currency == 'ETB' and total_amount < min_etb:
+        if currency == 'USD' and total_amount < min_usd:
             return Response(
                 {
                     'error': (
-                        f'Total payment must be at least {min_etb} ETB (current total: {total_amount} ETB). '
+                        f'Total payment must be at least ${min_usd} USD '
+                        f'(current total: ${total_amount} USD). '
                         'Please add more hours or wait until the total is higher.'
                     )
                 },
@@ -442,7 +442,7 @@ class CreateStripeCheckoutSessionForTimeEntriesView(generics.GenericAPIView):
                 provider_amount=provider_amount,
             )
             payments_created.append(payment)
-            # Stripe unit_amount: for ETB use smallest unit (cents equivalent; Stripe expects integer)
+            # Stripe unit_amount is in the currency's smallest unit (cents for USD).
             unit_amount = int(amount * 100)
             line_items.append({
                 'price_data': {
@@ -502,7 +502,7 @@ class CreateStripeCheckoutSessionForTimeEntriesView(generics.GenericAPIView):
                 return Response(
                     {
                         'error': (
-                            'Payment amount must be at least 25 ETB. '
+                            'Payment amount must be at least $0.50 USD. '
                             'Please add more hours or wait until the total is higher.'
                         )
                     },
@@ -614,7 +614,7 @@ class ConfirmStripePaymentView(generics.GenericAPIView):
                 enqueue_in_app_notification(
                     str(payment.recipient_id),
                     'Payment received',
-                    f'You received a payment of {payment.amount} {payment.currency or "ETB"} for "{payment.contract.title}".',
+                    f'You received a payment of {payment.amount} {payment.currency or "USD"} for "{payment.contract.title}".',
                     link=f'/contracts/{payment.contract_id}/',
                     actor_id=str(payment.payer_id),
                 )
@@ -767,7 +767,7 @@ def stripe_webhook(request):
                 enqueue_in_app_notification(
                     str(payment.recipient_id),
                     'Payment received',
-                    f'You received a payment of {payment.amount} {payment.currency or "ETB"} for "{payment.contract.title}".',
+                    f'You received a payment of {payment.amount} {payment.currency or "USD"} for "{payment.contract.title}".',
                     link=f'/contracts/{payment.contract_id}/',
                     actor_id=str(payment.payer_id),
                 )
@@ -819,7 +819,7 @@ def stripe_webhook(request):
                 enqueue_in_app_notification(
                     str(payment.recipient_id),
                     'Payment received',
-                    f'You received a payment of {payment.amount} {payment.currency or "ETB"} for "{payment.contract.title}".',
+                    f'You received a payment of {payment.amount} {payment.currency or "USD"} for "{payment.contract.title}".',
                     link=f'/contracts/{payment.contract_id}/',
                     actor_id=str(payment.payer_id),
                 )

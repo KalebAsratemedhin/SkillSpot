@@ -335,7 +335,7 @@
                           {{ c.status?.replace(/_/g, ' ') }}
                         </span>
                         <span class="text-xs font-medium text-slate-600">
-                          Br {{ Number(c.total_amount || 0).toLocaleString() }}
+                          ${{ Number(c.total_amount || 0).toLocaleString() }}
                         </span>
                       </div>
                     </router-link>

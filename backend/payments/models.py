@@ -69,7 +69,7 @@ class Payment(models.Model):
     )
     currency = models.CharField(
         max_length=3,
-        default='ETB',
+        default='USD',
         help_text=_('Currency code')
     )
     status = models.CharField(

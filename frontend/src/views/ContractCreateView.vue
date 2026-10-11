@@ -9,7 +9,7 @@
           <p class="text-midnight font-bold">{{ job.title }}</p>
           <p v-if="job.description" class="text-slate-600 text-sm line-clamp-2">{{ job.description }}</p>
           <p v-if="budgetCeiling != null" class="text-xs text-slate-500 pt-1">
-            Client budget ceiling: Br {{ budgetCeiling.toLocaleString() }}{{ isHourlyJob ? '/hr' : '' }}
+            Client budget ceiling: ${{ budgetCeiling.toLocaleString() }}{{ isHourlyJob ? '/hr' : '' }}
           </p>
         </div>
         <div
@@ -18,7 +18,7 @@
         >
           Prefilling from provider proposal
           <span v-if="applicationPrefill.proposed_rate != null" class="font-semibold text-midnight">
-            — Br {{ Number(applicationPrefill.proposed_rate).toLocaleString() }}{{ isHourlyJob ? '/hr' : '' }}
+            — ${{ Number(applicationPrefill.proposed_rate).toLocaleString() }}{{ isHourlyJob ? '/hr' : '' }}
           </span>
         </div>
         <template v-if="!job">
@@ -67,7 +67,7 @@
           </p>
         </FormField>
         <FormField v-if="form.payment_schedule === 'HOURLY'" :error="errors.hourly_rate">
-          <Label class="text-sm font-semibold text-slate-700">Hourly rate (Br)</Label>
+          <Label class="text-sm font-semibold text-slate-700">Hourly rate ($)</Label>
           <Input
             v-model="form.hourly_rate"
             type="number"
@@ -80,7 +80,7 @@
           />
         </FormField>
         <FormField :error="errors.total_amount">
-          <Label class="text-sm font-semibold text-slate-700">{{ form.payment_schedule === 'HOURLY' ? 'Total cap (Br)' : 'Total amount (Br)' }}</Label>
+          <Label class="text-sm font-semibold text-slate-700">{{ form.payment_schedule === 'HOURLY' ? 'Total cap ($)' : 'Total amount ($)' }}</Label>
           <Input
             v-model="form.total_amount"
             type="number"
@@ -286,7 +286,7 @@ async function handleSubmit() {
     if (Number.isNaN(hourlyRate) || hourlyRate <= 0) {
       errors.hourly_rate = 'Enter a valid hourly rate.'
     } else if (budgetCeiling.value != null && hourlyRate > budgetCeiling.value) {
-      errors.hourly_rate = `Hourly rate cannot exceed the client budget of Br ${budgetCeiling.value.toLocaleString()}/hr.`
+      errors.hourly_rate = `Hourly rate cannot exceed the client budget of $${budgetCeiling.value.toLocaleString()}/hr.`
     }
   }
   if (Number.isNaN(amount) || amount < 0) {
@@ -296,7 +296,7 @@ async function handleSubmit() {
     budgetCeiling.value != null &&
     amount > budgetCeiling.value
   ) {
-    errors.total_amount = `Amount cannot exceed the client budget of Br ${budgetCeiling.value.toLocaleString()}.`
+    errors.total_amount = `Amount cannot exceed the client budget of $${budgetCeiling.value.toLocaleString()}.`
   }
   if (Object.values(errors).some(Boolean)) return
 
@@ -308,7 +308,7 @@ async function handleSubmit() {
       description: form.description.trim(),
       terms: form.terms.trim(),
       total_amount: amount,
-      currency: 'ETB',
+      currency: 'USD',
       payment_schedule: schedule,
       start_date: form.start_date.trim(),
     }

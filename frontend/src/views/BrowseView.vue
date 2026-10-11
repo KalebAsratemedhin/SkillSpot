@@ -80,7 +80,7 @@
 
           <template v-if="tab === 'jobs'">
             <div>
-              <h3 class="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">Budget (Br)</h3>
+              <h3 class="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">Budget ($)</h3>
               <div class="grid grid-cols-2 gap-2">
                 <div class="space-y-1">
                   <span class="text-xs font-semibold text-slate-500">Min</span>
@@ -123,7 +123,7 @@
 
           <template v-else>
             <div>
-              <h3 class="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">Hourly rate (Br)</h3>
+              <h3 class="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">Hourly rate ($)</h3>
               <div class="grid grid-cols-2 gap-2">
                 <div class="space-y-1">
                   <span class="text-xs font-semibold text-slate-500">Min</span>
@@ -237,7 +237,7 @@
                     </span>
                   </div>
                   <div class="flex items-center justify-between mt-3 text-sm">
-                    <span v-if="p.hourly_rate" class="font-bold text-midnight">Br {{ Number(p.hourly_rate).toLocaleString() }}/hr</span>
+                    <span v-if="p.hourly_rate" class="font-bold text-midnight">${{ Number(p.hourly_rate).toLocaleString() }}/hr</span>
                     <span v-else class="text-slate-400">Rate on request</span>
                     <span v-if="p.rating.count > 0" class="text-slate-500 flex items-center gap-0.5">
                       <span class="material-symbols-outlined text-amber text-sm fill-1">star</span>

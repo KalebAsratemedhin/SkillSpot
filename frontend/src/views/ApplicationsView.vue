@@ -426,7 +426,7 @@ function formatDate(dateString: string) {
 
 function formatRate(rate: number | string) {
   const n = typeof rate === 'string' ? parseFloat(rate) : rate
-  return Number.isNaN(n) ? '—' : 'Br ' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
+  return Number.isNaN(n) ? '—' : '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
 }
 
 function getJobTitle(job: string | { title?: string } | any) {

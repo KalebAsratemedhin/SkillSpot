@@ -101,10 +101,40 @@ export interface PublicProvider {
   member_since: string
 }
 
+export interface ProviderWorkReview {
+  id: string
+  score: number
+  comment?: string | null
+  rater_name?: string | null
+  created_at: string
+}
+
+export interface ProviderWorkItem {
+  contract_id: string
+  job_id?: string | null
+  job_title: string
+  status: string
+  started_at?: string | null
+  completed_at?: string | null
+  amount?: string | number | null
+  currency?: string
+  review?: ProviderWorkReview | null
+}
+
+export interface ProviderWorkHistory {
+  in_progress: ProviderWorkItem[]
+  closed: ProviderWorkItem[]
+}
+
 export interface PublicProviderDetail extends PublicProvider {
   bio?: string
   years_of_experience?: number
   total_jobs_completed?: number
+  total_earnings?: string | number | null
+  currency?: string
+  jobs_in_progress_count?: number
+  jobs_closed_count?: number
+  work_history?: ProviderWorkHistory
   skills?: ProviderSkillTag[]
   certifications?: ProviderSkillTag[]
   languages?: ProviderSkillTag[]

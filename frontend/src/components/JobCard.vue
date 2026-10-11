@@ -106,12 +106,12 @@ const formatBudget = computed(() => {
   if (isHourly.value) {
     const min = props.job.budget_min ?? 0
     const max = props.job.budget_max ?? min
-    return min === max ? `Br ${(min).toLocaleString()}/hr` : `Br ${(min).toLocaleString()} – ${(max).toLocaleString()} Br/hr`
+    return min === max ? `$${(min).toLocaleString()}/hr` : `$${(min).toLocaleString()} – ${(max).toLocaleString()}/hr`
   }
   if (props.job.budget_type === 'fixed' || props.job.payment_schedule === 'FIXED') {
-    return `Br ${(props.job.budget_max ?? props.job.budget_min ?? 0).toLocaleString()} fixed`
+    return `$${(props.job.budget_max ?? props.job.budget_min ?? 0).toLocaleString()} fixed`
   }
-  return `Br ${(props.job.budget_min ?? 0).toLocaleString()} – ${(props.job.budget_max ?? 0).toLocaleString()}`
+  return `$${(props.job.budget_min ?? 0).toLocaleString()} – ${(props.job.budget_max ?? 0).toLocaleString()}`
 })
 
 const badgeClassString = computed(() => {

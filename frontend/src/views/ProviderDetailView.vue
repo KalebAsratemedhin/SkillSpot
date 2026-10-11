@@ -42,7 +42,7 @@
             </p>
             <div class="mt-4 flex flex-wrap gap-4 text-sm">
               <div v-if="provider.hourly_rate" class="font-bold text-midnight text-lg">
-                Br {{ Number(provider.hourly_rate).toLocaleString() }}<span class="text-slate-500 font-medium text-sm">/hr</span>
+                ${{ Number(provider.hourly_rate).toLocaleString() }}<span class="text-slate-500 font-medium text-sm">/hr</span>
               </div>
               <div v-if="provider.rating.count > 0" class="flex items-center gap-1 text-slate-600">
                 <span class="material-symbols-outlined text-amber fill-1">star</span>
@@ -59,6 +59,28 @@
             </div>
             <p v-if="provider.member_since" class="mt-2 text-xs text-slate-400">
               Member since {{ formatMemberSince(provider.member_since) }}
+            </p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+          <div class="rounded-2xl border border-gray-100 bg-white p-4 md:p-5 shadow-sm">
+            <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Earned</p>
+            <p class="text-xl md:text-2xl font-extrabold text-midnight tracking-tight">{{ formatMoney(provider.total_earnings) }}</p>
+          </div>
+          <div class="rounded-2xl border border-gray-100 bg-white p-4 md:p-5 shadow-sm">
+            <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">In progress</p>
+            <p class="text-xl md:text-2xl font-extrabold text-midnight tracking-tight">{{ provider.jobs_in_progress_count ?? inProgressJobs.length }}</p>
+          </div>
+          <div class="rounded-2xl border border-gray-100 bg-white p-4 md:p-5 shadow-sm">
+            <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Closed jobs</p>
+            <p class="text-xl md:text-2xl font-extrabold text-midnight tracking-tight">{{ provider.jobs_closed_count ?? closedJobs.length }}</p>
+          </div>
+          <div class="rounded-2xl border border-gray-100 bg-white p-4 md:p-5 shadow-sm">
+            <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Rating</p>
+            <p class="text-xl md:text-2xl font-extrabold text-midnight tracking-tight">
+              <template v-if="provider.rating.count > 0">{{ Number(provider.rating.average).toFixed(1) }}</template>
+              <template v-else>—</template>
             </p>
           </div>
         </div>
@@ -98,19 +120,122 @@
           </div>
         </section>
 
-        <section
-          v-if="provider.experiences?.length"
-          class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 md:p-8"
-        >
-          <h2 class="text-lg font-bold text-midnight mb-4">Experience</h2>
-          <ul class="space-y-4">
+        <section class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 md:p-8">
+          <div class="flex items-center justify-between gap-3 mb-4">
+            <h2 class="text-lg font-bold text-midnight">In progress</h2>
+            <span class="text-xs font-bold uppercase tracking-wider text-amber bg-amber/10 border border-amber/20 px-2.5 py-1 rounded-lg">
+              {{ provider.jobs_in_progress_count ?? inProgressJobs.length }}
+            </span>
+          </div>
+          <ul v-if="inProgressJobs.length" class="space-y-3">
             <li
-              v-for="exp in provider.experiences"
+              v-for="job in inProgressJobs"
+              :key="job.contract_id"
+              class="rounded-xl border border-amber/20 bg-amber/5 p-4"
+            >
+              <div class="flex flex-wrap items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <h3 class="font-bold text-midnight">{{ job.job_title || 'Contract' }}</h3>
+                  <p class="text-xs text-slate-500 mt-1">
+                    Started {{ formatWorkDate(job.started_at) }}
+                  </p>
+                </div>
+                <div class="text-right shrink-0">
+                  <span class="inline-block text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded border bg-amber/10 text-amber border-amber/20">
+                    Active
+                  </span>
+                  <p v-if="job.amount != null" class="text-sm font-bold text-midnight mt-2">
+                    {{ formatMoney(job.amount) }}
+                  </p>
+                </div>
+              </div>
+            </li>
+          </ul>
+          <p v-else class="text-slate-400 text-sm">No jobs in progress.</p>
+        </section>
+
+        <section class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 md:p-8">
+          <div class="flex items-center justify-between gap-3 mb-4">
+            <h2 class="text-lg font-bold text-midnight">Closed jobs</h2>
+            <span class="text-xs font-bold uppercase tracking-wider text-slate-500 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-lg">
+              {{ provider.jobs_closed_count ?? closedJobs.length }}
+            </span>
+          </div>
+          <ul v-if="closedJobs.length" class="space-y-4">
+            <li
+              v-for="job in closedJobs"
+              :key="job.contract_id"
+              class="rounded-xl border border-slate-200 bg-slate-50 p-4"
+            >
+              <div class="flex flex-wrap items-start justify-between gap-3">
+                <div class="min-w-0 flex-1">
+                  <h3 class="font-bold text-midnight">{{ job.job_title || 'Contract' }}</h3>
+                  <p class="text-xs text-slate-500 mt-1">
+                    <template v-if="job.completed_at">Closed {{ formatWorkDate(job.completed_at) }}</template>
+                    <template v-else-if="job.started_at">Started {{ formatWorkDate(job.started_at) }}</template>
+                  </p>
+                </div>
+                <div class="text-right shrink-0">
+                  <span
+                    :class="[
+                      'inline-block text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded border',
+                      job.status === 'TERMINATED'
+                        ? 'bg-slate-200/80 text-slate-600 border-slate-300'
+                        : 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20',
+                    ]"
+                  >
+                    {{ job.status === 'TERMINATED' ? 'Terminated' : 'Completed' }}
+                  </span>
+                  <p v-if="job.amount != null" class="text-sm font-bold text-midnight mt-2">
+                    {{ formatMoney(job.amount) }}
+                  </p>
+                </div>
+              </div>
+              <div
+                v-if="job.review"
+                class="mt-3 pt-3 border-t border-slate-200/80"
+              >
+                <div class="flex items-center gap-1 text-amber mb-1">
+                  <span
+                    v-for="i in 5"
+                    :key="i"
+                    class="material-symbols-outlined text-base"
+                    :class="i <= job.review.score ? 'text-amber' : 'text-slate-300'"
+                  >star</span>
+                  <span class="text-xs font-bold text-slate-500 ml-1">{{ job.review.score }}/5</span>
+                </div>
+                <p v-if="job.review.comment" class="text-sm text-slate-600 leading-relaxed">
+                  “{{ job.review.comment }}”
+                </p>
+                <p v-if="job.review.rater_name" class="text-xs text-slate-400 mt-1">
+                  — {{ job.review.rater_name }}
+                </p>
+              </div>
+              <p v-else class="mt-3 text-xs text-slate-400">No review for this job.</p>
+            </li>
+          </ul>
+          <p v-else class="text-slate-400 text-sm">No closed jobs yet.</p>
+        </section>
+
+        <section class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 md:p-8">
+          <h2 class="text-lg font-bold text-midnight mb-4">Experience</h2>
+          <ul v-if="experiences.length" class="space-y-4">
+            <li
+              v-for="exp in experiences"
               :key="exp.id"
               class="border-l-2 border-amber/30 pl-4"
             >
-              <h3 class="font-bold text-midnight">{{ exp.title }}</h3>
+              <div class="flex flex-wrap items-center gap-2">
+                <h3 class="font-bold text-midnight">{{ exp.title }}</h3>
+                <span
+                  v-if="exp.is_current"
+                  class="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded bg-amber/10 text-amber border border-amber/20"
+                >
+                  Current
+                </span>
+              </div>
               <p v-if="exp.company_name" class="text-sm text-slate-500">{{ exp.company_name }}</p>
+              <p v-if="exp.location" class="text-xs text-slate-400">{{ exp.location }}</p>
               <p v-if="exp.description" class="text-sm text-slate-600 mt-1">{{ exp.description }}</p>
               <p class="text-xs text-slate-400 mt-1">
                 {{ formatExpDate(exp.start_date) }} –
@@ -118,6 +243,7 @@
               </p>
             </li>
           </ul>
+          <p v-else class="text-slate-400 text-sm">No experience listed yet.</p>
         </section>
 
         <div class="flex flex-wrap gap-3">
@@ -137,7 +263,12 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { profilesService, type PublicProviderDetail } from '@/services/profiles'
+import { formatMoney } from '@/lib/utils'
+import {
+  profilesService,
+  type PublicProviderDetail,
+  type ProviderWorkItem,
+} from '@/services/profiles'
 import AppLayout from '@/components/AppLayout.vue'
 import Button from '@/components/ui/Button.vue'
 
@@ -159,6 +290,16 @@ const displaySkills = computed(() => {
   return provider.value.headline_skills || []
 })
 
+const experiences = computed(() => provider.value?.experiences ?? [])
+
+const inProgressJobs = computed((): ProviderWorkItem[] =>
+  provider.value?.work_history?.in_progress ?? []
+)
+
+const closedJobs = computed((): ProviderWorkItem[] =>
+  provider.value?.work_history?.closed ?? []
+)
+
 function formatMemberSince(raw: string) {
   return new Date(raw).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
 }
@@ -166,6 +307,11 @@ function formatMemberSince(raw: string) {
 function formatExpDate(raw: string) {
   if (!raw) return ''
   return new Date(raw).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+}
+
+function formatWorkDate(raw?: string | null) {
+  if (!raw) return '—'
+  return new Date(raw).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
 async function load() {
