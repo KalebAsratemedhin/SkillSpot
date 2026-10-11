@@ -193,26 +193,17 @@ class JobDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_object(self):
         job = super().get_object()
+        # Non-draft jobs are public (OPEN / IN_PROGRESS / COMPLETED / CANCELLED).
+        if job.status != Job.JobStatus.DRAFT:
+            return job
+
+        # Drafts: owner only
         user = self.request.user
-        authenticated = getattr(user, 'is_authenticated', False)
-
-        if job.status == Job.JobStatus.OPEN:
+        if (
+            getattr(user, 'is_authenticated', False)
+            and job.client_id == user.id
+        ):
             return job
-
-        if not authenticated:
-            raise NotFound()
-
-        if job.client_id == user.id:
-            return job
-
-        # Parties on in-progress (or completed) work: accepted provider
-        if job.status in (Job.JobStatus.IN_PROGRESS, Job.JobStatus.COMPLETED):
-            if job.applications.filter(
-                provider=user,
-                status=JobApplication.ApplicationStatus.ACCEPTED,
-            ).exists():
-                return job
-
         raise NotFound()
 
     def get_serializer_class(self):
@@ -388,9 +379,8 @@ class JobApplicationDetailView(generics.RetrieveUpdateDestroyAPIView):
                 application.reviewed_at = timezone.now()
                 application.save()
 
+                # Accept = interview step only; job stays OPEN until a contract exists.
                 if new_status == 'ACCEPTED':
-                    application.job.status = Job.JobStatus.IN_PROGRESS
-                    application.job.save()
                     enqueue_in_app_notification(
                         str(application.provider_id),
                         'Application accepted',
@@ -477,11 +467,7 @@ class JobInvitationDetailView(generics.RetrieveUpdateDestroyAPIView):
             invitation.status = new_status
             invitation.responded_at = timezone.now()
             invitation.save()
-
-            if new_status == 'ACCEPTED' and invitation.job:
-                invitation.job.status = Job.JobStatus.IN_PROGRESS
-                invitation.job.save()
-
+            # Accept = interview step only; job stays OPEN until a contract exists.
             return Response(JobInvitationSerializer(invitation).data)
 
         return Response(

@@ -218,7 +218,7 @@
                           class="text-xs font-medium px-2 py-1 rounded-full"
                           :class="app.status === 'ACCEPTED' ? 'bg-green-100 text-green-800' : app.status === 'REJECTED' ? 'bg-red-100 text-red-800' : 'bg-slate-100 text-slate-700'"
                         >
-                          {{ app.status }}
+                          {{ formatApplicationStatus(app.status) }}
                         </span>
                       </div>
 
@@ -232,7 +232,9 @@
                           <span class="material-symbols-outlined text-sm">{{ expandedProposalId === app.id ? 'expand_less' : 'description' }}</span>
                           {{ expandedProposalId === app.id ? 'Hide proposal' : 'View proposal' }}
                         </Button>
-                        <Button v-if="app.status === 'PENDING'" size="sm" @click="handleApplicationStatus(app.id, 'ACCEPTED')">Accept</Button>
+                        <Button v-if="app.status === 'PENDING'" size="sm" @click="handleApplicationStatus(app.id, 'ACCEPTED')">
+                          Accept to interview
+                        </Button>
                         <Button v-if="app.status === 'PENDING'" size="sm" variant="outline" @click="handleApplicationStatus(app.id, 'REJECTED')">Reject</Button>
                         <Button size="sm" variant="outline" :disabled="messageLoading === app.id" @click="startConversation(app)">
                           <span v-if="messageLoading === app.id" class="material-symbols-outlined animate-spin text-sm">refresh</span>
@@ -286,7 +288,7 @@
                           class="text-xs font-medium px-2 py-0.5 rounded-full"
                           :class="inv.status === 'PENDING' ? 'bg-amber/10 text-amber' : inv.status === 'ACCEPTED' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'"
                         >
-                          {{ inv.status }}
+                          {{ formatInvitationStatus(inv.status) }}
                         </span>
                         <Button
                           v-if="inv.status === 'ACCEPTED' && inv.provider"
@@ -509,12 +511,19 @@
               <CardHeader>
                 <CardTitle class="text-lg font-bold text-midnight flex items-center gap-2">
                   <span class="material-symbols-outlined text-amber text-xl">mail</span>
-                  You've been invited
+                  {{ providerInvitationAccepted ? 'Interview stage' : "You've been invited" }}
                 </CardTitle>
-                <p class="text-gray-600 text-sm mt-1">The client has invited you to this job. Accept or decline from your invitations, then you can message them here.</p>
+                <p class="text-gray-600 text-sm mt-1">
+                  <template v-if="providerInvitationAccepted">
+                    You accepted this invitation. You’re in the interview step — message the client. Work starts only after a contract is created.
+                  </template>
+                  <template v-else>
+                    The client invited you to this job. Accept to move to the interview step (this does not start the job), or decline from Invitations.
+                  </template>
+                </p>
               </CardHeader>
               <CardContent class="flex flex-col gap-3">
-                <router-link :to="{ name: 'applications', query: { tab: 'invitations' } }">
+                <router-link v-if="!providerInvitationAccepted" :to="{ name: 'applications', query: { tab: 'invitations' } }">
                   <Button variant="default" size="default" class="bg-amber text-midnight hover:bg-amber-dark">
                     <span class="material-symbols-outlined mr-2 text-lg">inbox</span>
                     View invitations
@@ -1006,6 +1015,10 @@ const invitationsForThisJob = computed(() => {
 /** True when current user (provider) has received an invitation for this job — they should not apply. */
 const providerHasInvitationForThisJob = computed(() => invitationsForThisJob.value.length > 0)
 
+const providerInvitationAccepted = computed(() =>
+  invitationsForThisJob.value.some((inv: { status?: string }) => inv.status === 'ACCEPTED')
+)
+
 const jobSkillOptions = computed(() => {
   const skills = jobsStore.currentJob?.required_skills || []
   return skills.filter((s): s is { id: string; name: string } => !!s?.id && !!s?.name)
@@ -1148,6 +1161,14 @@ function formatDate(dateString: string) {
 }
 
 function formatApplicationStatus(status: string) {
+  // ACCEPTED = interview step; job stays OPEN until a contract is created.
+  if (status === 'ACCEPTED') return 'Interview'
+  const normalized = status.replace(/_/g, ' ').toLowerCase()
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1)
+}
+
+function formatInvitationStatus(status: string) {
+  if (status === 'ACCEPTED') return 'Interview'
   const normalized = status.replace(/_/g, ' ').toLowerCase()
   return normalized.charAt(0).toUpperCase() + normalized.slice(1)
 }
@@ -1274,7 +1295,11 @@ async function handleApplicationStatus(applicationId: string, newStatus: 'ACCEPT
   try {
     await jobsStore.updateApplication(applicationId, { status: newStatus })
     await jobsStore.fetchApplications(jobsStore.currentJob.id)
-    toast.success(newStatus === 'ACCEPTED' ? 'Application accepted.' : 'Application rejected.')
+    toast.success(
+      newStatus === 'ACCEPTED'
+        ? 'Moved to interview. Create a contract when you’re ready to hire — that starts the job.'
+        : 'Application rejected.'
+    )
   } catch (err: any) {
     const msg = err.response?.data?.error ?? 'Failed to update application.'
     toast.error(msg)

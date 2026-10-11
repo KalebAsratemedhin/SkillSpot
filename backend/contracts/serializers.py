@@ -288,6 +288,12 @@ class ContractCreateSerializer(serializers.ModelSerializer):
             signer=provider
         )
 
+        # Hiring starts when a contract is created for the job (not on application/invite accept).
+        job = contract.job
+        if job is not None and job.status == Job.JobStatus.OPEN:
+            job.status = Job.JobStatus.IN_PROGRESS
+            job.save(update_fields=['status'])
+
         return contract
 
 
@@ -424,7 +430,8 @@ class ContractSignatureCreateSerializer(serializers.Serializer):
             contract.status = Contract.ContractStatus.ACTIVE
             contract.signed_at = timezone.now()
             contract.save(update_fields=['status', 'signed_at', 'updated_at'])
-            if contract.job_id:
+            # Safety: older flows may have created a contract while job stayed OPEN.
+            if contract.job_id and contract.job.status == Job.JobStatus.OPEN:
                 contract.job.status = Job.JobStatus.IN_PROGRESS
                 contract.job.save(update_fields=['status'])
 

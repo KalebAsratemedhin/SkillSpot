@@ -320,7 +320,7 @@ async function handleSubmit() {
     const res = await contractsService.create(payload)
     const contract = res.data
     if (contract?.id) {
-      toast.success('Contract created. Both parties can sign to start the job.')
+      toast.success('Contract created. The job moves to in progress once the contract is in place; both parties can sign next.')
       router.push(`/contracts/${contract.id}`)
     } else {
       toast.error('Contract was created but could not open it.')

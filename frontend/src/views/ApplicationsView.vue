@@ -75,7 +75,7 @@
                         app.status === 'WITHDRAWN' ? 'bg-slate-400/10 text-slate-600 border border-slate-400/20' : '',
                       ]"
                     >
-                      {{ app.status }}
+                      {{ formatHiringStatus(app.status) }}
                     </span>
                     <span class="text-slate-400 text-sm">{{ formatDate(app.applied_at || app.created_at) }}</span>
                   </div>
@@ -145,7 +145,7 @@
                         Message
                       </button>
                       <router-link
-                        v-if="authStore.isClient && app.status === 'PENDING' && getAppJobId(app) && getAppProviderId(app)"
+                        v-if="authStore.isClient && app.status === 'ACCEPTED' && getAppJobId(app) && getAppProviderId(app)"
                         :to="{ path: '/contracts/create', query: { job: getAppJobId(app), application: app.id, provider: getAppProviderId(app) } }"
                         class="inline-flex items-center gap-1.5 rounded-lg bg-amber px-3 py-2 text-sm font-semibold text-midnight hover:bg-amber-dark"
                       >
@@ -207,7 +207,7 @@
                         Message
                       </button>
                       <router-link
-                        v-if="authStore.isClient && app.status === 'PENDING' && getAppJobId(app) && getAppProviderId(app)"
+                        v-if="authStore.isClient && app.status === 'ACCEPTED' && getAppJobId(app) && getAppProviderId(app)"
                         :to="{ path: '/contracts/create', query: { job: getAppJobId(app), application: app.id, provider: getAppProviderId(app) } }"
                         class="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50"
                         @click="openDropdownId = null"
@@ -257,15 +257,40 @@
                         invitation.status === 'DECLINED' ? 'bg-red-500/10 text-red-600 border-red-500/20' : '',
                       ]"
                     >
-                      {{ invitation.status }}
+                      {{ formatHiringStatus(invitation.status) }}
                     </span>
                     <span class="text-slate-400 text-sm">
                       {{ formatDate(invitation.invited_at ?? invitation.created_at ?? '') }}
                     </span>
                   </div>
                   <h3 class="text-xl font-display font-bold text-midnight truncate">
-                    {{ getJobTitle(invitation.job) }}
+                    {{ invitationJobTitle(invitation) }}
                   </h3>
+                  <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-600">
+                    <span v-if="invitationBudget(invitation)" class="inline-flex items-center gap-1 font-semibold text-midnight">
+                      <span class="material-symbols-outlined text-amber text-base">payments</span>
+                      {{ invitationBudget(invitation) }}
+                    </span>
+                    <span v-if="invitation.client_name || invitation.client_email" class="inline-flex items-center gap-1 truncate">
+                      <span class="material-symbols-outlined text-slate-400 text-base">person</span>
+                      {{ invitation.client_name || invitation.client_email }}
+                    </span>
+                  </div>
+                  <div v-if="invitationSkills(invitation).length" class="flex flex-wrap gap-1.5">
+                    <span
+                      v-for="skill in invitationSkills(invitation).slice(0, 5)"
+                      :key="skill"
+                      class="px-2 py-0.5 text-xs font-medium rounded-md bg-amber/10 text-amber"
+                    >
+                      {{ skill }}
+                    </span>
+                    <span
+                      v-if="invitationSkills(invitation).length > 5"
+                      class="px-2 py-0.5 text-xs font-medium rounded-md bg-slate-100 text-slate-500"
+                    >
+                      +{{ invitationSkills(invitation).length - 5 }}
+                    </span>
+                  </div>
                   <p v-if="invitation.message" class="text-slate-600 text-sm leading-relaxed">
                     {{ invitation.message }}
                   </p>
@@ -318,7 +343,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useJobsStore } from '@/stores/jobs'
 import { useMessagingStore } from '@/stores/messaging'
-import type { JobApplication, JobInvitation } from '@/services/jobs'
+import { jobsService, type Job, type JobApplication, type JobInvitation } from '@/services/jobs'
 import AppLayout from '@/components/AppLayout.vue'
 import Card from '@/components/ui/Card.vue'
 import CardContent from '@/components/ui/CardContent.vue'
@@ -429,15 +454,61 @@ function formatRate(rate: number | string) {
   return Number.isNaN(n) ? '—' : '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
 }
 
-function getJobTitle(job: string | { title?: string } | any) {
-  if (typeof job === 'object' && job?.title) return job.title
-  return 'Job Invitation'
-}
+const invitationJobs = ref<Record<string, Job>>({})
 
 function getJobId(job: string | { id?: string } | any) {
   if (job == null) return null
   if (typeof job === 'string') return job
   return job?.id ?? null
+}
+
+function invitationJobTitle(inv: JobInvitation) {
+  const id = getJobId(inv.job)
+  const fromHydrated = id ? invitationJobs.value[id]?.title : undefined
+  const fromNested = typeof inv.job === 'object' && inv.job?.title ? inv.job.title : undefined
+  return (inv.job_title || inv.job_summary?.title || fromHydrated || fromNested || 'Job invitation').trim()
+}
+
+function invitationSkills(inv: JobInvitation): string[] {
+  const fromSummary = inv.job_summary?.required_skills?.map((s) => s.name).filter(Boolean) ?? []
+  if (fromSummary.length) return fromSummary
+  const id = getJobId(inv.job)
+  const job = id ? invitationJobs.value[id] : undefined
+  if (job?.required_skills?.length) return job.required_skills.map((s) => s.name).filter(Boolean)
+  if (job?.tags?.length) return job.tags
+  return []
+}
+
+function invitationBudget(inv: JobInvitation): string {
+  const id = getJobId(inv.job)
+  const job = id ? invitationJobs.value[id] : undefined
+  const min = inv.job_summary?.budget_min ?? job?.budget_min
+  const max = inv.job_summary?.budget_max ?? job?.budget_max
+  const schedule = inv.job_summary?.payment_schedule ?? job?.payment_schedule ?? job?.budget_type
+  if (min == null && max == null) return ''
+  const lo = Number(min ?? max ?? 0)
+  const hi = Number(max ?? min ?? 0)
+  const money = (n: number) =>
+    '$' + n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+  const hourly = schedule === 'HOURLY' || schedule === 'hourly'
+  const fixed = schedule === 'FIXED' || schedule === 'fixed'
+  if (hourly) return lo === hi ? `${money(lo)}/hr` : `${money(lo)} – ${money(hi)}/hr`
+  if (fixed) return `${money(hi || lo)} fixed`
+  return lo === hi ? money(lo) : `${money(lo)} – ${money(hi)}`
+}
+
+async function hydrateInvitationJobs(list: JobInvitation[]) {
+  const ids = [...new Set(list.map((inv) => getJobId(inv.job)).filter(Boolean) as string[])]
+  const missing = ids.filter((id) => !invitationJobs.value[id])
+  if (!missing.length) return
+  const results = await Promise.allSettled(missing.map((id) => jobsService.get(id)))
+  const next = { ...invitationJobs.value }
+  results.forEach((result, i) => {
+    if (result.status === 'fulfilled' && result.value.data?.id) {
+      next[missing[i]] = result.value.data
+    }
+  })
+  invitationJobs.value = next
 }
 
 function getProviderId(provider: string | { id?: string } | any) {
@@ -446,11 +517,18 @@ function getProviderId(provider: string | { id?: string } | any) {
   return provider?.id ?? null
 }
 
+function formatHiringStatus(status: string) {
+  // ACCEPTED = interview step; job stays OPEN until a contract is created (backend).
+  if (status === 'ACCEPTED') return 'Interview'
+  return status
+}
+
 async function handleAccept(id: string) {
   try {
     await jobsStore.updateInvitation(id, { status: 'ACCEPTED' })
     await jobsStore.fetchInvitations()
-    toast.success('Invitation accepted')
+    await hydrateInvitationJobs(jobsStore.invitations)
+    toast.success('Invitation accepted — you’re in the interview step. The job starts only after a contract is created.')
   } catch (err) {
     console.error('Failed to accept invitation:', err)
     toast.error('Failed to accept invitation')
@@ -461,6 +539,7 @@ async function handleDecline(id: string) {
   try {
     await jobsStore.updateInvitation(id, { status: 'DECLINED' })
     await jobsStore.fetchInvitations()
+    await hydrateInvitationJobs(jobsStore.invitations)
     toast.success('Invitation declined')
   } catch (err) {
     console.error('Failed to decline invitation:', err)
@@ -481,6 +560,7 @@ async function loadInvitations() {
   invitesLoading.value = true
   try {
     await jobsStore.fetchInvitations()
+    await hydrateInvitationJobs(jobsStore.invitations)
     invitesLoaded.value = true
   } finally {
     invitesLoading.value = false

@@ -160,6 +160,11 @@ export interface JobApplication {
 export interface JobInvitation {
   id: string
   job: string | { id?: string; title?: string }
+  /** Flat title from API (preferred over nested job.title). */
+  job_title?: string | null
+  client?: string
+  client_name?: string
+  client_email?: string
   provider: string
   provider_name?: string
   provider_email?: string
@@ -167,6 +172,18 @@ export interface JobInvitation {
   status: string
   created_at?: string
   invited_at?: string
+  responded_at?: string
+  /**
+   * Optional nested summary if/when backend embeds it.
+   * Until then the requests page may hydrate from GET /jobs/:id/.
+   */
+  job_summary?: {
+    title?: string
+    budget_min?: number | null
+    budget_max?: number | null
+    payment_schedule?: 'HOURLY' | 'FIXED' | string
+    required_skills?: { id: string; name: string }[]
+  } | null
 }
 
 export interface JobListParams {
