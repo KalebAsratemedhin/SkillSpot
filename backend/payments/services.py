@@ -52,6 +52,11 @@ def complete_payment(
             locked.stripe_transfer_id = stripe_transfer_id or ''
 
         if locked.status == Payment.PaymentStatus.COMPLETED:
+            logger.info(
+                'complete_payment: SKIP earnings (already COMPLETED) payment_id=%s recipient_id=%s',
+                locked.id,
+                locked.recipient_id,
+            )
             locked.save()
             payment.refresh_from_db()
             return payment, False
@@ -63,26 +68,25 @@ def complete_payment(
         credit = locked.provider_amount if locked.provider_amount is not None else locked.amount
         if credit is None:
             credit = Decimal('0')
+        logger.info(
+            'complete_payment: about to credit total_earnings += %s '
+            'payment_id=%s recipient_id=%s provider_amount=%s',
+            credit,
+            locked.id,
+            locked.recipient_id,
+            locked.provider_amount,
+        )
         rows = ServiceProviderProfile.objects.filter(
             profile__user_id=locked.recipient_id,
         ).update(
             total_earnings=F('total_earnings') + credit,
         )
-        if rows == 0:
-            logger.warning(
-                'complete_payment: no ServiceProviderProfile for recipient_id=%s '
-                'payment_id=%s credit=%s — total_earnings not updated',
-                locked.recipient_id,
-                locked.id,
-                credit,
-            )
-        else:
-            logger.info(
-                'complete_payment: credited total_earnings += %s for recipient_id=%s payment_id=%s',
-                credit,
-                locked.recipient_id,
-                locked.id,
-            )
+        logger.info(
+            'complete_payment: earnings update rows=%s payment_id=%s recipient_id=%s',
+            rows,
+            locked.id,
+            locked.recipient_id,
+        )
 
         PaymentTransaction.objects.create(
             payment=locked,

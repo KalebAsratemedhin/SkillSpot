@@ -704,7 +704,18 @@ def stripe_webhook(request):
                 except Exception:
                     payment = None
                 if not payment:
+                    logger.warning(
+                        '[Stripe webhook] checkout.session.completed payment not found id=%s',
+                        pid,
+                    )
                     continue
+                logger.info(
+                    '[Stripe webhook] checkout.session.completed → complete_payment '
+                    'payment_id=%s status=%s recipient_id=%s',
+                    payment.id,
+                    payment.status,
+                    payment.recipient_id,
+                )
                 _, newly = complete_payment(
                     payment,
                     stripe_payment_intent_id=payment_intent_id or None,
@@ -719,7 +730,8 @@ def stripe_webhook(request):
                 if newly:
                     completed_any = True
                 logger.info(
-                    '[Stripe webhook] checkout.session.completed Payment id=%s newly_completed=%s',
+                    '[Stripe webhook] checkout.session.completed done '
+                    'payment_id=%s newly_completed=%s',
                     payment.id,
                     newly,
                 )
@@ -748,6 +760,13 @@ def stripe_webhook(request):
                 latest = data.get('latest_charge') or ''
                 if isinstance(latest, dict):
                     latest = latest.get('id') or ''
+                logger.info(
+                    '[Stripe webhook] payment_intent.succeeded → complete_payment '
+                    'payment_id=%s status=%s recipient_id=%s',
+                    payment.id,
+                    payment.status,
+                    payment.recipient_id,
+                )
                 _, newly = complete_payment(
                     payment,
                     stripe_payment_intent_id=payment_intent_id,
@@ -756,7 +775,8 @@ def stripe_webhook(request):
                     details={'source': 'payment_intent.succeeded'},
                 )
                 logger.info(
-                    '[Stripe webhook] payment_intent.succeeded Payment id=%s newly_completed=%s',
+                    '[Stripe webhook] payment_intent.succeeded done '
+                    'payment_id=%s newly_completed=%s',
                     payment.id,
                     newly,
                 )
