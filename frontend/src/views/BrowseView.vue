@@ -194,16 +194,52 @@
         <div class="flex-1 min-w-0">
           <div class="flex items-center justify-between mb-4">
             <p class="text-sm text-slate-500">
-              <span v-if="loading && !hasResults">Searching…</span>
+              <span v-if="loading && !hasResults">Loading…</span>
               <span v-else-if="loading">Updating…</span>
               <span v-else>{{ totalCount }} result{{ totalCount === 1 ? '' : 's' }}</span>
             </p>
           </div>
 
-          <!-- Initial load for this tab only: compact inline spinner, not a full-page wipe -->
-          <div v-if="loading && !hasResults" class="flex items-center justify-center gap-2 py-12 text-slate-500">
-            <span class="material-symbols-outlined animate-spin text-2xl text-amber">progress_activity</span>
-            <span class="text-sm font-medium">Loading {{ tab === 'jobs' ? 'jobs' : 'providers' }}…</span>
+          <!-- First load for this tab: card skeletons matching the list layout -->
+          <div v-if="loading && !hasResults">
+            <div v-if="tab === 'jobs'" class="space-y-3">
+              <div
+                v-for="i in 4"
+                :key="i"
+                class="rounded-xl border border-slate-200 bg-white p-5 md:p-6 animate-pulse"
+              >
+                <div class="h-5 w-2/3 bg-slate-200 rounded-lg mb-3" />
+                <div class="flex gap-3 mb-3">
+                  <div class="h-3 w-24 bg-slate-200 rounded" />
+                  <div class="h-3 w-32 bg-slate-200 rounded" />
+                </div>
+                <SectionLoader :lines="2" compact />
+                <div class="flex gap-2 mt-3">
+                  <div class="h-5 w-16 bg-slate-200 rounded-md" />
+                  <div class="h-5 w-20 bg-slate-200 rounded-md" />
+                </div>
+              </div>
+            </div>
+            <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div
+                v-for="i in 4"
+                :key="i"
+                class="rounded-2xl border border-slate-200 bg-white p-5 animate-pulse"
+              >
+                <div class="flex gap-4">
+                  <div class="size-14 rounded-xl bg-slate-200 shrink-0" />
+                  <div class="flex-1 min-w-0 space-y-2">
+                    <div class="h-4 w-2/3 bg-slate-200 rounded" />
+                    <div class="h-3 w-1/3 bg-slate-200 rounded" />
+                    <div class="flex gap-1.5 pt-1">
+                      <div class="h-5 w-14 bg-slate-200 rounded-md" />
+                      <div class="h-5 w-16 bg-slate-200 rounded-md" />
+                    </div>
+                    <div class="h-3 w-1/2 bg-slate-200 rounded mt-2" />
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div
@@ -300,6 +336,7 @@ import { useAuthStore } from '@/stores/auth'
 import { jobsService, type Job } from '@/services/jobs'
 import { profilesService, type PublicProvider, type Tag } from '@/services/profiles'
 import AppLayout from '@/components/AppLayout.vue'
+import SectionLoader from '@/components/SectionLoader.vue'
 import UserAvatar from '@/components/UserAvatar.vue'
 import JobCard from '@/components/JobCard.vue'
 import PaginationBar from '@/components/PaginationBar.vue'

@@ -1,13 +1,19 @@
 """
 Payment completion side effects shared by Stripe webhook + confirm endpoints.
 """
+import logging
+from decimal import Decimal
+
 from django.db import transaction
 from django.db.models import F
 from django.utils import timezone
 
 from contracts.models import ContractMilestone, TimeEntry
 from notifications.tasks import enqueue_in_app_notification
+from profiles.models import ServiceProviderProfile
 from .models import Payment, PaymentTransaction
+
+logger = logging.getLogger(__name__)
 
 
 def complete_payment(
@@ -27,7 +33,6 @@ def complete_payment(
     Returns (payment, newly_completed: bool).
     """
     details = details or {}
-    already_done = payment.status == Payment.PaymentStatus.COMPLETED
 
     if stripe_payment_intent_id:
         payment.stripe_payment_intent_id = stripe_payment_intent_id
@@ -36,44 +41,74 @@ def complete_payment(
     if stripe_transfer_id is not None:
         payment.stripe_transfer_id = stripe_transfer_id or ''
 
-    if already_done:
-        payment.save()
-        return payment, False
-
     with transaction.atomic():
-        payment.status = Payment.PaymentStatus.COMPLETED
-        payment.completed_at = timezone.now()
-        payment.save()
+        locked = Payment.objects.select_for_update().get(pk=payment.pk)
 
-        credit = payment.provider_amount if payment.provider_amount is not None else payment.amount
-        profile = getattr(getattr(payment.recipient, 'profile', None), 'provider_profile', None)
-        if profile is not None and credit is not None:
-            type(profile).objects.filter(pk=profile.pk).update(
-                total_earnings=F('total_earnings') + credit,
+        if stripe_payment_intent_id:
+            locked.stripe_payment_intent_id = stripe_payment_intent_id
+        if stripe_charge_id is not None:
+            locked.stripe_charge_id = stripe_charge_id or ''
+        if stripe_transfer_id is not None:
+            locked.stripe_transfer_id = stripe_transfer_id or ''
+
+        if locked.status == Payment.PaymentStatus.COMPLETED:
+            locked.save()
+            payment.refresh_from_db()
+            return payment, False
+
+        locked.status = Payment.PaymentStatus.COMPLETED
+        locked.completed_at = timezone.now()
+        locked.save()
+
+        credit = locked.provider_amount if locked.provider_amount is not None else locked.amount
+        if credit is None:
+            credit = Decimal('0')
+        rows = ServiceProviderProfile.objects.filter(
+            profile__user_id=locked.recipient_id,
+        ).update(
+            total_earnings=F('total_earnings') + credit,
+        )
+        if rows == 0:
+            logger.warning(
+                'complete_payment: no ServiceProviderProfile for recipient_id=%s '
+                'payment_id=%s credit=%s — total_earnings not updated',
+                locked.recipient_id,
+                locked.id,
+                credit,
+            )
+        else:
+            logger.info(
+                'complete_payment: credited total_earnings += %s for recipient_id=%s payment_id=%s',
+                credit,
+                locked.recipient_id,
+                locked.id,
             )
 
         PaymentTransaction.objects.create(
-            payment=payment,
+            payment=locked,
             transaction_type=PaymentTransaction.TransactionType.COMPLETED,
-            stripe_event_id=stripe_event_id or payment.stripe_payment_intent_id or '',
+            stripe_event_id=stripe_event_id or locked.stripe_payment_intent_id or '',
             details={
-                'charge_id': payment.stripe_charge_id,
-                'transfer_id': payment.stripe_transfer_id,
-                'provider_amount': str(payment.provider_amount or ''),
-                'platform_fee': str(payment.platform_fee or ''),
+                'charge_id': locked.stripe_charge_id,
+                'transfer_id': locked.stripe_transfer_id,
+                'provider_amount': str(locked.provider_amount or ''),
+                'platform_fee': str(locked.platform_fee or ''),
+                'earnings_credit': str(credit),
+                'earnings_rows_updated': rows,
                 **details,
             },
         )
 
-        if payment.milestone_id:
-            payment.milestone.status = ContractMilestone.MilestoneStatus.COMPLETED
-            payment.milestone.completed_at = timezone.now()
-            payment.milestone.save(update_fields=['status', 'completed_at', 'updated_at'])
+        if locked.milestone_id:
+            locked.milestone.status = ContractMilestone.MilestoneStatus.COMPLETED
+            locked.milestone.completed_at = timezone.now()
+            locked.milestone.save(update_fields=['status', 'completed_at', 'updated_at'])
 
-        if payment.time_entry_id:
-            payment.time_entry.status = TimeEntry.TimeEntryStatus.PAID
-            payment.time_entry.save(update_fields=['status', 'updated_at'])
+        if locked.time_entry_id:
+            locked.time_entry.status = TimeEntry.TimeEntryStatus.PAID
+            locked.time_entry.save(update_fields=['status', 'updated_at'])
 
+    payment.refresh_from_db()
     enqueue_in_app_notification(
         str(payment.recipient_id),
         'Payment received',
