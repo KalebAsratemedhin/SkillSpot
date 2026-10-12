@@ -51,21 +51,6 @@
                     {{ contract.payment_schedule === 'HOURLY' ? 'Hourly' : 'Fixed' }}
                   </span>
                 </div>
-                <div v-if="contractSkills(contract).length" class="flex flex-wrap gap-1.5">
-                  <span
-                    v-for="skill in contractSkills(contract).slice(0, 5)"
-                    :key="skill"
-                    class="px-2 py-0.5 text-xs font-medium rounded-md bg-amber/10 text-amber"
-                  >
-                    {{ skill }}
-                  </span>
-                  <span
-                    v-if="contractSkills(contract).length > 5"
-                    class="px-2 py-0.5 text-xs font-medium rounded-md bg-slate-100 text-slate-500"
-                  >
-                    +{{ contractSkills(contract).length - 5 }}
-                  </span>
-                </div>
               </div>
               <div class="flex md:flex-col items-center md:items-end gap-2 shrink-0">
                 <Button
@@ -99,7 +84,6 @@
 import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { contractsService, type Contract } from '@/services/contracts'
-import { jobsService, type Job } from '@/services/jobs'
 import AppLayout from '@/components/AppLayout.vue'
 import SectionLoader from '@/components/SectionLoader.vue'
 import Card from '@/components/ui/Card.vue'
@@ -109,7 +93,6 @@ import PaginationBar from '@/components/PaginationBar.vue'
 
 const authStore = useAuthStore()
 const contracts = ref<Contract[]>([])
-const contractJobs = ref<Record<string, Job>>({})
 const totalCount = ref(0)
 const loading = ref(false)
 const currentPage = ref(1)
@@ -138,18 +121,10 @@ function statusClass(status: string) {
   return 'bg-slate-100 text-slate-700 border-slate-200'
 }
 
-function jobIdOf(contract: Contract): string | null {
-  const j = contract.job
-  if (!j) return null
-  if (typeof j === 'string') return j
-  return null
-}
-
 function contractTitle(contract: Contract) {
   return (
     contract.title?.trim() ||
     contract.job_title?.trim() ||
-    (jobIdOf(contract) ? contractJobs.value[jobIdOf(contract)!]?.title : '') ||
     `Contract #${contract.id.slice(0, 8)}`
   )
 }
@@ -185,28 +160,6 @@ function counterpartyLabel(contract: Contract) {
   return name ? `Client · ${name}` : ''
 }
 
-function contractSkills(contract: Contract): string[] {
-  const id = jobIdOf(contract)
-  const job = id ? contractJobs.value[id] : undefined
-  if (job?.required_skills?.length) return job.required_skills.map((s) => s.name).filter(Boolean)
-  if (job?.tags?.length) return job.tags
-  return []
-}
-
-async function hydrateContractJobs(list: Contract[]) {
-  const ids = [...new Set(list.map(jobIdOf).filter(Boolean) as string[])]
-  const missing = ids.filter((id) => !contractJobs.value[id])
-  if (!missing.length) return
-  const results = await Promise.allSettled(missing.map((id) => jobsService.get(id)))
-  const next = { ...contractJobs.value }
-  results.forEach((result, i) => {
-    if (result.status === 'fulfilled' && result.value.data?.id) {
-      next[missing[i]] = result.value.data
-    }
-  })
-  contractJobs.value = next
-}
-
 async function fetchContracts() {
   loading.value = true
   try {
@@ -216,7 +169,6 @@ async function fetchContracts() {
     })
     contracts.value = response.data.results || []
     totalCount.value = response.data.count ?? 0
-    await hydrateContractJobs(contracts.value)
   } catch (err) {
     console.error('Failed to fetch contracts:', err)
     contracts.value = []

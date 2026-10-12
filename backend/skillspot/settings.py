@@ -66,8 +66,10 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
-    'cloudinary_storage',
+    # staticfiles before cloudinary_storage so collectstatic is Django/WhiteNoise,
+    # not cloudinary_storage's override (media still uses Cloudinary via STORAGES).
     'django.contrib.staticfiles',
+    'cloudinary_storage',
     'cloudinary',
 
     # third party
@@ -208,15 +210,18 @@ CLOUDINARY_STORAGE = {
     'API_KEY': CLOUDINARY_API_KEY,
     'API_SECRET': CLOUDINARY_API_SECRET,
 }
-# default = images (avatars); message attachments use RawMediaCloudinaryStorage
+# default = images (avatars); message attachments use RawMediaCloudinaryStorage.
+# Static: plain storage at collect time (reliable in Docker); WhiteNoise middleware
+# still serves STATIC_ROOT and can compress responses.
 STORAGES = {
     'default': {
         'BACKEND': 'cloudinary_storage.storage.MediaCloudinaryStorage',
     },
     'staticfiles': {
-        'BACKEND': 'whitenoise.storage.CompressedStaticFilesStorage',
+        'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage',
     },
 }
+STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.StaticFilesStorage'
 
 # REST Framework Configuration
 REST_FRAMEWORK = {

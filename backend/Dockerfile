@@ -23,9 +23,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Collect static at build time (Whitenoise serves from STATIC_ROOT).
-# Dummy SECRET_KEY is enough; collectstatic does not need a real database.
+# Placeholders only — real CLOUDINARY_* / SECRET_KEY come from env at runtime.
 RUN SECRET_KEY=build-time-only \
     DEBUG=False \
+    CLOUDINARY_CLOUD_NAME=build \
+    CLOUDINARY_API_KEY=build \
+    CLOUDINARY_API_SECRET=build \
     python manage.py collectstatic --noinput
 
 EXPOSE 8000

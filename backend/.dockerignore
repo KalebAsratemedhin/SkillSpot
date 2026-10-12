@@ -19,5 +19,5 @@ db.sqlite3
 .gitignore
 .cache
 
-# Media (mounted as volume in compose)
+# Local media leftovers (uploads go to Cloudinary)
 media/

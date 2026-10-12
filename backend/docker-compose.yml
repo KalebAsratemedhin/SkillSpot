@@ -1,7 +1,11 @@
 # Local full stack: Postgres + Redis + app (Celery + Daphne in the app container).
 # From backend/: docker compose up --build
 #
-# Production: build/run the Dockerfile alone with DATABASE_URL + REDIS_URL (e.g. Upstash).
+# Requires a .env next to this file with at least:
+#   SECRET_KEY, CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET
+# Do not duplicate keys in .env — Compose uses the first value for ${VAR} interpolation.
+#
+# Production: build/run the Dockerfile alone with DATABASE_URL + REDIS_URL + Cloudinary, etc.
 
 services:
   db:
@@ -56,14 +60,20 @@ services:
     env_file:
       - .env
     environment:
-      # Compose network hostnames override any localhost URLs in .env
+      # Service DNS names on the compose network (override localhost URLs from .env)
       DATABASE_URL: postgres://${POSTGRES_USER:-skillspot}:${POSTGRES_PASSWORD:-skillspot}@db:5432/${POSTGRES_DB:-skillspot}
       REDIS_URL: redis://redis:6379/0
-      SECRET_KEY: ${SECRET_KEY:-dev-only-change-me}
+      SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env}
       DEBUG: ${DEBUG:-True}
       ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1,web}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
       PORT: "8000"
+      CELERY_CONCURRENCY: ${CELERY_CONCURRENCY:-1}
+      DB_CONN_MAX_AGE: ${DB_CONN_MAX_AGE:-600}
+      # Required — empty values fail Django at startup
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:?Set CLOUDINARY_CLOUD_NAME in .env}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:?Set CLOUDINARY_API_KEY in .env}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:?Set CLOUDINARY_API_SECRET in .env}
     depends_on:
       db:
         condition: service_healthy
