@@ -1,6 +1,7 @@
 """
 Message write path: persist, update denormalized counters/previews, fan out.
 """
+from django.db import IntegrityError
 from django.db.models import F
 from django.utils import timezone
 
@@ -13,6 +14,43 @@ from .realtime import (
 
 
 MAX_MESSAGE_LENGTH = 5000
+
+
+def ensure_conversation_between(user_a, user_b, job=None) -> Conversation:
+    """
+    Return the unique pair conversation for two users; create if missing.
+    participant1/participant2 are ordered by user UUID (same as ConversationCreateSerializer).
+    Existing chats are left unchanged (job is only set on create).
+    """
+    if user_a is None or user_b is None:
+        raise ValueError('Both users are required.')
+    if user_a.id == user_b.id:
+        raise ValueError('Cannot create a conversation with one user.')
+
+    if user_a.id > user_b.id:
+        participant1, participant2 = user_b, user_a
+    else:
+        participant1, participant2 = user_a, user_b
+
+    existing = Conversation.objects.filter(
+        participant1=participant1,
+        participant2=participant2,
+    ).first()
+    if existing is not None:
+        return existing
+
+    try:
+        return Conversation.objects.create(
+            participant1=participant1,
+            participant2=participant2,
+            job=job,
+        )
+    except IntegrityError:
+        # Concurrent create for the same pair.
+        return Conversation.objects.get(
+            participant1=participant1,
+            participant2=participant2,
+        )
 
 
 def create_and_broadcast_message(

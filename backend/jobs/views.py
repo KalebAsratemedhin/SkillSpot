@@ -7,6 +7,7 @@ from django.db.models import Case, IntegerField, Prefetch, Q, Value, When
 from django.http import Http404
 from django.utils import timezone
 from skillspot.cache_utils import job_list_cache_key, JOB_LIST_TIMEOUT
+from messaging.services import ensure_conversation_between
 from notifications.tasks import enqueue_in_app_notification
 from .models import Job, JobApplication, JobInvitation
 from .serializers import (
@@ -381,6 +382,11 @@ class JobApplicationDetailView(generics.RetrieveUpdateDestroyAPIView):
 
                 # Accept = interview step only; job stays OPEN until a contract exists.
                 if new_status == 'ACCEPTED':
+                    ensure_conversation_between(
+                        application.job.client,
+                        application.provider,
+                        job=application.job,
+                    )
                     enqueue_in_app_notification(
                         str(application.provider_id),
                         'Application accepted',
@@ -439,8 +445,6 @@ class JobInvitationListCreateView(generics.ListCreateAPIView):
             link=f'/jobs/{invitation.job_id}/',
             actor_id=str(self.request.user.id),
         )
-        # Do not auto-create a chat room on invite — messaging is explicit / per user pair.
-
 class JobInvitationDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = JobInvitationSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -467,7 +471,13 @@ class JobInvitationDetailView(generics.RetrieveUpdateDestroyAPIView):
             invitation.status = new_status
             invitation.responded_at = timezone.now()
             invitation.save()
-            # Accept = interview step only; job stays OPEN until a contract exists.
+            # Accept = interview step; open (or reuse) pair chat for messaging.
+            if new_status == 'ACCEPTED':
+                ensure_conversation_between(
+                    invitation.client,
+                    invitation.provider,
+                    job=invitation.job,
+                )
             return Response(JobInvitationSerializer(invitation).data)
 
         return Response(
