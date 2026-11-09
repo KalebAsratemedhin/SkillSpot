@@ -173,21 +173,22 @@ const router = createRouter({
 
 router.beforeEach(async (to, _from, next) => {
   const authStore = useAuthStore()
-  
-  if (!authStore.user && authStore.accessToken) {
+
+  const needsAuthCertainty = !!(to.meta.requiresAuth || to.meta.requiresGuest)
+  if (needsAuthCertainty && authStore.accessToken && !authStore.user) {
     await authStore.initialize()
   }
-  
+
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
     next({ name: 'login', query: { redirect: to.fullPath } })
     return
   }
-  
+
   if (to.meta.requiresGuest && authStore.isAuthenticated) {
     next({ name: 'dashboard' })
     return
   }
-  
+
   next()
 })
 

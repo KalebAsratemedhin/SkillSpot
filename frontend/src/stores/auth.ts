@@ -81,10 +81,16 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  let initializePromise: Promise<void> | null = null
+
   async function initialize() {
-    if (accessToken.value) {
-      await fetchUser()
+    if (!accessToken.value || user.value) return
+    if (!initializePromise) {
+      initializePromise = fetchUser().finally(() => {
+        initializePromise = null
+      })
     }
+    await initializePromise
   }
 
   return {
